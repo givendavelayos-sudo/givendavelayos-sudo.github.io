@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512">
+  <!-- Power: two-tone paw in dog-coat colors (caramel top, cream bottom). -->
+  <defs>
+    <linearGradient id="coat" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e9954a"/>
+      <stop offset="1" stop-color="#9c4f1f"/>
+    </linearGradient>
+    <clipPath id="shape"><rect width="512" height="512" rx="114"/></clipPath>
+    <clipPath id="band"><path d="M0 330 C140 290 372 290 512 330 V512 H0 Z"/></clipPath>
+    <clipPath id="top"><path d="M0 0 H512 V330 C372 290 140 290 0 330 Z"/></clipPath>
+    <g id="paw">
+      <path d="M256 262 c-58 0 -112 52 -112 102 c0 34 26 50 56 46 c22 -3 38 -14 56 -14 s34 11 56 14 c30 4 56 -12 56 -46 c0 -50 -54 -102 -112 -102 z"/>
+      <ellipse cx="146" cy="232" rx="40" ry="48" transform="rotate(-18 146 232)"/>
+      <ellipse cx="210" cy="152" rx="42" ry="54" transform="rotate(-6 210 152)"/>
+      <ellipse cx="302" cy="152" rx="42" ry="54" transform="rotate(6 302 152)"/>
+      <ellipse cx="366" cy="232" rx="40" ry="48" transform="rotate(18 366 232)"/>
+    </g>
+  </defs>
+  <g clip-path="url(#shape)">
+    <rect width="512" height="512" fill="url(#coat)"/>
+    <path d="M0 330 C140 290 372 290 512 330 V512 H0 Z" fill="#fff8ef"/>
+    <use href="#paw" xlink:href="#paw" fill="#fff8ef" clip-path="url(#top)"/>
+    <use href="#paw" xlink:href="#paw" fill="#b8642a" clip-path="url(#band)"/>
+  </g>
+</svg>
