@@ -33,7 +33,7 @@ test('Wednesday handout cycle covers the following Mon–Sun week', () => {
   assert.deepEqual(w11.map(h => h.subject).sort(), ['Calculus 1', 'Physics']);
   assert.equal(w11.find(h => h.subject === 'Calculus 1').sessions.length, 2);
   assert.equal(w11[0].cutoff, mk(2026, 11, 11, 17, 0));
-  assert.equal(w11[0].cutoffVerified, false, 'cutoff time unverified until confirmed');
+  assert.equal(w11[0].cutoffVerified, true, 'confirmed 8 PM rule; this test overrides the time to 17:00');
   assert.ok(cyc.some(h => h.cutoffKey === '2026-11-18' && h.subject === 'Statics'));
   // past cutoff still shown while unsubmitted, hidden once submitted
   assert.ok(cyc.some(h => h.cutoffKey === '2026-11-04'));
@@ -317,4 +317,27 @@ test('readiness logged on a sheet week carries over to the imported class', () =
   const state = { units, readiness: { [`u:${ff1.key}`]: { slides_draft: now } }, sessions: [sess('r', 'Fluid Flow 1', mk(2026, 11, 16, 8))] };
   const item = E.teachingItems(state).find(i => i.id === 'r');
   assert.equal(E.readiness(item, state).done, 1);
+});
+
+test('confirmed rules: 8 PM cutoffs, handouts only for lead weeks, lead exam on teaching-week Wednesday, lead weeks online', () => {
+  const now = mk(2026, 11, 6, 9);
+  const { units } = S.parseTopicGrid(grid, { initials: 'GDL', now });
+  const state = { units, sessions: [sess('r', 'Fluid Flow 2', mk(2026, 11, 23, 8))] }; // real class in a SUPPORT week
+  const cyc = E.handoutCycles(state, now, { ahead: 6 });
+  assert.deepEqual([...new Set(cyc.map(h => h.subject))].sort(), ['Fluid Flow 1', 'Kinetics 1']);
+  const ff1 = cyc.find(h => h.subject === 'Fluid Flow 1');
+  assert.equal(ff1.cutoff, mk(2026, 11, 11, 20)); // Wednesday before the teaching week, 8 PM
+  const ex = E.leadExams(state);
+  assert.deepEqual(ex.map(e => [e.subject, E.dayKey(e.due), E.fmtTime(e.due)]), [['Fluid Flow 1', '2026-11-18', '8:00 PM'], ['Kinetics 1', '2026-12-09', '8:00 PM']]);
+  const p = E.plan(state, now);
+  assert.ok(p.open.some(t => t.id === `as:${ex[0].id}:questions`));
+  assert.ok(E.deadlines(state, now, 10).some(d => d.kind === 'exam' && d.title === 'Exam: Fluid Flow 1'));
+  const lead = E.unitItems(state).find(u => u.subject === 'Fluid Flow 1');
+  assert.equal(lead.format, 'online');
+  assert.ok(E.readiness(lead, state).rows.some(r => r.id === 'tech'));
+  assert.equal(E.unitItems(state).find(u => u.subject === 'Fluid Flow 2').format, 'in_person');
+  assert.equal(lead.section, 'Slot 1');
+  // exam progress persists by id
+  state.exams = { [ex[0].id]: { stages: { plan: now, questions: now } } };
+  assert.ok(E.plan(state, now).tasks.find(t => t.id === `as:${ex[0].id}:questions`).done);
 });

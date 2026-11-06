@@ -19,10 +19,14 @@ Core loop: **Sources → Planner → Today card → you confirm work → Journey
 | **Evaluations** (`hub.gertcrev.com/admin/evaluations?...`) | Behind login; structure not yet seen. | Paste import → review/edit → save. Emails & long IDs masked; no student names stored. | Same options as schedule. |
 | **Messenger group chat** | Out of scope (you monitor it). | — | — |
 
-**Wednesday rule:** confirmed by you. **Cutoff time:** *unknown* → defaults to 17:00 and is shown as **unverified**
-until confirmed in Sources → Rules. **Covered week:** assumed = the Mon–Sun week starting 5 days after the
-Wednesday (configurable `handoutWeekStartOffset`). **Which roles need handouts:** *unknown* → lead + support, flagged.
-**Lead duties beyond the PowerPoint:** not invented; you add confirmed ones.
+**Confirmed rules (user, Nov 6):**
+- Wednesday deadlines are **8:00 PM**.
+- **Only lead instructors create handouts.** The handout is due the **Wednesday before** the teaching week.
+- The lead also submits the **exam by the Wednesday of the teaching week**, 8 PM.
+- Lead instructors teach **online**; support weeks are mostly **in person**.
+- Sheet rows 1–5 are the **partner slots** teaching that week (shown as “Slot n”).
+- Lead PowerPoint finalized 7 days before the week (earlier statement).
+- Further lead duties are not invented; add confirmed ones in Work.
 
 ## 3. Architecture (MVP → target)
 

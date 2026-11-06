@@ -13,11 +13,11 @@ language (deep-green palette, elevated cards, gradient hero card, glass tab bar,
 |---|---|
 | **Lead-instructor sheet sync** (Google Sheets API v4, read-only, reads cell colours) | ✅ Neon-blue cell with your initials → **Lead**; any other colour → **Support**. History of changes (e.g. support → lead). |
 | **Lead PowerPoint deadline** | ✅ Finalized 7 days before the teaching week (your stated rule, configurable), draft target 9 days before. |
-| **Wednesday handouts** | ✅ Every Wednesday cutoff is matched to the *following* week's topics; 7 tracked stages; Mon/Tue *suggested* milestones; **ready ≠ submitted**; submission only on your confirmation (with time + optional evidence); holiday flags; moved/skipped cutoffs. |
+| **Wednesday handouts** | ✅ Lead weeks only (confirmed). Due the Wednesday *before* the teaching week at 8 PM (confirmed); 7 tracked stages; Mon/Tue *suggested* milestones; **ready ≠ submitted**; submission only on your confirmation (with time + optional evidence); holiday flags; moved/skipped cutoffs. |
 | **Class schedule (hub)** | ✅ Paste your hub “My Schedule” week (or import CSV/.ics) → review → merge with change detection: added / moved / cancelled / *missing (unconfirmed)*; no duplicates; Asia/Manila. |
 | **Lecture readiness** | ✅ 5 dimensions (materials, accuracy, mastery, delivery, logistics), templates for in-person / online (OBS, mic, platform) / review / lead week / support week. Score = confirmed items ÷ template items. Unconfirmed is shown as unconfirmed, never as done. |
 | **Planner** | ✅ One ranked list across readiness, handouts, lead PowerPoints, assessments and your confirmed lead duties: official deadlines, suggested targets, effort, dependencies, daily capacity. |
-| **Assessments & exams** | ✅ 7-stage workflow, backward-planned “start by” date from effort + capacity, revision requests, verified/unverified due dates. |
+| **Assessments & exams** | ✅ **Lead weeks automatically get an exam due that week's Wednesday, 8 PM** (confirmed). Plus manual ones: 7-stage workflow, backward-planned “start by” date from effort + capacity, revision requests, verified/unverified due dates. |
 | **Punctuality** | ✅ Leave-by / be-online-by times, “I'm here” arrival logging (early / on time / late), conflict & tight-transition warnings. |
 | **Evaluations** | ✅ Paste from the hub (or enter manually) → review → save. Criterion trends, weakest areas, **confirmed scores separated from keyword “interpretation”**, development plan you can adopt and track. Emails/ID numbers masked. |
 | **Excellence Journey** | ✅ 8 dimensions; **leading** indicators from your own logs vs **outcome** evaluation scores; “no data yet” instead of assumptions. |
@@ -46,7 +46,7 @@ Add a custom domain via Cloudflare DNS (e.g. `ace.<your-domain>`). Then on iPhon
    restrict to **Sheets API** and to your Ace domain (HTTP referrer). Paste it in Ace; it is stored only on the device.
    The sheet must be shared as **Anyone with the link → Viewer**. Tap **Sync now**.
 3. **Sources → Class schedule:** tap *This week*, sign in to the hub, select all, copy, back in Ace tap **Paste schedule**.
-4. **Sources → Rules:** confirm the real **Wednesday cutoff time** and whether **support weeks** need a handout.
+4. **Sources → Rules:** check buffers and travel time (cutoffs, handout and exam rules are already set from your answers).
 5. **Growth:** paste your evaluation results.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for decisions and [`docs/PROGRESS.md`](docs/PROGRESS.md) for handoff notes.

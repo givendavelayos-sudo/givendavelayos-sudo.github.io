@@ -6,7 +6,7 @@ const KEY = 'ace.v1', GKEY = 'ace.gkey';
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/13n5Hfh216lruqi4I4wzNvIxEvPX4wkTp83bbMNF3boQ/edit?usp=sharing';
 const HUB = { schedule: 'https://hub.gertcrev.com/admin/group-chat/my-schedule', evals: 'https://hub.gertcrev.com/admin/evaluations?show=1&instructor=a5a7af21-c35f-4dd8-b87c-d1c9a35ada32&type=&batch=&section=&program=' };
 const blank = () => ({ v: 1, identity: { name: '', initials: 'GDL', email: '' }, cfg: { initials: 'GDL' }, sources: { schedule: {}, sheet: { url: SHEET_URL }, evals: {} },
-  sessions: [], units: [], unitHistory: [], changes: [], readiness: {}, arrivals: {}, handouts: {}, assessments: [], duties: [], evals: [], practices: [], snooze: {}, notes: {}, notified: {} });
+  sessions: [], units: [], unitHistory: [], changes: [], readiness: {}, arrivals: {}, handouts: {}, exams: {}, assessments: [], duties: [], evals: [], practices: [], snooze: {}, notes: {}, notified: {} });
 let state;
 try { state = { ...blank(), ...JSON.parse(localStorage.getItem(KEY) || 'null') }; } catch { state = blank(); }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { toast('Could not save on this device'); } };
@@ -45,6 +45,12 @@ function srcBadge(src) {
 }
 
 /* ================================================================ actions */
+// Manual assessments live in state.assessments; auto lead exams keep their progress in state.exams[id].
+function assessRec(id) {
+  const m = state.assessments.find(a => a.id === id); if (m) return m;
+  if (!E.leadExams(state).some(e => e.id === id)) return null;
+  return (state.exams ||= {})[id] ||= { stages: {} };
+}
 function markTask(id, on = true) {
   const t = now(), parts = id.split(':'), last = parts.at(-1);
   if (id.startsWith('rd:')) { const sid = id.slice(3, id.lastIndexOf(':')); (state.readiness[sid] ||= {}); on ? state.readiness[sid][last] = t : delete state.readiness[sid][last]; }
@@ -53,7 +59,7 @@ function markTask(id, on = true) {
     if (last === 'submit') return confirmSubmit(hid);
     h.stages ||= {}; on ? h.stages[last] = t : delete h.stages[last];
   } else if (id.startsWith('as:')) {
-    const a = state.assessments.find(a => a.id === parts[1]); if (!a) return;
+    const a = assessRec(parts[1]); if (!a) return;
     if (last === 'revision') { if (a.revision) a.revision.doneAt = on ? t : null; }
     else if (last === 'submit' && on) return confirmAssessSubmit(a.id);
     else { a.stages ||= {}; on ? a.stages[last] = t : delete a.stages[last]; }
@@ -233,10 +239,10 @@ function work() {
     <button class="btn ghost sm" style="margin-top:10px" data-a="add-duty">${ico('plus', 16)} Add responsibility</button></div>`;
   // Assessments
   h += `<div class="day-h">Assessments & exams</div>`;
-  const as = (state.assessments || []).slice().sort((a, b) => a.due - b.due);
-  h += as.length ? as.map(a => { const p = E.assessmentPlan(a, c); const sub = a.stages?.submit; return `<div class="card" style="margin-bottom:10px"><div class="row"><div class="grow"><b>${esc(a.title)}</b><div class="muted small">${esc(a.kind)} · ${esc(a.subject || '')} · due ${E.fmtDay(a.due)} ${E.fmtTime(a.due)} ${a.dueVerified ? '' : '(unverified)'}</div></div>${sub ? '<span class="pill">Submitted</span>' : `<span class="pill amb">${p.start > t ? 'Start ' + E.fmtDayRel(p.start, t) : 'In progress'}</span>`}</div>
+  const as = E.allAssessments(state).filter(a => !(a.auto && a.stages?.submit && a.due < t - 7 * 864e5)).sort((a, b) => a.due - b.due);
+  h += as.length ? as.map(a => { const p = E.assessmentPlan(a, c); const sub = a.stages?.submit; return `<div class="card" style="margin-bottom:10px"><div class="row"><div class="grow"><b>${esc(a.title)}</b><div class="muted small">${a.auto ? 'Lead exam · from sheet' : esc(a.kind) + ' · ' + esc(a.subject || '')} · due ${E.fmtDay(a.due)} ${E.fmtTime(a.due)} ${a.dueVerified ? '' : '(unverified)'}</div></div>${sub ? '<span class="pill">Submitted</span>' : `<span class="pill amb">${p.start > t ? 'Start ' + E.fmtDayRel(p.start, t) : 'In progress'}</span>`}</div>
       <div class="chips">${p.stages.map(st => `<button class="pill ${st.doneAt ? '' : 'amb'}" style="${st.doneAt ? '' : 'background:var(--card-2);color:var(--muted)'}" data-a="${st.doneAt && st.id !== 'submit' ? 'untask' : 'task'}" data-id="as:${esc(a.id)}:${st.id}">${st.doneAt ? '✓ ' : ''}${esc(st.label)}</button>`).join('')}</div>
-      <div class="row" style="margin-top:10px;gap:8px">${sub ? `<button class="btn ghost sm" data-a="revision" data-id="${esc(a.id)}">Revision requested</button>` : ''}<button class="btn ghost sm" data-a="del-as" data-id="${esc(a.id)}">Delete</button><span class="muted small grow" style="text-align:right">~${Math.round(p.total / 60 * 10) / 10}h · ${p.days} work days</span></div></div>`; }).join('') : '<div class="card muted small">No assessments yet.</div>';
+      <div class="row" style="margin-top:10px;gap:8px">${sub ? `<button class="btn ghost sm" data-a="revision" data-id="${esc(a.id)}">Revision requested</button>` : ''}${a.auto ? '' : `<button class="btn ghost sm" data-a="del-as" data-id="${esc(a.id)}">Delete</button>`}<span class="muted small grow" style="text-align:right">~${Math.round(p.total / 60 * 10) / 10}h · ${p.days} work days</span></div></div>`; }).join('') : '<div class="card muted small">No assessments yet.</div>';
   h += `<button class="btn ghost" style="margin-top:4px" data-a="add-as">${ico('plus', 18)} Add assessment or exam</button>`;
   return h;
 }
@@ -297,13 +303,14 @@ function sources() {
     <div class="row" style="margin-top:10px;gap:8px"><a class="btn ghost sm" target="_blank" rel="noopener" href="${HUB.evals}">Open evaluations</a><button class="btn sm" data-a="paste-eval">Paste results</button></div></div>
 
   <div class="card" style="margin-top:12px"><h3>Rules</h3>
-    <div class="two"><div><label>Wednesday handout cutoff</label><input type="time" data-f="cfg.cutoffTime" value="${esc(c.cutoffTime)}"></div><div><label>&nbsp;</label><label class="row" style="margin:12px 0 0;color:var(--text)"><input type="checkbox" style="width:auto" data-f="cfg.cutoffVerified" ${c.cutoffVerified ? 'checked' : ''}> Confirmed</label></div></div>
+    <div class="two"><div><label>Handout cutoff (Wed before the week)</label><input type="time" data-f="cfg.cutoffTime" value="${esc(c.cutoffTime)}"></div><div><label>&nbsp;</label><label class="row" style="margin:12px 0 0;color:var(--text)"><input type="checkbox" style="width:auto" data-f="cfg.cutoffVerified" ${c.cutoffVerified ? 'checked' : ''}> Confirmed</label></div></div>
     <label>Handouts needed for my…</label><div class="seg"><button class="${c.handoutRoles.includes('lead') ? 'on' : ''}" data-a="hrole" data-id="lead">Lead weeks</button><button class="${c.handoutRoles.includes('support') ? 'on' : ''}" data-a="hrole" data-id="support">Support weeks</button></div>
     <label class="row" style="color:var(--text)"><input type="checkbox" style="width:auto" data-f="cfg.handoutRolesVerified" ${c.handoutRolesVerified ? 'checked' : ''}> Confirmed with coordinator</label>
     <div class="two"><div><label>Lead PPT: days before week</label><input type="number" min="0" data-f="cfg.leadPptDaysBefore" value="${c.leadPptDaysBefore}"></div><div><label>…due at</label><input type="time" data-f="cfg.leadPptTime" value="${esc(c.leadPptTime)}"></div></div>
     <div class="two"><div><label>Arrive early (min)</label><input type="number" data-f="cfg.arriveEarlyMin" value="${c.arriveEarlyMin}"></div><div><label>Travel time (min)</label><input type="number" data-f="cfg.travelMin" value="${c.travelMin}"></div></div>
     <div class="two"><div><label>Online setup buffer (min)</label><input type="number" data-f="cfg.onlineSetupMin" value="${c.onlineSetupMin}"></div><div><label>Prep time per day (min)</label><input type="number" data-f="cfg.dailyMinutes" value="${c.dailyMinutes}"></div></div>
-    <label>Sheet weeks are taught</label><select data-f="cfg.unitFormat"><option value="in_person" ${c.unitFormat === 'in_person' ? 'selected' : ''}>In person</option><option value="online" ${c.unitFormat === 'online' ? 'selected' : ''}>Online (adds OBS, mic, platform checks)</option></select>
+    <div class="two">${['lead', 'support'].map(r => `<div><label>${r === 'lead' ? 'Lead' : 'Support'} weeks are taught</label><select data-f="cfg.${r}Format"><option value="in_person" ${c[r + 'Format'] === 'in_person' ? 'selected' : ''}>In person</option><option value="online" ${c[r + 'Format'] === 'online' ? 'selected' : ''}>Online</option></select></div>`).join('')}</div>
+    <div class="two"><div><label>Lead exam due (that week’s Wed)</label><input type="time" data-f="cfg.examTime" value="${esc(c.examTime)}"></div><div><label>Exam effort (hours)</label><input type="number" step="0.5" data-f="cfg.examEffortH" value="${c.examEffortH}"></div></div>
     <label>Holidays (YYYY-MM-DD, comma separated)</label><input data-f="cfg.holidays" value="${esc(c.holidays.join(', '))}">
     <label>Moved or skipped cutoff</label><div class="two"><input type="date" id="ovDate" placeholder="Normal Wednesday"><input type="datetime-local" id="ovTo"></div>
     <div class="row" style="margin-top:8px;gap:8px"><button class="btn ghost sm" data-a="ov-set">Move to new time</button><button class="btn ghost sm" data-a="ov-skip">No handout that week</button></div>
@@ -382,7 +389,7 @@ document.addEventListener('click', async e => {
     case 'unarrive': delete state.arrivals[id]; save(); render(); classSheet(id); break;
     case 'seen': state.changes.forEach(c => c.seen = true); save(); render(); break;
     case 'do-submit': { const v = formVals(); const h = (state.handouts[id] ||= { stages: {} }); h.submittedAt = E.parseLocal(v.at); h.cutoffAt = +el.dataset.cut || null; h.evidence = v.ev; h.confirmedBy = 'you'; save(); closeSheet(); render(); toast(h.cutoffAt && h.submittedAt > h.cutoffAt ? 'Submitted (after cutoff)' : 'Submitted on time ✓'); break; }
-    case 'do-asubmit': { const v = formVals(); const x = state.assessments.find(x => x.id === id); x.stages.submit = E.parseLocal(v.at); save(); closeSheet(); render(); break; }
+    case 'do-asubmit': { const v = formVals(); const x = assessRec(id); (x.stages ||= {}).submit = E.parseLocal(v.at); save(); closeSheet(); render(); break; }
     case 'add-class': sheet(`<h2>Add a class</h2><label>Subject / topic</label><input name="subject"><div class="two"><div><label>Date</label><input type="date" name="date" value="${E.dayKey(t)}"></div><div><label>Format</label><select name="format"><option value="in_person">In person</option><option value="online">Online</option></select></div></div>
       <div class="two"><div><label>Start</label><input type="time" name="start" value="08:00"></div><div><label>End</label><input type="time" name="end" value="10:00"></div></div><label>Room or link</label><input name="where">
       <button class="btn" style="margin-top:16px" data-a="save-class">Save</button>`); break;
@@ -396,7 +403,7 @@ document.addEventListener('click', async e => {
     case 'save-as': { const v = formVals(); if (!v.title || !v.due) return toast('Title and due date needed'); state.assessments.push({ id: S.newId('a'), title: v.title, kind: v.kind, subject: v.subject, due: E.parseLocal(v.due), dueVerified: v.dueVerified, effortH: +v.effortH || 6, stages: {} }); save(); closeSheet(); render(); break; }
     case 'del-as': if (confirm('Delete this assessment?')) { state.assessments = state.assessments.filter(x => x.id !== id); save(); render(); } break;
     case 'revision': sheet(`<h2>Revision requested</h2><label>What was asked</label><input name="note"><label>Due</label><input type="datetime-local" name="due"><button class="btn" style="margin-top:16px" data-a="save-rev" data-id="${esc(id)}">Save</button>`); break;
-    case 'save-rev': { const v = formVals(); const x = state.assessments.find(x => x.id === id); x.revision = { note: v.note, due: v.due ? E.parseLocal(v.due) : x.due, doneAt: null }; save(); closeSheet(); render(); break; }
+    case 'save-rev': { const v = formVals(); const x = assessRec(id), due = E.allAssessments(state).find(a => a.id === id)?.due; x.revision = { note: v.note, due: v.due ? E.parseLocal(v.due) : due, doneAt: null }; save(); closeSheet(); render(); break; }
     case 'paste-sched': { const wk = E.dayKey(E.mondayOf(t)); sheet(`<h2>Paste hub schedule</h2><label>Week (Monday) — from the page’s ?week=</label><input type="date" name="week" value="${wk}"><label>Page text</label><textarea name="txt" rows="8" placeholder="Select all on the My Schedule page, copy, paste here"></textarea><button class="btn" style="margin-top:12px" data-a="parse-sched">Read classes</button>`); break; }
     case 'parse-sched': { const v = formVals(); const ws = E.parseLocal(v.week); if (Number.isNaN(ws)) return toast('Pick the week'); const monday = E.mondayOf(ws); const r = S.parseSchedulePaste(v.txt, monday); reviewSessions(r.sessions, { unparsed: r.unparsed, week: E.dayKey(monday), method: 'paste' }); break; }
     case 'file-sched': $('#schedFile').click(); break;

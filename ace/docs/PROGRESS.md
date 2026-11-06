@@ -18,12 +18,14 @@ _Last updated 2026-11-06 · branch `claude/instructor-performance-app-w9ewgk`_
 - Hub schedule/evaluation page formats: parsers are tolerant but untested on real pasted text.
   **Next step:** paste one real week and one evaluation page (in a test, with student info removed) and add them as fixtures.
 
+## Answered (Nov 6)
+Cutoffs 8 PM · handouts lead-only · rows = partner slots · lead weeks online, support in person ·
+lead exam due Wednesday of the teaching week. All encoded as defaults in `DEFAULT_CFG` and tested.
+
 ## Open questions for the user
-1. Wednesday handout **cutoff time**? Handouts for **support** weeks too, or lead only?
-2. Do the 5 sheet rows (tracks) map to specific batches/sections or class days?
-3. Are classes in person, online, or mixed? (Sets the readiness template.)
-4. Can the hub provide an **.ics feed / export / API** for schedules and evaluations?
-5. Any lead duties beyond the PowerPoint (e.g. handout review, exam set)?
+1. Is the **handout** cutoff also 8 PM? (Assumed yes, from “Wednesday deadline … is 8 pm”.)
+2. Can the hub provide an **.ics feed / export / API** for schedules and evaluations?
+3. Does the lead's exam need a separate answer-key or review step by co-instructors?
 
 ## Next (Phase 2)
 1. Supabase project `ace` (separate from Power): tables per data model, RLS by user, Auth (magic link).

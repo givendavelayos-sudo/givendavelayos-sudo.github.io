@@ -46,7 +46,10 @@ export const fmtAgo = (ms, now) => ms ? (now - ms < MIN ? 'just now' : fmtDur(no
 /* ------------------------------------------------------------------ config */
 export const DEFAULT_CFG = {
   // Wednesday handout rule. The cutoff time is NOT known yet → unverified until you confirm it.
-  cutoffDow: 3, cutoffTime: '17:00', cutoffVerified: false,
+  // Confirmed by you (Nov 6): Wednesday deadlines are 8:00 PM.
+  cutoffDow: 3, cutoffTime: '20:00', cutoffVerified: true,
+  // Lead only: exam for the teaching week is due that week's Wednesday, 8:00 PM.
+  examDow: 3, examTime: '20:00', examEffortH: 5,
   // Which classes a Wednesday covers: the Mon–Sun week that starts N days after that Wednesday.
   handoutWeekStartOffset: 5,
   cutoffOverrides: {},            // { 'YYYY-MM-DD' (the normal Wednesday): 'skip' | 'YYYY-MM-DDTHH:MM' }
@@ -55,8 +58,8 @@ export const DEFAULT_CFG = {
   arriveEarlyMin: 30, onlineSetupMin: 30, travelMin: 20, minGapMin: 30,
   dailyMinutes: 150, horizonDays: 5, staleHours: 24,
   // Lead sheet (colour-coded grid). Your rule: lead = neon-blue cell → PowerPoint ready 1 week before the week starts.
-  initials: '', leadPptDaysBefore: 7, leadPptTime: '08:00', leadDraftDaysBefore: 9, unitFormat: 'in_person', unitHorizonDays: 21, unitTemplates: {},
-  handoutRoles: ['lead', 'support'], handoutRolesVerified: false, // which of your sheet topics need a Wednesday handout — confirm
+  initials: '', leadPptDaysBefore: 7, leadPptTime: '08:00', leadDraftDaysBefore: 9, leadFormat: 'online', supportFormat: 'in_person', unitHorizonDays: 21, unitTemplates: {},
+  handoutRoles: ['lead'], handoutRolesVerified: true, // confirmed: support instructors don't create handouts
   leadRoleValues: ['lead', 'lead instructor', 'li', 'yes', 'y', '✓', 'true'],
   templates: null,                // filled from DEFAULT_TEMPLATES
 };
@@ -89,8 +92,8 @@ const CORE = ['slides_draft', 'slides_final', 'examples', 'solutions', 'formulas
 export const DEFAULT_TEMPLATES = {
   in_person: { label: 'In-person class', items: [...CORE, 'venue'] },
   online: { label: 'Online class', items: [...CORE, 'platform', 'tech'] },
-  lead: { label: 'Lead instructor week', items: [...CORE, 'venue'], official: ['slides_final'], leadDays: { slides_draft: 'leadDraftDaysBefore', slides_final: 'leadPptDaysBefore' } },
-  support: { label: 'Support instructor week', items: ['slides_received', 'solutions', 'formulas', 'studied', 'concepts', 'questions', 'activities', 'rehearsed', 'timing', 'schedule_ok', 'buffer', 'venue'] },
+  lead: { label: 'Lead instructor week (online)', items: [...CORE, 'platform', 'tech'], official: ['slides_final'], leadDays: { slides_draft: 'leadDraftDaysBefore', slides_final: 'leadPptDaysBefore' } },
+  support: { label: 'Support instructor week (in person)', items: ['slides_received', 'solutions', 'formulas', 'studied', 'concepts', 'questions', 'activities', 'rehearsed', 'timing', 'schedule_ok', 'buffer', 'venue'] },
   review: { label: 'Review / problem session', items: ['solutions', 'formulas', 'studied', 'questions', 'timing', 'schedule_ok', 'buffer'] },
 };
 export const cfgOf = state => ({ ...DEFAULT_CFG, ...(state.cfg || {}), templates: { ...DEFAULT_TEMPLATES, ...(state.cfg?.templates || {}) } });
@@ -100,8 +103,8 @@ export const activeSessions = state => (state.sessions || []).filter(s => s.stat
 /** Sheet units as schedule-like items. Start = Monday of that week (exact class times come from the schedule source). */
 export function unitItems(state) {
   const cfg = cfgOf(state);
-  return (state.units || []).map(u => ({ id: `u:${u.key}`, unit: u, subject: u.topic, section: `Track ${u.track}`, start: u.weekStart, end: u.weekStart + 7 * DAY,
-    format: cfg.unitFormat, template: cfg.unitTemplates?.[`u:${u.key}`] || (u.role === 'lead' ? 'lead' : 'support'), approx: true, role: u.role, status: 'scheduled', source: u.source }));
+  return (state.units || []).map(u => ({ id: `u:${u.key}`, unit: u, subject: u.topic, section: `Slot ${u.track}`, start: u.weekStart, end: u.weekStart + 7 * DAY,
+    format: u.role === 'lead' ? cfg.leadFormat : cfg.supportFormat, template: cfg.unitTemplates?.[`u:${u.key}`] || (u.role === 'lead' ? 'lead' : 'support'), approx: true, role: u.role, status: 'scheduled', source: u.source }));
 }
 /** Everything you teach: real sessions, plus sheet weeks not already covered by a real session of the same topic. */
 export function teachingItems(state) {
@@ -179,7 +182,9 @@ export function handoutCycles(state, now, { back = 1, ahead = 3 } = {}) {
     if (!c) continue;
     const wStart = mondayOf(addDays(wed, cfg.handoutWeekStartOffset)), wEnd = addDays(wStart, 7);
     const subjects = new Map();
-    const pool = [...activeSessions(state), ...unitItems(state).filter(u => cfg.handoutRoles.includes(u.role))];
+    // Only roles that create handouts. Classes not found in the sheet count only when no sheet is synced.
+    const hasSheet = (state.units || []).length > 0;
+    const pool = teachingItems(state).filter(s => s.role ? cfg.handoutRoles.includes(s.role) : !hasSheet);
     for (const s of pool) if (s.start >= wStart && s.start < wEnd) {
       const key = s.subject.trim();
       if (s.approx && [...subjects.keys()].some(k => norm(k) === norm(key))) continue;
@@ -235,6 +240,17 @@ export function assessmentPlan(a, cfg) {
   return { start, finish, days, total, stages };
 }
 
+/** Lead weeks automatically carry an exam due on that week's Wednesday (8 PM). Progress lives in state.exams[id]. */
+export function leadExams(state) {
+  const cfg = cfgOf(state);
+  return unitItems(state).filter(u => u.role === 'lead').map(u => {
+    const id = `lx|${u.unit.key}`, rec = state.exams?.[id] || {};
+    return { id, auto: true, title: `Exam: ${u.subject}`, kind: 'Exam', subject: u.subject, due: atTime(addDays(u.start, (cfg.examDow + 6) % 7), cfg.examTime),
+      dueVerified: true, effortH: rec.effortH || cfg.examEffortH, stages: rec.stages || {}, revision: rec.revision || null, unit: u.unit };
+  });
+}
+export const allAssessments = state => [...(state.assessments || []), ...leadExams(state)];
+
 /* ------------------------------------------------- unified planner */
 function score(t, now) {
   const hrs = (t.target - now) / H;
@@ -271,7 +287,8 @@ export function allTasks(state, now) {
     }
   }
   // assessments & exams
-  for (const a of state.assessments || []) {
+  for (const a of allAssessments(state)) {
+    if (a.due < now - 14 * DAY && !a.stages?.submit) continue;
     if (a.stages?.submit && !(a.revision && !a.revision.doneAt)) continue;
     const p = assessmentPlan(a, cfg); let prev = null;
     for (const st of p.stages) {
@@ -310,7 +327,7 @@ export function plan(state, now) {
 export function deadlines(state, now, limit = 6) {
   const out = [];
   for (const h of handoutCycles(state, now)) if (!h.submittedAt) out.push({ kind: 'handout', title: `${h.subject} handout`, at: h.cutoff, verified: h.cutoffVerified, holiday: h.holiday, status: handoutStatus(h), ref: h.id });
-  for (const a of state.assessments || []) if (!a.stages?.submit) out.push({ kind: a.kind || 'assessment', title: a.title, at: a.due, verified: !!a.dueVerified, ref: a.id });
+  for (const a of allAssessments(state)) if (!a.stages?.submit && a.due > now - 7 * DAY) out.push({ kind: a.auto ? 'exam' : a.kind || 'assessment', title: a.title, at: a.due, verified: !!a.dueVerified, ref: a.id });
   const cfg = cfgOf(state);
   for (const u of unitItems(state)) if (u.role === 'lead' && !state.readiness?.[u.id]?.slides_final) {
     const at = leadPptDue(u.unit, cfg);
@@ -458,7 +475,7 @@ export function journey(state, now, days = 30) {
   const delivery = ready.length && ready.some(r => r.done) ? avg(ready.map(r => r.byCat.delivery ? r.byCat.delivery.done / r.byCat.delivery.total : null)) : null;
   const hs = Object.entries(state.handouts || {}).filter(([, h]) => h.submittedAt && h.submittedAt >= from);
   const handoutsOnTime = hs.length ? hs.filter(([, h]) => h.cutoffAt ? h.submittedAt <= h.cutoffAt : true).length / hs.length : null;
-  const asub = (state.assessments || []).filter(a => a.stages?.submit && a.stages.submit >= from);
+  const asub = allAssessments(state).filter(a => a.stages?.submit && a.stages.submit >= from);
   const assessOnTime = asub.length ? asub.filter(a => a.stages.submit <= a.due).length / asub.length : null;
   const responsibility = avg([handoutsOnTime, assessOnTime]);
   const practices = (state.practices || []).filter(p => !p.archived);
