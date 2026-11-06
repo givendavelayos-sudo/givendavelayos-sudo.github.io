@@ -462,7 +462,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.6.0';
+const VERSION = '0.6.1';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -550,7 +550,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.6', 'Nov 6, 2026', ['Calendar under your schedule: lead/support weeks, each day’s deadlines and steps, tick them off — past days too', 'Your rhythm: handout Wed before a lead week · PowerPoint Sat 11:59 PM · Sunday mastery · assessment draft every teaching week’s Wed', 'Reminders a day before and 3 hours before each deadline, plus a Sunday mastery nudge'])
+    return ['What’s new', v('0.6.1', 'Nov 6, 2026', ['Ace now tells you when a new version is available — tap the bar to update'])
+      + v('0.6', 'Nov 6, 2026', ['Calendar under your schedule: lead/support weeks, each day’s deadlines and steps, tick them off — past days too', 'Your rhythm: handout Wed before a lead week · PowerPoint Sat 11:59 PM · Sunday mastery · assessment draft every teaching week’s Wed', 'Reminders a day before and 3 hours before each deadline, plus a Sunday mastery nudge'])
       + v('0.5', 'Nov 6, 2026', ['New Schedule: your next class, a Mon–Sun strip with teaching hours, the week at a glance as a time grid, and the selected day’s classes', 'Week 4 classes now show their topics (from your My Schedule screenshot)', 'Your evaluation ships encrypted: unlock it once in Performance with your passcode'])
       + v('0.4.1', 'Nov 6, 2026', ['Lead & support weeks now come only from your screenshots (no Google sign-in or API key)', 'Weeks from Nov 9 show “official schedule not released yet”', 'App lock uses your PIN only'])
       + v('0.4', 'Nov 6, 2026', ['Cleaner app: 4 tabs — Today, Schedule, Tasks, Performance', 'Today shows only your next class, today’s focus and what’s coming up', 'All handouts, lead PowerPoints and exams in one Tasks list with steps', 'Schedule groups classes by teaching week with topic and role', 'Performance: your score, the top 3 things to improve, real habit stats', 'Connections moved into Settings', 'One design system across every screen'])
@@ -781,7 +782,8 @@ document.addEventListener('click', async e => {
     case 'pin': pinKey(id); break;
     case 'pin-change': pinSheet('change'); break;
     case 'pin-save': await pinSave(id); break;
-    case 'update': { toast('Checking for updates…'); try { const r = await navigator.serviceWorker?.getRegistration(); await r?.update(); } catch {} setTimeout(() => location.reload(), 700); break; }
+    case 'apply-update': { el.textContent = 'Updating…'; await hardUpdate(); break; }
+    case 'update': { toast('Checking for updates…'); await hardUpdate(); break; }
     case 'reset': if (confirm('Erase ALL Ace data on this device? Export a backup first if you might need it.')) { state = blank(); state.imports = Object.fromEntries(SEEDS.map(u => [u.split('/').pop(), { at: t, report: null, label: 'Screenshot import (skipped after erase)' }])); save(); closePanel(); render(); toast('Erased'); } break;
   }
 });
@@ -828,10 +830,28 @@ function tick() {
   for (const [k, v] of Object.entries(state.notified)) if (t - v > 14 * 864e5) delete state.notified[k];
 }
 
+/* ---------- update check: version.json is published with every release */
+const newer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+async function checkForUpdate() {
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
+    const { version } = await r.json();
+    if (!newer(version, VERSION) || document.querySelector('.update-bar')) return;
+    const bar = document.createElement('button'); bar.className = 'update-bar'; bar.dataset.a = 'apply-update';
+    bar.innerHTML = `${ico('down', 16)} New version ${esc(version)} available — tap to update`; document.body.append(bar);
+  } catch {}
+}
+async function hardUpdate() {
+  try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch {}
+  try { for (const k of await caches.keys()) await caches.delete(k); } catch {} // your data is in localStorage, not these caches
+  location.reload();
+}
 applyTheme();
 if (lock.get()?.hash) showLock();
 render();
 runSeeds();
+checkForUpdate(); setInterval(checkForUpdate, 30 * 60e3);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForUpdate(); });
 tick(); setInterval(() => { tick(); if (!document.querySelector('.scrim, .panel, .lock')) render(); }, 60e3);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { tick(); render(); } });
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
