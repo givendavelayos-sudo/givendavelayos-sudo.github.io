@@ -226,25 +226,25 @@ test('lead sheet grid: GDL cells found, neon blue = lead, other colours = suppor
     ['2026-12-14', 'Kinetics 2', 'support'],
   ]);
   const ff1 = units[1];
-  assert.deepEqual(ff1.coInstructors, ['CGD']);
+  assert.deepEqual(ff1.coInstructors, ['ZAA']);
   assert.equal(ff1.week, 'Week 6'); assert.equal(ff1.track, '1'); assert.equal(ff1.cell, 'I3');
   assert.ok(units.every(u => u.verified), units.map(u => u.reasons).join(';'));
   assert.equal(S.colorClass({ r: 0, g: 0, b: 1 }), 'other');
   assert.equal(S.colorClass({ r: 0, g: 1, b: 1 }), 'neon_blue');
   // someone else's initials
-  assert.deepEqual(S.parseTopicGrid(grid, { initials: 'FOJ', now }).units.map(u => u.topic), ['Calculator Fundamentals', 'Analysis of Composite Bodies, Compound Beams, Frames, Three-Hinged Arch, Pulleys', 'Stresses in Beams', 'Friction']);
-  assert.ok(S.parseTopicGrid(grid, { initials: 'FOJ', now }).units[0].reasons.some(r => /inferred/.test(r)), 'Week 0 date is inferred → unverified');
+  assert.deepEqual(S.parseTopicGrid(grid, { initials: 'ZGG', now }).units.map(u => u.topic), ['Calculator Fundamentals', 'Analysis of Composite Bodies, Compound Beams, Frames, Three-Hinged Arch, Pulleys', 'Stresses in Beams', 'Friction']);
+  assert.ok(S.parseTopicGrid(grid, { initials: 'ZGG', now }).units[0].reasons.some(r => /inferred/.test(r)), 'Week 0 date is inferred → unverified');
   // year rollover: dates in Jan near a December "now" belong to next year
   assert.equal(P(S.parseTopicGrid({ rowData: [{ values: [{ formattedValue: 'Dec 28' }, { formattedValue: 'Jan 4' }] }, { values: [{ formattedValue: 'A\nX & GDL' }, { formattedValue: 'B\nGDL & Y' }] }] }, { initials: 'GDL', now: mk(2026, 12, 20) }).units[1].weekStart).y, 2027);
 });
 
 test('splitCell handles the sheet\'s instructor notations', () => {
-  assert.deepEqual(S.splitCell('Orifice and Weirs\nby CGD & FCL'), { topic: 'Orifice and Weirs', initials: ['CGD', 'FCL'], detail: '' });
-  assert.deepEqual(S.splitCell('Friction by FOJ & JFC').topic, 'Friction');
-  assert.deepEqual(S.splitCell('Statistics and Probability 1 FCL and KJC').initials, ['FCL', 'KJC']);
-  assert.deepEqual(S.splitCell('Algebra\nFundamentals\nJSA'), { topic: 'Algebra Fundamentals', initials: ['JSA'], detail: '' });
-  assert.equal(S.splitCell('Calculus 2\nIAD & GVB\nTime Rates').detail, 'Time Rates');
-  assert.deepEqual(S.splitCell('CE Fundamentals\nRRT').topic, 'CE Fundamentals');
+  assert.deepEqual(S.splitCell('Orifice and Weirs\nby ZAA & ZBB'), { topic: 'Orifice and Weirs', initials: ['ZAA', 'ZBB'], detail: '' });
+  assert.deepEqual(S.splitCell('Friction by ZGG & ZFF').topic, 'Friction');
+  assert.deepEqual(S.splitCell('Statistics and Probability 1 ZBB and ZCC').initials, ['ZBB', 'ZCC']);
+  assert.deepEqual(S.splitCell('Algebra\nFundamentals\nZEE'), { topic: 'Algebra Fundamentals', initials: ['ZEE'], detail: '' });
+  assert.equal(S.splitCell('Calculus 2\nZKK & ZJJ\nTime Rates').detail, 'Time Rates');
+  assert.deepEqual(S.splitCell('CE Fundamentals\nZMM').topic, 'CE Fundamentals');
 });
 
 test('evaluation paste: criteria, overall, comments, PII masked', () => {
@@ -307,7 +307,7 @@ test('real class in a sheet week inherits role and template', () => {
   const state = { units, sessions: [sess('r', 'Fluid Flow 1', mk(2026, 11, 16, 8))] };
   const items = E.teachingItems(state).filter(i => E.dayKey(E.mondayOf(i.start)) === '2026-11-16');
   assert.equal(items.length, 1, 'no duplicate of the sheet week');
-  assert.equal(items[0].role, 'lead'); assert.equal(items[0].template, 'lead'); assert.ok(!items[0].approx);
+  assert.equal(items[0].role, 'lead'); assert.equal(items[0].template, 'lead_in_person', 'in-person class in a lead week'); assert.ok(!items[0].approx);
 });
 
 test('readiness logged on a sheet week carries over to the imported class', () => {
@@ -340,4 +340,75 @@ test('confirmed rules: 8 PM cutoffs, handouts only for lead weeks, lead exam on 
   // exam progress persists by id
   state.exams = { [ex[0].id]: { stages: { plan: now, questions: now } } };
   assert.ok(E.plan(state, now).tasks.find(t => t.id === `as:${ex[0].id}:questions`).done);
+});
+
+import { hubWeek4 } from './fixtures/hub-week.mjs';
+test('hub grid: only GDL cells, NN = noon, sections, online row, consultations, others ignored', () => {
+  assert.deepEqual(S.parseTime('12:00 NN'), { h: 12, mi: 0, ap: 'p' });
+  const r = S.parseScheduleGrid(hubWeek4, { initials: 'GDL', weekStart: mk(2026, 11, 2) });
+  assert.equal(r.title, 'Review Week 4');
+  assert.deepEqual(r.sessions.map(s => [E.dayKey(s.start), E.fmtTime(s.start), E.fmtTime(s.end), s.section, s.group, s.format]), [
+    ['2026-11-02', '8:00 AM', '12:00 PM', 'ONLINE', 'A', 'online'],
+    ['2026-11-05', '7:30 AM', '11:30 AM', 'L2 AM', 'B', 'in_person'],
+    ['2026-11-03', '7:30 AM', '11:30 AM', 'X3 AM', 'B', 'in_person'],
+    ['2026-11-05', '12:30 PM', '4:30 PM', 'L2 PM', 'B', 'in_person'],
+    ['2026-11-03', '12:30 PM', '4:30 PM', 'X3 PM', 'B', 'in_person'],
+  ]);
+  assert.ok(!JSON.stringify(r).includes('ZAA'), 'no other instructor data kept');
+  // another instructor sees theirs, incl. consultation rows (initials only)
+  const jam = S.parseScheduleGrid(hubWeek4, { initials: 'ZLL', weekStart: mk(2026, 11, 2) }).sessions;
+  assert.deepEqual(jam.map(s => [s.section, E.dayKey(s.start), s.kind]), [['MNL AM', '2026-11-03', 'class'], ['PM Live Consultation', '2026-11-05', 'consultation'], ['EV Live Consultation', '2026-11-02', 'consultation']]);
+  assert.equal(jam[2].end, mk(2026, 11, 2, 21));
+  // not a grid → null (falls back to line parser)
+  assert.equal(S.parseScheduleGrid('Monday\n8:00-9:00 Calc', { initials: 'GDL', weekStart: mk(2026, 11, 2) }), null);
+  // re-import of the same week is idempotent
+  const src = { id: 'hub' };
+  const a = E.mergeSchedule([], r.sessions, { source: src, now: 1, windowStart: mk(2026, 11, 2), windowEnd: mk(2026, 11, 9) });
+  const b = E.mergeSchedule(a.sessions, S.parseScheduleGrid(hubWeek4, { initials: 'GDL', weekStart: mk(2026, 11, 2) }).sessions, { source: src, now: 2, windowStart: mk(2026, 11, 2), windowEnd: mk(2026, 11, 9) });
+  assert.equal(b.changes.length, 0); assert.equal(b.sessions.length, 5);
+});
+
+test('grid classes link to the week\'s sheet topic, share topic prep, keep logistics per session', () => {
+  const now = mk(2026, 11, 6, 15);
+  const { units } = S.parseTopicGrid(grid, { initials: 'GDL', now });
+  // next week (Week 5, Nov 9): same layout, GDL support on Relative Equilibrium
+  const wk5 = hubWeek4.replace('Review Week 4', 'Review Week 5').replace(/\(Nov (\d)\)/g, (m, d) => `(Nov ${+d + 7})`);
+  const ss = S.parseScheduleGrid(wk5, { initials: 'GDL', weekStart: mk(2026, 11, 9) }).sessions.map((s, i) => ({ ...s, id: 's' + i, source: { id: 'hub' } }));
+  const state = { units, sessions: ss };
+  const items = E.teachingItems(state).filter(i => E.dayKey(E.mondayOf(i.start)) === '2026-11-09');
+  assert.equal(items.length, 5, 'sheet week replaced by the 5 real classes');
+  assert.ok(items.every(i => i.subject === 'Relative Equilibrium of Fluids in Moving Vessels' && i.role === 'support' && i.template === 'support'));
+  // studying once covers all five classes; venue is per class
+  const first = items[0];
+  state.readiness = { [E.readinessKey(first, 'studied')]: { studied: now }, [E.readinessKey(first, 'venue')]: { venue: now } };
+  assert.ok(items.every(i => E.readiness(i, state).rows.find(r => r.id === 'studied').doneAt));
+  assert.equal(items.filter(i => E.readiness(i, state).rows.find(r => r.id === 'venue').doneAt).length, 1);
+  // planner lists shared prep once, logistics per class
+  const p = E.plan(state, now);
+  assert.equal(p.tasks.filter(t => t.item === 'concepts' && t.id.includes('2026-11-09')).length, 1);
+  assert.equal(p.tasks.filter(t => t.item === 'venue' && ss.some(x => t.ref === x.id)).length, ss.filter(x => x.start < now + 5 * 864e5).length, 'logistics per class inside the 5-day horizon');
+  // support week → no handout
+  assert.ok(!E.handoutCycles(state, now).some(h => h.subject.startsWith('Relative')));
+});
+
+import { hubEval } from './fixtures/hub-eval.mjs';
+test('hub evaluation page: label/score on separate lines, overall + count, numbered multi-line comments, Taglish themes', () => {
+  const r = S.parseEvalPaste(hubEval);
+  assert.equal(r.overall, 4.4); assert.equal(r.overallComputed, false); assert.equal(r.responses, 40);
+  assert.equal(Object.keys(r.criteria).length, 6);
+  assert.equal(r.criteria['Keeps me engaged (energy, eye contact, delivery)'], 4.2);
+  assert.equal(r.comments.length, 5);
+  assert.match(r.comments[2], /upload the ppt[\s\S]*practice problems/);
+  assert.ok(!r.criteria.Sample && !r.unparsed.includes('4.50'));
+  const a = E.analyzeEvals([{ date: '2026-11-06', overall: r.overall, criteria: r.criteria, comments: r.comments }]);
+  const t = Object.fromEntries(a.themes.map(x => [x.key, x]));
+  assert.ok(t.pacing.neg >= 1, 'nagmadali / naubos ang oras → pacing concern');
+  assert.ok(t.punctuality.neg >= 1);
+  assert.ok(t.materials.neg >= 1, 'upload request');
+  assert.ok(t.engagement.neg >= 1, 'naantok');
+  assert.ok(t.clarity.pos >= 1, 'very clear — praise kept separately from the pacing concern');
+  assert.equal(E.themeForCriterion('Lessons are organized, on topic and well-timed'), 'pacing');
+  assert.equal(E.themeForCriterion('Slides and materials are clear and useful'), 'materials');
+  assert.equal(E.themeForCriterion('Keeps me engaged (energy, eye contact, delivery)'), 'engagement');
+  assert.equal(a.weakest[0].name, 'Keeps me engaged (energy, eye contact, delivery)');
 });

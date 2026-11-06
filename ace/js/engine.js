@@ -93,9 +93,12 @@ export const DEFAULT_TEMPLATES = {
   in_person: { label: 'In-person class', items: [...CORE, 'venue'] },
   online: { label: 'Online class', items: [...CORE, 'platform', 'tech'] },
   lead: { label: 'Lead instructor week (online)', items: [...CORE, 'platform', 'tech'], official: ['slides_final'], leadDays: { slides_draft: 'leadDraftDaysBefore', slides_final: 'leadPptDaysBefore' } },
+  lead_in_person: { label: 'Lead instructor · in-person class', items: [...CORE, 'venue'], official: ['slides_final'], leadDays: { slides_draft: 'leadDraftDaysBefore', slides_final: 'leadPptDaysBefore' } },
+  consult: { label: 'Consultation', items: ['questions', 'schedule_ok', 'buffer'] },
   support: { label: 'Support instructor week (in person)', items: ['slides_received', 'solutions', 'formulas', 'studied', 'concepts', 'questions', 'activities', 'rehearsed', 'timing', 'schedule_ok', 'buffer', 'venue'] },
   review: { label: 'Review / problem session', items: ['solutions', 'formulas', 'studied', 'questions', 'timing', 'schedule_ok', 'buffer'] },
 };
+export const unitsForWeek = (state, ms) => (state.units || []).filter(u => dayKey(u.weekStart) === dayKey(mondayOf(ms)));
 export const cfgOf = state => ({ ...DEFAULT_CFG, ...(state.cfg || {}), templates: { ...DEFAULT_TEMPLATES, ...(state.cfg?.templates || {}) } });
 export const templateFor = (s, cfg) => cfg.templates[s.template] || cfg.templates[s.format === 'online' ? 'online' : 'in_person'];
 
@@ -110,8 +113,15 @@ export function unitItems(state) {
 export function teachingItems(state) {
   const wk = s => dayKey(mondayOf(s.start)) + '|' + norm(s.subject);
   const units = unitItems(state), byWk = new Map(units.map(u => [wk(u), u]));
-  // a real class in a sheet week inherits the role (lead/support) and its template, unless you chose one
-  const ss = activeSessions(state).map(s => { const u = byWk.get(wk(s)); return u ? { ...s, role: u.role, unit: u.unit, template: s.template || u.template } : s; });
+  const byMonday = new Map(); for (const u of units) { const k = dayKey(u.start); byMonday.set(k, [...(byMonday.get(k) || []), u]); }
+  const pick = (s, u) => s.template || (u.role === 'lead' ? (s.format === 'online' ? 'lead' : 'lead_in_person') : 'support');
+  // A hub class in a sheet week inherits that week's topic and your role. Grid cells only say "GDL - B", so when
+  // you appear in exactly one sheet cell that week, every class of yours that week is that topic.
+  const ss = activeSessions(state).map(s => {
+    let u = byWk.get(wk(s));
+    if (!u && s.autoTopic) { const c = byMonday.get(dayKey(mondayOf(s.start))) || []; if (c.length === 1) u = c[0]; }
+    return u ? { ...s, subject: u.subject, role: u.role, unit: u.unit, template: pick(s, u), linked: s.subject !== u.subject } : s;
+  });
   const have = new Set(ss.map(wk));
   return [...ss, ...units.filter(u => !have.has(wk(u)))].sort((a, b) => a.start - b.start);
 }
@@ -123,20 +133,24 @@ export function itemLead(id, tpl, start, cfg) {
   return READINESS_ITEMS[id].lead;
 }
 
+// Logistics are per class session; everything else (slides, solutions, studying…) is shared by all
+// sessions of the same topic-week, so you prepare it once.
+export const SESSION_ITEMS = new Set(['schedule_ok', 'venue', 'platform', 'tech', 'buffer']);
+export const readinessKey = (s, id) => s.unit && !SESSION_ITEMS.has(id) ? `u:${s.unit.key}` : s.id;
+
 /** Transparent readiness: share of the template's items you have confirmed done. Unconfirmed ≠ done. */
 export function readiness(session, state, cfg = cfgOf(state), at = Infinity) {
   const tpl = templateFor(session, cfg);
   const items = tpl.items.filter(id => READINESS_ITEMS[id]);
-  // progress logged on the sheet week carries over once the exact class is imported
-  const log = { ...(session.unit && !session.approx ? state.readiness?.[`u:${session.unit.key}`] : null), ...(state.readiness?.[session.id] || {}) };
-  const rows = items.map(id => ({ id, ...READINESS_ITEMS[id], lead: itemLead(id, tpl, session.start, cfg), official: (tpl.official || []).includes(id), doneAt: log[id] && log[id] <= at ? log[id] : null }));
-  const done = rows.filter(r => r.doneAt).length;
+  const done = id => state.readiness?.[readinessKey(session, id)]?.[id];
+  const rows = items.map(id => ({ id, ...READINESS_ITEMS[id], key: readinessKey(session, id), lead: itemLead(id, tpl, session.start, cfg), official: (tpl.official || []).includes(id), doneAt: done(id) && done(id) <= at ? done(id) : null }));
+  const nDone = rows.filter(r => r.doneAt).length;
   const byCat = {};
   for (const r of rows) { (byCat[r.cat] ||= { done: 0, total: 0 }).total++; if (r.doneAt) byCat[r.cat].done++; }
   const doneSet = new Set(rows.filter(r => r.doneAt).map(r => r.id));
   const open = rows.filter(r => !r.doneAt).map(r => ({ ...r, blocked: (r.deps || []).some(d => items.includes(d) && !doneSet.has(d)) }));
   const next = open.filter(r => !r.blocked).sort((a, b) => b.lead - a.lead)[0] || null;
-  return { rows, done, total: rows.length, pct: rows.length ? done / rows.length : 0, byCat, next, unconfirmed: rows.length - done };
+  return { rows, done: nDone, total: rows.length, pct: rows.length ? nDone / rows.length : 0, byCat, next, unconfirmed: rows.length - nDone };
 }
 
 /** When to be in the room / logged in. */
@@ -263,16 +277,20 @@ function score(t, now) {
 export function allTasks(state, now) {
   const cfg = cfgOf(state), tasks = [];
   // lecture readiness for classes inside the horizon
+  const seen = new Set();
   for (const s of teachingItems(state)) {
     if (s.start <= now || s.start > now + (s.approx ? cfg.unitHorizonDays : cfg.horizonDays) * DAY) continue;
     const r = readiness(s, state, cfg);
     const soon = s.start - now < 24 * H;
     const when = s.approx ? `week of ${fmtDay(s.start)}` : `${fmtDayRel(s.start, now)} ${fmtTime(s.start)}`;
     for (const row of r.rows) {
-      const deps = (row.deps || []).filter(d => r.rows.some(x => x.id === d)).map(d => `rd:${s.id}:${d}`);
+      const id = `rd:${row.key}:${row.id}`;
+      if (seen.has(id)) continue; // shared topic prep already listed for an earlier session of this week
+      seen.add(id);
+      const deps = (row.deps || []).filter(d => r.rows.some(x => x.id === d)).map(d => `rd:${readinessKey(s, d)}:${d}`);
       const target = s.start - row.lead * H;
       const title = row.official && s.role === 'lead' ? `PowerPoint finalized — lead, due ${fmtDay(target)}` : row.label;
-      tasks.push({ id: `rd:${s.id}:${row.id}`, kind: 'readiness', ref: s.id, item: row.id, title, sub: `${s.subject}${s.role ? ' · ' + (s.role === 'lead' ? 'Lead' : 'Support') : ''} · ${when}`,
+      tasks.push({ id, kind: 'readiness', ref: s.id, item: row.id, title, sub: `${s.subject}${s.role ? ' · ' + (s.role === 'lead' ? 'Lead' : 'Support') : ''} · ${when}`,
         min: row.min, target: Math.max(target, now - 14 * DAY), official: row.official ? target : null, classSoon: soon, done: !!row.doneAt, deps });
     }
   }
@@ -414,23 +432,29 @@ export function arrivalStatus(arrivedAt, s, cfg) {
 /* ------------------------------------------------- evaluations */
 // Keyword themes are an INTERPRETATION of comments, shown separately from the confirmed scores.
 export const THEMES = {
-  clarity: { label: 'Clarity of explanation', words: ['unclear', 'confus', 'hard to understand', 'clear', 'explain', 'lost', 'too fast', 'fast'],
-    tips: ['State the learning goal in one sentence at the start of class.', 'Use one fully worked example before each practice problem.', 'Add a 1-minute understanding check after every concept (thumbs, mini-poll, one question).', 'End each section with a 2-line recap slide.'] },
-  engagement: { label: 'Student engagement', words: ['boring', 'engag', 'interactive', 'participat', 'sleepy', 'monoton', 'fun', 'interest'],
-    tips: ['Ask a question every 5–7 minutes and wait 5 seconds before answering it yourself.', 'Insert one 2-minute pair-solve activity per class.', 'Open with a real-world problem the topic solves.', 'Call students by name when acknowledging answers.'] },
-  pacing: { label: 'Pacing & time management', words: ['fast', 'slow', 'rush', 'time', 'overtime', 'pace', 'hurr'],
-    tips: ['Mark time checkpoints on your slide notes (e.g. 15/30/45 min).', 'Plan for 80% of the period; keep one optional “if time allows” slide.', 'Rehearse the hardest segment with a timer.'] },
-  punctuality: { label: 'Punctuality', words: ['late', 'tardy', 'start on time', 'waiting', 'absent', 'punctual'],
-    tips: ['Use the leave-by time on the Home card, not the class start.', 'Pack devices and materials the night before.', 'Log in to online classes during the setup buffer, not at start time.'] },
-  preparation: { label: 'Preparation', words: ['prepared', 'unprepared', 'mistake', 'error', 'wrong answer', 'slides', 'organized', 'disorgan'],
-    tips: ['Finish slides 48 hours ahead so there is time to study them.', 'Independently re-solve every example before class.', 'Study the slides once more the evening before.'] },
-  mastery: { label: 'Subject mastery', words: ['knowledge', 'knowledgeable', 'master', 'expert', 'doesn\'t know', 'unsure', 'couldn\'t answer'],
+  pacing: { label: 'Pacing & time management', words: ['fast', 'slow', 'rush', 'pace', 'pacing', 'hurr', 'overtime', 'extend', 'well-timed', 'time', 'bilis', 'nagmadali', 'magmadali', 'madali', 'bagal', 'nabagalan', 'naghapit', 'oras', 'ubos', 'tagal'],
+    tips: ['Budget the period on your slide notes: hook 5 min · core concepts · hardest topic before the midpoint · problems · 10 min buffer.', 'Start the first concept within 5 minutes of the start time; keep jokes and stories inside the budget.', 'Mark 2–3 “skip if short” slides so the end is never rushed and the class never runs over.', 'On the last problems, pause about 60 seconds per step so students can write and use their calculators.'] },
+  punctuality: { label: 'Punctuality & schedule', words: ['late', 'tardy', 'start on time', 'starts', 'on time', 'punctual', 'break time', 'delayed', 'minutes late', 'extending the class'],
+    tips: ['Be logged in and live at the published start time; use the setup buffer for OBS, mic and slides.', 'Follow the published break time exactly; set a silent timer for it.', 'End on time; if something is left, move it to the posted handout instead of extending.'] },
+  materials: { label: 'Slides & handouts availability', words: ['upload', 'handout', 'ppt', 'powerpoint', 'practice problem', 'post', 'slides', 'presentation', 'materials'],
+    tips: ['Post the PPT and handouts right after class (same day), with the practice problems.', 'Tell students at the end of class exactly where and when materials will be posted.', 'Keep your “concepts after the problem” slide style — students say it helps them review.'] },
+  coverage: { label: 'Depth on difficult topics', words: ['harder', 'hard topic', 'complicated', 'difficult', 'not discussed', 'na discuss', 'discussed properly', 'napagtuunan', 'sample problem', 'projectile', 'stability', 'focused more'],
+    tips: ['Identify the hardest sub-topic before class and schedule it in the first half.', 'Give the complicated case (e.g. projectile motion) a full worked example plus a student try.', 'Spend less time on the easiest case; one example is enough before moving on.'] },
+  engagement: { label: 'Energy & engagement', words: ['boring', 'engag', 'interactive', 'interaction', 'participat', 'sleepy', 'antok', 'naantok', 'energy', 'monoton', 'attention', 'gising', 'loud', 'voice', 'boses', 'sigaw', 'louden', 'mic', 'jokes'],
+    tips: ['Open with a hook problem in the first 2 minutes to win attention, then teach.', 'Keep the mic at one steady level; create energy with questions and pace changes, not sudden volume.', 'Ask a question every 5–7 minutes and wait 5 seconds before answering it yourself.', 'Keep interactions tied to the learning goal — every activity should end with the concept.'] },
+  clarity: { label: 'Clarity of explanation', words: ['unclear', 'confus', 'hard to understand', 'clear', 'explain', 'understand', 'intindi', 'understandable', 'approach', 'formula'],
+    tips: ['State the learning goal in one sentence at the start of class.', 'Use one fully worked example before each practice problem.', 'Add a 1-minute understanding check after every concept.', 'End each section with a 2-line recap slide.'] },
+  mastery: { label: 'Subject mastery', words: ['knowledge', 'knowledgeable', 'master', 'expert', 'unsure', 'magaling', 'galing'],
     tips: ['List the 5 hardest questions students might ask and answer them in your notes.', 'Re-derive key formulas from first principles once.', 'Prepare a second explanation for the most difficult concept.'] },
-  rapport: { label: 'Approachability & responsiveness', words: ['approach', 'kind', 'rude', 'patient', 'respons', 'reply', 'help', 'consult'],
-    tips: ['Invite questions explicitly at three planned points in class.', 'Acknowledge every question positively before answering.', 'State when and how students can reach you outside class.'] },
+  rapport: { label: 'Motivation & rapport', words: ['motivat', 'inspir', 'encourag', 'words of', 'advice', 'approach', 'kind', 'patient', 'appreciate', 'effort', 'thank', 'salamat'],
+    tips: ['Keep the short motivational message — students value it; time-box it to 2 minutes.', 'Invite questions explicitly at three planned points in class.'] },
+  preparation: { label: 'Preparation', words: ['prepared', 'unprepared', 'mistake', 'error', 'wrong answer', 'organized', 'disorgan'],
+    tips: ['Finish slides 48 hours ahead so there is time to study them.', 'Independently re-solve every example before class.'] },
 };
-const NEG = ['not', 'no ', 'too', 'un', 'hard', 'confus', 'boring', 'late', 'rush', 'fast', 'slow', 'lost', 'mistake', 'error', 'rude', 'wrong', 'monoton', 'disorgan', 'sleepy', 'couldn'];
-
+// Clause-level sentiment so “explains well, but rushes at the end” counts as a strength AND a concern.
+const NEG = ['not ', 'no ', 'too ', 'hindi', ' di ', 'medyo', 'sana', 'pwede', 'suggest', 'recommend', 'should', 'would be better', 'would be nice', 'it would', 'wish', 'late', 'rush', 'nagmadali', 'magmadali', 'bilisan', 'bilis', 'bagal', 'naantok', 'sleepy', 'boring', 'extend', 'still no', 'wasted', 'prioritized', 'hurts', 'redundant', 'mahina', 'confus', 'unclear', 'lost', 'mistake', 'wrong', 'monoton', 'couldn', 'nagtagal', 'naghapit', 'request', 'please', 'more ', 'paki', 'pa-upload', 'need', 'kulang', 'unta', 'ask lang'];
+const POS = ['good', 'great', 'love', 'like', 'clear', 'appreciate', 'thank', 'salamat', 'magaling', 'inspir', 'galing', 'ganda', 'understandable', 'improve', 'motivat', 'well', 'excellent', 'thorough', 'knowledgeable', 'helps', '👍', '🥰', 'engaging'];
+const clauses = c => String(c).toLowerCase().split(/[.!?;\n]+|\s(?:but|pero|however|kaso|although)\s/).map(x => ` ${x.trim()} `).filter(x => x.trim().length > 2);
 export function analyzeEvals(evals) {
   const list = (evals || []).slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   if (!list.length) return null;
@@ -441,22 +465,25 @@ export function analyzeEvals(evals) {
     const latest = pts[pts.length - 1].v, prev = pts.length > 1 ? pts[pts.length - 2].v : null;
     return { name, latest, prev, delta: prev == null ? null : latest - prev, avg: pts.reduce((s, p) => s + p.v, 0) / pts.length, n: pts.length };
   }).sort((a, b) => a.latest - b.latest);
-  // interpretation
+  // interpretation (keyword-based, clause level) — never mixed with the confirmed scores above
   const themes = {};
   for (const e of list) for (const c of e.comments || []) {
-    const t = c.toLowerCase();
-    for (const [k, th] of Object.entries(THEMES)) if (th.words.some(w => t.includes(w))) {
-      const neg = NEG.some(w => t.includes(w));
-      const x = (themes[k] ||= { key: k, label: th.label, neg: 0, pos: 0, quotes: [] });
-      neg ? x.neg++ : x.pos++; if (x.quotes.length < 3) x.quotes.push(c);
+    const seen = new Set();
+    for (const cl of clauses(c)) {
+      const neg = NEG.some(w => cl.includes(w)), pos = !neg && POS.some(w => cl.includes(w));
+      for (const [k, th] of Object.entries(THEMES)) if (th.words.some(w => cl.includes(w))) {
+        const x = (themes[k] ||= { key: k, label: th.label, neg: 0, pos: 0, quotes: [], praise: [] });
+        if (seen.has(k + (neg ? '-' : '+'))) continue; seen.add(k + (neg ? '-' : '+'));
+        if (neg) { x.neg++; if (x.quotes.length < 3) x.quotes.push(c); } else if (pos) { x.pos++; if (x.praise.length < 2) x.praise.push(c); }
+      }
     }
   }
   const latest = overall[overall.length - 1] || null, prev = overall.length > 1 ? overall[overall.length - 2] : null;
-  return { count: list.length, latest, prev, overall, criteria, themes: Object.values(themes).sort((a, b) => b.neg - a.neg), strengths: criteria.filter(c => c.latest >= 4.8).map(c => c.name), weakest: criteria.filter(c => c.latest < 4.8).slice(0, 3) };
+  return { count: list.length, latest, prev, overall, criteria, themes: Object.values(themes).filter(t => t.neg || t.pos).sort((a, b) => b.neg - a.neg || b.pos - a.pos), strengths: criteria.filter(c => c.latest >= 4.8).map(c => c.name), weakest: criteria.filter(c => c.latest < 4.8).slice(0, 3) };
 }
 export function themeForCriterion(name) {
   const n = name.toLowerCase();
-  const map = [['clar', 'clarity'], ['explain', 'clarity'], ['engag', 'engagement'], ['interact', 'engagement'], ['motiv', 'engagement'], ['time', 'pacing'], ['pac', 'pacing'], ['punctual', 'punctuality'], ['attend', 'punctuality'], ['prepar', 'preparation'], ['organ', 'preparation'], ['knowledge', 'mastery'], ['master', 'mastery'], ['subject', 'mastery'], ['approach', 'rapport'], ['respect', 'rapport'], ['respons', 'rapport']];
+  const map = [['slide', 'materials'], ['material', 'materials'], ['particip', 'engagement'], ['engag', 'engagement'], ['interact', 'engagement'], ['motiv', 'engagement'], ['knows', 'mastery'], ['knowledge', 'mastery'], ['master', 'mastery'], ['subject', 'mastery'], ['time', 'pacing'], ['pac', 'pacing'], ['organ', 'pacing'], ['clar', 'clarity'], ['speaks', 'clarity'], ['explain', 'clarity'], ['punctual', 'punctuality'], ['attend', 'punctuality'], ['prepar', 'preparation'], ['question', 'rapport'], ['approach', 'rapport'], ['respect', 'rapport'], ['respons', 'rapport']];
   return (map.find(([w]) => n.includes(w)) || [])[1] || null;
 }
 
@@ -464,8 +491,9 @@ export function themeForCriterion(name) {
 /** Leading indicators from your own logged activity. Nothing is assumed: no data → null. */
 export function journey(state, now, days = 30) {
   const cfg = cfgOf(state), from = now - days * DAY;
-  const past = activeSessions(state).filter(s => s.start < now && s.start >= from);
-  const pastUnits = unitItems(state).filter(u => u.start < now && u.start >= from);
+  const items = teachingItems(state).filter(s => s.kind !== 'consultation');
+  const past = items.filter(s => !s.approx && s.start < now && s.start >= from);
+  const pastUnits = items.filter(s => s.approx && s.start < now && s.start >= from);
   const arr = past.map(s => state.arrivals?.[s.id]).filter(Boolean);
   const punctual = arr.length ? arr.filter(a => a.status !== 'late').length / arr.length : null;
   const ready = [...past, ...pastUnits].map(s => readiness(s, state, cfg, s.start));
@@ -504,7 +532,7 @@ function avg(xs) { const v = xs.filter(x => x != null && !Number.isNaN(x)); retu
 export function streak(state, now) {
   const cfg = cfgOf(state);
   const byDay = new Map();
-  for (const s of activeSessions(state)) if (s.end < now) (byDay.get(dayKey(s.start)) || byDay.set(dayKey(s.start), []).get(dayKey(s.start))).push(s);
+  for (const s of teachingItems(state)) if (!s.approx && s.end < now) (byDay.get(dayKey(s.start)) || byDay.set(dayKey(s.start), []).get(dayKey(s.start))).push(s);
   const keys = [...byDay.keys()].sort().reverse();
   let n = 0;
   for (const k of keys) {
@@ -529,4 +557,13 @@ export function mergeUnits(existing, incoming, { source, now }) {
   }
   for (const p of old.values()) history.push({ type: 'removed', key: p.key, topic: p.topic, role: p.role, weekStart: p.weekStart, at: now });
   return { units: out.sort((a, b) => a.weekStart - b.weekStart), history };
+}
+
+/** Where to focus first: criterion gap to 5.0 (confirmed) combined with how often comments raise it (interpretation). */
+export function focusAreas(ev) {
+  if (!ev) return [];
+  const m = {};
+  for (const c of ev.criteria) { const k = themeForCriterion(c.name); if (k) (m[k] ||= { key: k, gap: 0, concerns: 0, criteria: [] }), m[k].gap = Math.max(m[k].gap, 5 - c.latest), m[k].criteria.push(c.name); }
+  for (const t of ev.themes) if (t.neg) (m[t.key] ||= { key: t.key, gap: 0, concerns: 0, criteria: [] }).concerns = t.neg;
+  return Object.values(m).filter(x => x.concerns || x.gap > .3).map(x => ({ ...x, score: x.gap * 10 + x.concerns })).sort((a, b) => b.score - a.score);
 }

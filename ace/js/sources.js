@@ -62,6 +62,9 @@ export function parseDate(s) {
 }
 /** "8:30 AM", "08:30", "1:00pm", "13:00". `hint` = meridiem of the range's end, used when start has none. */
 export function parseTime(s, hint) {
+  // Philippine notation: "12:00 NN" = noon, "12:00 MN" = midnight
+  const n = String(s || '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(nn|n\.n\.|noon|mn|m\.n\.|midnight)$/i);
+  if (n) return /^(nn|n\.n\.|noon)$/i.test(n[3]) ? { h: 12, mi: +(n[2] || 0), ap: 'p' } : { h: 0, mi: +(n[2] || 0), ap: 'a' };
   const m = String(s || '').trim().match(/^(\d{1,2})(?::(\d{2}))?\s*([ap])?\.?\s*m?\.?$/i);
   if (!m) return null;
   let h = +m[1]; const mi = +(m[2] || 0), ap = (m[3] || hint || '').toLowerCase();
@@ -189,7 +192,7 @@ export function rowsToAssignments(rows, identity, { mapping = {}, leadValues = [
 
 /* ------------------------------------------------------------ colour-coded topic grid (your lead sheet) */
 // Layout (from the real sheet): row 1 = week-start dates ("Nov 9"), row 2 = "Week 5", column B = track #,
-// body cells = "Topic\nCGD & GDL" (or "Topic by FCL & CGD"). In a cell containing your initials:
+// body cells = "Topic\nZAA & GDL" (or "Topic by ZBB & ZAA"). In a cell containing your initials:
 // neon-blue (cyan) background → you are LEAD; any other colour → SUPPORT.
 const MON_RE = /^(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})$/i;
 const INIT = '[A-Z]{2,4}';
@@ -305,22 +308,95 @@ export async function fetchSheetGrid(sheetUrl, apiKey) {
 const SCORE_AT_END = /^(.{3,90}?)[\s:|\t-]+([1-5](?:\.\d{1,2})?)(?:\s*(?:\/\s*5(?:\.0+)?|out of 5))?\s*$/i;
 export function maskPII(t) { return String(t).replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '[email]').replace(/\b\d{6,}\b/g, '[id]'); }
 export function parseEvalPaste(text) {
-  const lines = String(text || '').split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
-  const criteria = {}, comments = [], unparsed = []; let overall = null, inComments = false, responses = null;
-  for (const l of lines) {
-    if (/^(comments?|feedback|remarks|suggestions?|student comments?|what can .* improve|strengths?)\b/i.test(l) && l.length < 60 && !SCORE_AT_END.test(l)) { inComments = true; continue; }
-    const r = l.match(/(\d+)\s+(?:responses?|respondents?|evaluators?|students?)\b/i); if (r && l.length < 40) { responses = +r[1]; continue; }
-    const m = l.match(SCORE_AT_END);
-    if (m && !inComments) {
-      const label = m[1].replace(/[\s:|-]+$/, '').trim(), v = +m[2];
-      if (/overall|general average|average rating|mean rating|total average|final rating/i.test(label)) overall = v; else criteria[label] = v;
+  // Handles both "Label 4.62" on one line and the hub layout (label line, then the score on its own line),
+  // "73 evaluations · overall average 4.55 out of 5", and numbered comments that may span several lines.
+  const raw = String(text || '').replace(/\\n/g, '\n');
+  const lines = raw.split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const criteria = {}, comments = [], unparsed = []; let overall = null, inComments = false, numbered = false, responses = null, overallFound = false;
+  const NUM = /^([1-5](?:\.\d{1,2})?)(?:\s*(?:\/\s*5(?:\.0+)?|out of 5))?$/;
+  const SKIP = /^(results|instructor|type|batch|section|program|all|show results|students' evaluations are anonymous.*)$/i;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    const ov = l.match(/overall (?:average|rating|mean)[^\d]*([1-5](?:\.\d{1,2})?)/i);
+    const rc = l.match(/(\d+)\s+(?:evaluations?|responses?|respondents?|evaluators?)\b/i);
+    if (ov || (rc && l.length < 80)) { if (ov) { overall = +ov[1]; overallFound = true; } if (rc) responses = +rc[1]; continue; }
+    if (/^(comments?|feedback|remarks|suggestions?|student comments?)\b(\s*\(\d+\))?:?$/i.test(l)) { inComments = true; numbered = /^\d{1,3}[.)]\s/.test(lines[i + 1] || ''); continue; }
+    if (inComments) {
+      const n = l.match(/^(\d{1,3})[.)]\s*(.*)$/);
+      const body = (n ? n[2] : l).replace(/^["“”']+|["“”']+$/g, '').trim();
+      if (n || !numbered || !comments.length) { if (body && !/^(n\/?a|none|-+|\.)$/i.test(body)) comments.push(maskPII(body)); }
+      else if (body) comments[comments.length - 1] += '\n' + maskPII(body); // continuation line of a multi-line comment
       continue;
     }
-    if (inComments && l.length > 2 && !/^(\d+|[-–—]+|n\/?a|none|\.)$/i.test(l)) comments.push(maskPII(l));
-    else unparsed.push(l);
+    const next = lines[i + 1] || '';
+    if (!NUM.test(l) && NUM.test(next) && l.length >= 3 && l.length < 120 && !SKIP.test(l)) { // label, then score line
+      criteria[l.replace(/[\s:|-]+$/, '')] = +next.match(NUM)[1]; i++; continue;
+    }
+    const m = l.match(SCORE_AT_END);
+    if (m) {
+      const label = m[1].replace(/[\s:|-]+$/, '').trim(), v = +m[2];
+      if (/overall|general average|average rating|mean rating|total average|final rating/i.test(label)) { overall = v; overallFound = true; } else criteria[label] = v;
+      continue;
+    }
+    unparsed.push(l);
   }
   if (overall == null) { const v = Object.values(criteria); if (v.length) overall = Math.round(v.reduce((a, b) => a + b, 0) / v.length * 100) / 100; }
-  return { overall, overallComputed: overall != null && !lines.some(l => /overall|general average|average rating|final rating/i.test(l)), criteria, comments, responses, unparsed };
+  return { overall, overallComputed: overall != null && !overallFound, criteria, comments, responses, unparsed };
+}
+
+/* ------------------------------------------------------------ hub weekly grid (sections × days) */
+// Copying the hub's schedule table gives tab-separated rows:
+//   Sections | Time | Mon (Nov 2) | … | Sat (Nov 7)
+//   X3 AM    | 7:30 AM - 11:30 AM | | GDL - B | …
+// We keep ONLY cells whose instructor is you. Other people's cells are never stored.
+const DAY_HDR = /^(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?\s*(?:\(([^)]*)\))?/i;
+export function parseScheduleGrid(text, { initials, weekStart, now = Date.now() }) {
+  const me = String(initials || '').trim().toUpperCase();
+  const lines = String(text || '').split(/\r?\n/);
+  const rows = lines.map(l => l.split('\t').map(c => c.replace(/\s+/g, ' ').trim()));
+  const hi = rows.findIndex(r => r.filter(c => DAY_HDR.test(c)).length >= 3);
+  if (hi < 0 || !me) return null; // not a grid → caller falls back to the line parser
+  const title = rows.slice(0, hi).map(r => r.join(' ').trim()).filter(Boolean).pop() || '';
+  const hdr = rows[hi];
+  const secCol = Math.max(0, hdr.findIndex(c => /^section/i.test(c)));
+  const timeCol = hdr.findIndex(c => /^time/i.test(c));
+  const ws = new Date(weekStart + 8 * 36e5);
+  const dayCols = [];
+  hdr.forEach((c, j) => {
+    const m = c.match(DAY_HDR); if (!m) return;
+    const d = m[2] && parseDate(m[2].replace(/^(\w+)\s+(\d+)$/, '$1 $2, ' + ws.getUTCFullYear()));
+    const idx = (DAYS.indexOf(m[1].slice(0, 3).toLowerCase()) + 6) % 7;
+    let at = d ? mk(d.y, d.m, d.d) : mk(ws.getUTCFullYear(), ws.getUTCMonth() + 1, ws.getUTCDate() + idx);
+    if (d && Math.abs(at - (weekStart + idx * 864e5)) > 180 * 864e5) at = mk(d.y + (at < weekStart ? 1 : -1), d.m, d.d); // year rollover
+    dayCols.push({ j, at });
+  });
+  const cellRe = new RegExp(`^${me}(?:\\s*[-–—]\\s*([A-Z0-9]{1,3}))?$`);
+  const sessions = [], warnings = [];
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const time = timeCol >= 0 ? r[timeCol] : r.find(c => parseRange(c));
+    const range = parseRange(time || '');
+    if (!range) continue; // spacer / note row
+    const section = r[secCol] || '';
+    const short = r.length < hdr.length - 1; // merged cells or trimmed row → day columns may be shifted
+    for (const { j, at } of dayCols) {
+      const m = (r[j] || '').toUpperCase().match(cellRe);
+      if (!m) continue;
+      const p = new Date(at + 8 * 36e5), Y = p.getUTCFullYear(), M = p.getUTCMonth() + 1, D = p.getUTCDate();
+      const start = mk(Y, M, D, range.start.h, range.start.mi); let end = mk(Y, M, D, range.end.h, range.end.mi); if (end <= start) end += 864e5;
+      const consult = /consult/i.test(section);
+      const online = /online|remote/i.test(section);
+      const group = m[1] || '';
+      sessions.push({
+        externalId: `grid:${p.toISOString().slice(0, 10)}|${section.toLowerCase()}|${range.start.h}:${range.start.mi}`,
+        subject: consult ? section : `${title || 'Class'}${group ? ' · Group ' + group : ''}`, autoTopic: !consult, group, kind: consult ? 'consultation' : 'class',
+        section, start, end, format: online ? 'online' : 'in_person', location: online ? '' : section, platform: online ? 'Online' : '',
+        hybrid: /hyb/i.test(section), template: consult ? 'consult' : undefined, status: 'scheduled', weekTitle: title, uncertain: short,
+      });
+      if (short) warnings.push(`${section} row looks merged — check the day for ${section}`);
+    }
+  }
+  return { sessions, unparsed: [...new Set(warnings)], title, format: 'grid' };
 }
 
 /* ------------------------------------------------------------ weekly schedule (pasted from hub "My Schedule") */

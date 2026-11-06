@@ -128,7 +128,7 @@ function home() {
       ${ring(r.pct, 86, `${Math.round(r.pct * 100)}%<small>ready</small>`)}</div>
       <div class="chips">${next.approx ? `<span class="chip">Class time: from hub schedule</span>` : `<span class="chip">${next.format === 'online' ? 'Be online by' : 'Leave by'} <b>${E.fmtTime(lb)}</b></span><span class="chip">${esc(next.location || next.platform || '')}</span>`}
         <span class="chip"><b>${r.done}</b>/${r.total} confirmed</span>${r.unconfirmed ? `<span class="chip">${r.unconfirmed} not yet confirmed</span>` : ''}</div>
-      ${r.next ? `<button class="btn" data-a="task" data-id="rd:${esc(next.id)}:${r.next.id}">${ico('check', 18)} Done: ${esc(r.next.label)}</button>` : `<div class="t" style="margin-top:12px">✓ Fully prepared. Use spare time to rehearse your opening.</div>`}
+      ${r.next ? `<button class="btn" data-a="task" data-id="rd:${esc(r.next.key)}:${r.next.id}">${ico('check', 18)} Done: ${esc(r.next.label)}</button>` : `<div class="t" style="margin-top:12px">✓ Fully prepared. Use spare time to rehearse your opening.</div>`}
       <div class="row" style="margin-top:10px;gap:8px"><button class="btn ghost sm" style="background:#ffffff26;color:#fff;border:0" data-a="class" data-id="${esc(next.id)}">Open checklist</button>
       ${!next.approx && !arr && t > next.start - 3 * 36e5 && t < next.end ? `<button class="btn sm" style="background:#fff;color:#1c4a21" data-a="arrive" data-id="${esc(next.id)}">I’m here</button>` : ''}
       ${arr ? `<span class="chip">Arrived · ${esc(arr.status.replace('_', ' '))}</span>` : ''}</div></div>`;
@@ -187,7 +187,7 @@ function week() {
     if (wk !== lastWeek) { h += `<div class="day-h">Week of ${E.fmtDay(E.mondayOf(s.start))}</div>`; lastWeek = wk; }
     const r = E.readiness(s, state, c), arr = state.arrivals[s.id];
     h += `<button class="card sess" style="width:100%;text-align:left;margin-bottom:10px" data-a="class" data-id="${esc(s.id)}"><div class="sess-h"><div class="grow">
-      <div class="sess-t">${esc(s.subject)}</div><div class="sess-m">${s.approx ? `${esc(s.unit?.week || '')} · ${esc(s.section)} · times from hub` : `${E.fmtDayRel(s.start, t)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.location || s.platform || (s.format === 'online' ? 'Online' : ''))}`}</div>
+      <div class="sess-t">${esc(s.subject)}</div><div class="sess-m">${s.approx ? `${esc(s.unit?.week || '')} · ${esc(s.section)} · times from hub` : `${E.fmtDayRel(s.start, t)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.section || s.location || s.platform || (s.format === 'online' ? 'Online' : ''))}${s.group ? ' · Group ' + esc(s.group) : ''}`}</div>
       <div class="row" style="gap:6px;margin-top:8px">${s.role ? `<span class="pill ${s.role === 'lead' ? '' : 'amb'}">${s.role === 'lead' ? 'Lead' : 'Support'}</span>` : ''}${srcBadge(s.source)}${arr ? `<span class="pill ${arr.status === 'late' ? 'bad' : ''}">${esc(arr.status.replace('_', ' '))}</span>` : ''}</div></div>
       ${ring(r.pct, 58, `<span style="font-size:14px">${Math.round(r.pct * 100)}%</span>`)}</div></button>`;
   }
@@ -199,7 +199,7 @@ function classSheet(id) {
   if (!s) return;
   const r = E.readiness(s, state, c), arr = state.arrivals[s.id];
   const groups = Object.entries(E.CATS).map(([k, label]) => { const rows = r.rows.filter(x => x.cat === k); return rows.length ? `<div class="day-h" style="margin-top:14px">${label} · ${rows.filter(x => x.doneAt).length}/${rows.length}</div>
-    ${rows.map(x => `<button class="tick ${x.doneAt ? 'on' : ''}" data-a="rd" data-id="${esc(s.id)}" data-item="${x.id}"><span class="box">${ico('check', 16)}</span><span class="lbl">${esc(x.official && s.role === 'lead' ? x.label + ' (lead deadline)' : x.label)}<span class="hint">${x.doneAt ? 'Confirmed ' + E.fmtDayRel(x.doneAt, t) + ' ' + E.fmtTime(x.doneAt) : 'Not yet confirmed · by ' + E.fmtDayRel(s.start - x.lead * 36e5, t) + ' ' + E.fmtTime(s.start - x.lead * 36e5)}</span></span></button>`).join('')}` : ''; }).join('');
+    ${rows.map(x => `<button class="tick ${x.doneAt ? 'on' : ''}" data-a="rd" data-id="${esc(s.id)}" data-item="${x.id}"><span class="box">${ico('check', 16)}</span><span class="lbl">${esc(x.official && s.role === 'lead' ? x.label + ' (lead deadline)' : x.label)}<span class="hint">${s.unit && !E.SESSION_ITEMS.has(x.id) && !s.approx ? 'Shared by all classes this week · ' : ''}${x.doneAt ? 'Confirmed ' + E.fmtDayRel(x.doneAt, t) + ' ' + E.fmtTime(x.doneAt) : 'Not yet confirmed · by ' + E.fmtDayRel(s.start - x.lead * 36e5, t) + ' ' + E.fmtTime(s.start - x.lead * 36e5)}</span></span></button>`).join('')}` : ''; }).join('');
   const tpls = Object.entries(c.templates).map(([k, v]) => `<option value="${k}" ${E.templateFor(s, c) === v ? 'selected' : ''}>${esc(v.label)}</option>`).join('');
   sheet(`<h2>${esc(s.subject)}</h2><div class="muted small">${s.approx ? `Week of ${E.fmtDay(s.start)} · ${esc(s.section)} · ${s.role === 'lead' ? 'Lead (neon blue in sheet)' : 'Support'}${s.unit?.cell ? ' · cell ' + esc(s.unit.cell) : ''}` : `${E.fmtDay(s.start)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.location || s.platform)}`}</div>
     ${s.approx ? '<div class="warnbox">Readiness targets count back from the start of this week until the exact class time is imported from the hub.</div>' : ''}
@@ -263,9 +263,10 @@ function growth() {
     h += `<div class="card">${ev.criteria.map(c => `<div class="bar-row"><div class="top2"><span>${esc(c.name)}</span><span>${c.latest.toFixed(2)}${c.delta != null ? `<span class="delta ${c.delta >= 0 ? 'up' : 'down'}">${c.delta >= 0 ? '▲' : '▼'}${Math.abs(c.delta).toFixed(2)}</span>` : ''}</span></div><div class="bar"><i class="${c.latest < 4.3 ? 'vlow' : c.latest < 4.8 ? 'low' : ''}" style="width:${c.latest / 5 * 100}%"></i></div></div>`).join('')}
       <div class="muted small" style="margin-top:10px">${ev.count} evaluation${ev.count > 1 ? 's' : ''} · ${ev.strengths.length ? 'Strengths: ' + esc(ev.strengths.join(', ')) : 'Gold line = 5.0 target'}</div></div>`;
     // interpretation
-    if (ev.themes.length) h += `<div class="day-h">What comments may be saying · interpretation</div><div class="card"><div class="muted small" style="margin-bottom:6px">Keyword-based reading of comments. Not a confirmed finding — read the quotes.</div>${ev.themes.slice(0, 4).map(th => `<div style="padding:10px 0;border-top:1px solid var(--line)"><div class="row"><b class="grow">${esc(th.label)}</b>${th.neg ? `<span class="pill bad">${th.neg} concern${th.neg > 1 ? 's' : ''}</span>` : ''}${th.pos ? `<span class="pill">${th.pos} positive</span>` : ''}</div>${th.quotes.map(q => `<div class="quote">“${esc(q)}”</div>`).join('')}</div>`).join('')}</div>`;
+    if (ev.themes.length) h += `<div class="day-h">What comments may be saying · interpretation</div><div class="card"><div class="muted small" style="margin-bottom:6px">Keyword-based reading of comments. Not a confirmed finding — read the quotes.</div>${ev.themes.slice(0, 6).map(th => `<div style="padding:10px 0;border-top:1px solid var(--line)"><div class="row"><b class="grow">${esc(th.label)}</b>${th.neg ? `<span class="pill bad">${th.neg} concern${th.neg > 1 ? 's' : ''}</span>` : ''}${th.pos ? `<span class="pill">${th.pos} positive</span>` : ''}</div>${th.quotes.slice(0, 2).map(q => `<div class="quote">“${esc(q)}”</div>`).join('')}${!th.quotes.length && th.praise[0] ? `<div class="quote" style="border-left:3px solid var(--green)">“${esc(th.praise[0])}”</div>` : ''}</div>`).join('')}</div>
+    ${(() => { const st = ev.themes.filter(x => x.pos > x.neg).map(x => x.label); return st.length ? `<div class="card" style="margin-top:10px;border-color:var(--green)"><div class="eyebrow" style="color:var(--green-2)">Strengths students mention</div><div class="small" style="margin-top:6px">${esc(st.join(' · '))}</div></div>` : ''; })()}`;
     // development plan
-    const keys = [...new Set([...ev.weakest.map(c => E.themeForCriterion(c.name)), ...ev.themes.filter(x => x.neg).map(x => x.key)].filter(Boolean))].slice(0, 3);
+    const keys = E.focusAreas(ev).slice(0, 4).map(f => f.key);
     if (keys.length) h += `<div class="day-h">Development plan</div>${keys.map(k => `<div class="card focus" style="margin-bottom:10px"><div class="eyebrow">${esc(E.THEMES[k].label)}</div>${E.THEMES[k].tips.map(tip => { const adopted = state.practices.find(p => p.text === tip && !p.archived); return `<div class="row" style="margin-top:10px"><div class="grow small">${esc(tip)}</div>${adopted ? '<span class="pill">Adopted</span>' : `<button class="btn ghost sm" data-a="adopt" data-k="${k}" data-tip="${esc(tip)}">Adopt</button>`}</div>`; }).join('')}</div>`).join('')}`;
   }
   const pr = state.practices.filter(p => !p.archived);
@@ -321,7 +322,7 @@ function sources() {
 
   <div class="card" style="margin-top:12px"><h3>Your data</h3><div class="muted small" style="margin-top:4px">Everything stays on this device. Export a backup regularly. The API key is never exported.</div>
     <div class="row" style="margin-top:10px;gap:8px"><button class="btn ghost sm" data-a="export">Export backup</button><button class="btn ghost sm" data-a="import">Import backup</button><button class="btn danger sm" data-a="reset">Erase</button></div><input type="file" id="bk" accept=".json,application/json" hidden></div>
-  <div class="muted small" style="text-align:center;margin-top:16px">Ace v0.1 · Asia/Manila time</div>`;
+  <div class="muted small" style="text-align:center;margin-top:16px">Ace v0.2 · Asia/Manila time</div>`;
 }
 
 /* ================================================================ render */
@@ -373,11 +374,17 @@ async function syncSheet() {
   save(); render();
 }
 let pendingImport = null;
+/** What a pasted class will show as: the sheet topic of that week when there is exactly one, else the grid label. */
+function topicFor(s) {
+  if (!s.autoTopic) return s.subject;
+  const us = E.unitsForWeek(state, s.start);
+  return us.length === 1 ? `${us[0].topic} · ${us[0].role === 'lead' ? 'Lead' : 'Support'}` : s.subject;
+}
 function reviewSessions(sessions, info, extra = '') {
   pendingImport = { sessions, ...info };
   const t = now();
   sheet(`<h2>Review ${sessions.length} class${sessions.length === 1 ? '' : 'es'}</h2><div class="muted small">Nothing is saved until you confirm. Uncheck anything that isn’t yours.</div>${extra}
-    ${sessions.map((s, i) => `<label class="tick on" style="margin:0;color:var(--text)"><input type="checkbox" name="k${i}" checked style="width:auto"><span class="lbl" style="text-decoration:none;color:var(--text)">${esc(s.subject)}<span class="hint">${E.fmtDay(s.start)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.location || s.platform || s.format)}${s.status === 'cancelled' ? ' · CANCELLED' : ''}</span></span></label>`).join('')}
+    ${sessions.map((s, i) => `<label class="tick on" style="margin:0;color:var(--text)"><input type="checkbox" name="k${i}" checked style="width:auto"><span class="lbl" style="text-decoration:none;color:var(--text)">${esc(topicFor(s))}<span class="hint">${E.fmtDay(s.start)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.section || s.location || s.platform || s.format)}${s.group ? ' · Group ' + esc(s.group) : ''}${s.format === 'online' ? ' · Online' : ''}${s.status === 'cancelled' ? ' · CANCELLED' : ''}${s.uncertain ? ' · ⚠︎ check the day' : ''}</span></span></label>`).join('')}
     ${info.unparsed?.length ? `<details style="margin-top:12px"><summary class="muted small">${info.unparsed.length} lines not understood</summary><div class="quote small">${info.unparsed.slice(0, 30).map(esc).join('<br>')}</div></details>` : ''}
     <label class="row" style="color:var(--text)"><input type="checkbox" name="full" style="width:auto" ${info.week ? 'checked' : ''}> This is the complete schedule for ${info.week ? 'the week of ' + E.fmtDay(E.parseLocal(info.week)) : 'these dates'} (lets Ace detect removed classes)</label>
     <div class="row" style="margin-top:16px"><button class="btn ghost" data-a="close">Cancel</button><button class="btn" data-a="commit-sched" ${sessions.length ? '' : 'disabled'}>Save</button></div>`);
@@ -408,7 +415,7 @@ document.addEventListener('click', async e => {
     case 'untask': markTask(id, false); break;
     case 'snooze': state.snooze[id] = t + 3 * 36e5; save(); render(); break;
     case 'class': classSheet(id); break;
-    case 'rd': { const it = el.dataset.item; (state.readiness[id] ||= {}); state.readiness[id][it] ? delete state.readiness[id][it] : state.readiness[id][it] = t; save(); render(); classSheet(id); break; }
+    case 'rd': { const it = el.dataset.item, s = E.teachingItems(state).find(x => x.id === id); const k = s ? E.readinessKey(s, it) : id; (state.readiness[k] ||= {}); state.readiness[k][it] ? delete state.readiness[k][it] : state.readiness[k][it] = t; save(); render(); classSheet(id); break; }
     case 'rdt': { const it = el.dataset.item; (state.readiness[id] ||= {}); state.readiness[id][it] ? delete state.readiness[id][it] : state.readiness[id][it] = t; save(); render(); break; }
     case 'arrive': logArrival(id); closeSheet(); break;
     case 'arrive-m': logArrival(id, el.dataset.st); closeSheet(); break;
@@ -430,8 +437,10 @@ document.addEventListener('click', async e => {
     case 'del-as': if (confirm('Delete this assessment?')) { state.assessments = state.assessments.filter(x => x.id !== id); save(); render(); } break;
     case 'revision': sheet(`<h2>Revision requested</h2><label>What was asked</label><input name="note"><label>Due</label><input type="datetime-local" name="due"><button class="btn" style="margin-top:16px" data-a="save-rev" data-id="${esc(id)}">Save</button>`); break;
     case 'save-rev': { const v = formVals(); const x = assessRec(id), due = E.allAssessments(state).find(a => a.id === id)?.due; x.revision = { note: v.note, due: v.due ? E.parseLocal(v.due) : due, doneAt: null }; save(); closeSheet(); render(); break; }
-    case 'paste-sched': { const wk = E.dayKey(E.mondayOf(t)); sheet(`<h2>Paste hub schedule</h2><label>Week (Monday) — from the page’s ?week=</label><input type="date" name="week" value="${wk}"><label>Page text</label><textarea name="txt" rows="8" placeholder="Select all on the My Schedule page, copy, paste here"></textarea><button class="btn" style="margin-top:12px" data-a="parse-sched">Read classes</button>`); break; }
-    case 'parse-sched': { const v = formVals(); const ws = E.parseLocal(v.week); if (Number.isNaN(ws)) return toast('Pick the week'); const monday = E.mondayOf(ws); const r = S.parseSchedulePaste(v.txt, monday); reviewSessions(r.sessions, { unparsed: r.unparsed, week: E.dayKey(monday), method: 'paste' }); break; }
+    case 'paste-sched': { const wk = E.dayKey(E.mondayOf(t)); sheet(`<h2>Paste hub schedule</h2><label>Week (Monday) — from the page’s ?week=</label><input type="date" name="week" value="${wk}"><label>Page text</label><textarea name="txt" rows="8" placeholder="On the hub schedule page: Select All → Copy, then paste here. Only your ${esc(cfg().initials)} classes are kept."></textarea><button class="btn" style="margin-top:12px" data-a="parse-sched">Read classes</button>`); break; }
+    case 'parse-sched': { const v = formVals(); const ws = E.parseLocal(v.week); if (Number.isNaN(ws)) return toast('Pick the week'); const monday = E.mondayOf(ws); const g = S.parseScheduleGrid(v.txt, { initials: cfg().initials, weekStart: monday }); const r = g || S.parseSchedulePaste(v.txt, monday);
+      if (g && !g.sessions.length) return toast(`No “${cfg().initials}” cells found in that schedule`);
+      reviewSessions(r.sessions, { unparsed: r.unparsed, week: E.dayKey(monday), method: 'paste' }); break; }
     case 'file-sched': $('#schedFile').click(); break;
     case 'commit-sched': commitSchedule(); break;
     case 'sync-sheet': el.textContent = 'Syncing…'; await syncSheet(); break;
