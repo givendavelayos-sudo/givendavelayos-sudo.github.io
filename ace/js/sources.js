@@ -283,24 +283,6 @@ export function parseTopicGrid(grid, { initials, now }) {
 const E_dayKey = ms => { const d = new Date(ms + 8 * 36e5); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`; };
 export const colName = n => { let s = ''; n++; while (n) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; };
 
-/** Read-only Google Sheets API v4 call (text + background colours). Key stays on this device. */
-export async function fetchSheetGrid(sheetUrl, apiKey) {
-  const id = (String(sheetUrl).match(/\/d\/([a-zA-Z0-9-_]+)/) || [])[1];
-  if (!id) throw new Error('That does not look like a Google Sheets link');
-  if (!apiKey) throw new Error('Add a Google API key (Sheets API, read-only) in Sources');
-  const gid = (String(sheetUrl).match(/[#&?]gid=(\d+)/) || [])[1];
-  const base = `https://sheets.googleapis.com/v4/spreadsheets/${id}`;
-  const get = async q => {
-    const r = await fetch(`${base}?${q}&key=${encodeURIComponent(apiKey)}`, { credentials: 'omit', cache: 'no-store' });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error?.status === 'PERMISSION_DENIED' ? 'Google refused access: share the sheet as “Anyone with the link can view”, and check the key allows the Sheets API and this site.' : j.error?.message || `HTTP ${r.status}`);
-    return j;
-  };
-  const meta = await get('fields=properties.title,sheets.properties(sheetId,title)');
-  const tab = meta.sheets.find(s => gid != null && String(s.properties.sheetId) === gid) || meta.sheets[0];
-  const data = await get(`includeGridData=true&ranges=${encodeURIComponent(`'${tab.properties.title}'`)}&fields=sheets.data(startRow,startColumn,rowData.values(formattedValue,effectiveFormat.backgroundColor))`);
-  return { grid: data.sheets[0].data[0], title: meta.properties.title, tab: tab.properties.title, id };
-}
 
 /* ------------------------------------------------------------ evaluations (pasted from the hub page) */
 // You copy the evaluation page while signed in and paste it here. We extract scores and comments and

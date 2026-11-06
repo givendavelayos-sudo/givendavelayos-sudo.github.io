@@ -10,6 +10,14 @@ _Last updated 2026-11-06 · deployed from `givendavelayos-sudo/gdgertc` (main) o
   banner after 30 h, no horizontal overflow.
 - Power untouched (no files outside `ace/` changed).
 
+## v0.4.1 (Nov 6) — user decisions
+- **No Google Sheet sync**: lead/support weeks come only from screenshots the user sends. Each batch is shipped as a
+  new file in `seed/` (add it to `SEEDS` in `js/app.js`, build with `tests/build-seed.mjs`). `E.importMerge` updates
+  screenshot weeks in place when a newer import arrives (role/topic changes → Alerts), `unitsComplete: true` removes
+  weeks no longer on a full-sheet screenshot, `resolve: [...]` clears review items. API-key code removed and any stored key is deleted.
+- **No official hub schedule from Nov 9 yet**: those weeks say "Official schedule not released yet"; review item cleared.
+- **No Face ID**: removed; the app lock is PIN-only.
+
 ## v0.4 (Nov 6) — cleanup & redesign (baseline tag: `v0.3.0-baseline`)
 - Navigation: 4 tabs **Today · Schedule · Tasks · Performance**; Sources moved to Settings → Connections;
   old hash links (#week, #work, #growth, #sources) redirect.
@@ -26,8 +34,7 @@ _Last updated 2026-11-06 · deployed from `givendavelayos-sudo/gdgertc` (main) o
 
 ## v0.3 (Nov 6)
 - Settings (Power pattern): search; Profile; Appearance (System/Light/Dark/AMOLED, app colour); Home screen cards
-  (reorder/hide); Preferences (hide scores, 24-hour); Teaching rules; Security (PIN app lock + Face ID via WebAuthn,
-  device-only in `localStorage['ace.lock']`); Notifications per type + morning plan; Calendar (.ics export);
+  (reorder/hide); Preferences (hide scores, 24-hour); Teaching rules; Security (PIN app lock, device-only in `localStorage['ace.lock']`); Notifications per type + morning plan; Calendar (.ics export);
   Imports (merge); Backup & data; Help; About / What's new / Check for updates.
 - Bell / Alerts: schedule changes, sheet role changes, deadlines < 48 h, open prep for the next class, leave-by,
   stale/failed syncs, unverified sheet weeks, "Needs review" items. Dismiss / Mark all read.
@@ -37,8 +44,7 @@ _Last updated 2026-11-06 · deployed from `givendavelayos-sudo/gdgertc` (main) o
 - Home "Improvement focus" card from real evaluation data (`E.focusAreas`).
 
 ## Not verified yet (needs the real thing)
-- Live call to the real sheet: needs your API key; the build container can reach `sheets.googleapis.com` but
-  can't receive a Google key through its credential form. Expected results for GDL as of Nov 6:
+- (Sheet API sync removed in v0.4.1 — screenshots only.) Expected results for GDL as of Nov 6:
   Relative Equilibrium (Nov 9, support), **Fluid Flow 1 (Nov 16, lead)**, Fluid Flow 2 (Nov 23, support),
   **Kinetics 1 (Dec 7, lead)**, Kinetics 2 (Dec 14, support).
 - Hub schedule/evaluation page formats: parsers are tolerant but untested on real pasted text.

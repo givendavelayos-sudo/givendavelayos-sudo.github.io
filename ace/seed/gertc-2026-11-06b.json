@@ -1,0 +1,127 @@
+{
+ "v": 1,
+ "kind": "ace-import",
+ "label": "Update · Nov 6, 2026 (weeks confirmed, Nov 9+ schedule not released)",
+ "createdAt": 1793952060000,
+ "units": [
+  {
+   "key": "2026-11-09|1",
+   "weekStart": 1794153600000,
+   "week": "Week 5",
+   "track": "1",
+   "topic": "Relative Equilibrium of Fluids in Moving Vessels",
+   "detail": "",
+   "instructors": [
+    "GDL"
+   ],
+   "coInstructors": [],
+   "role": "support",
+   "color": "#ff0000",
+   "colorClass": "other",
+   "verified": true,
+   "reasons": [],
+   "cell": "H3",
+   "source": {
+    "id": "sheet",
+    "name": "Lead sheet · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  },
+  {
+   "key": "2026-11-16|1",
+   "weekStart": 1794758400000,
+   "week": "Week 6",
+   "track": "1",
+   "topic": "Fluid Flow 1",
+   "detail": "",
+   "instructors": [
+    "GDL"
+   ],
+   "coInstructors": [],
+   "role": "lead",
+   "color": "#00ffff",
+   "colorClass": "neon_blue",
+   "verified": true,
+   "reasons": [],
+   "cell": "I3",
+   "source": {
+    "id": "sheet",
+    "name": "Lead sheet · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  },
+  {
+   "key": "2026-11-23|1",
+   "weekStart": 1795363200000,
+   "week": "Week 7",
+   "track": "1",
+   "topic": "Fluid Flow 2",
+   "detail": "",
+   "instructors": [
+    "GDL"
+   ],
+   "coInstructors": [],
+   "role": "support",
+   "color": "#ff0000",
+   "colorClass": "other",
+   "verified": true,
+   "reasons": [],
+   "cell": "J3",
+   "source": {
+    "id": "sheet",
+    "name": "Lead sheet · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  },
+  {
+   "key": "2026-12-07|2",
+   "weekStart": 1796572800000,
+   "week": "Week 9",
+   "track": "2",
+   "topic": "Kinetics 1",
+   "detail": "",
+   "instructors": [
+    "GDL"
+   ],
+   "coInstructors": [],
+   "role": "lead",
+   "color": "#00ffff",
+   "colorClass": "neon_blue",
+   "verified": true,
+   "reasons": [],
+   "cell": "L4",
+   "source": {
+    "id": "sheet",
+    "name": "Lead sheet · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  },
+  {
+   "key": "2026-12-14|2",
+   "weekStart": 1797177600000,
+   "week": "Week 10",
+   "track": "2",
+   "topic": "Kinetics 2",
+   "detail": "",
+   "instructors": [
+    "GDL"
+   ],
+   "coInstructors": [],
+   "role": "support",
+   "color": "#990000",
+   "colorClass": "other",
+   "verified": true,
+   "reasons": [],
+   "cell": "M4",
+   "source": {
+    "id": "sheet",
+    "name": "Lead sheet · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  }
+ ],
+ "unitsComplete": true,
+ "resolve": [
+  "missing-nov9"
+ ]
+}

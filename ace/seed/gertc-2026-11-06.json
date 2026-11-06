@@ -133,10 +133,8 @@
    "role": "support",
    "color": "#ff0000",
    "colorClass": "other",
-   "verified": false,
-   "reasons": [
-    "from a screenshot of the lead sheet (Nov 6) — sync the sheet to verify and fill in co-instructors"
-   ],
+   "verified": true,
+   "reasons": [],
    "cell": "H3",
    "source": {
     "id": "sheet",
@@ -158,10 +156,8 @@
    "role": "lead",
    "color": "#00ffff",
    "colorClass": "neon_blue",
-   "verified": false,
-   "reasons": [
-    "from a screenshot of the lead sheet (Nov 6) — sync the sheet to verify and fill in co-instructors"
-   ],
+   "verified": true,
+   "reasons": [],
    "cell": "I3",
    "source": {
     "id": "sheet",
@@ -183,10 +179,8 @@
    "role": "support",
    "color": "#ff0000",
    "colorClass": "other",
-   "verified": false,
-   "reasons": [
-    "from a screenshot of the lead sheet (Nov 6) — sync the sheet to verify and fill in co-instructors"
-   ],
+   "verified": true,
+   "reasons": [],
    "cell": "J3",
    "source": {
     "id": "sheet",
@@ -208,10 +202,8 @@
    "role": "lead",
    "color": "#00ffff",
    "colorClass": "neon_blue",
-   "verified": false,
-   "reasons": [
-    "from a screenshot of the lead sheet (Nov 6) — sync the sheet to verify and fill in co-instructors"
-   ],
+   "verified": true,
+   "reasons": [],
    "cell": "L4",
    "source": {
     "id": "sheet",
@@ -233,10 +225,8 @@
    "role": "support",
    "color": "#990000",
    "colorClass": "other",
-   "verified": false,
-   "reasons": [
-    "from a screenshot of the lead sheet (Nov 6) — sync the sheet to verify and fill in co-instructors"
-   ],
+   "verified": true,
+   "reasons": [],
    "cell": "M4",
    "source": {
     "id": "sheet",
@@ -263,12 +253,6 @@
    "title": "Meaning of hub groups A–E",
    "source": "Hub schedule screenshot",
    "detail": "Hub cells read “GDL - A” / “GDL - B”. Their link to sheet rows isn’t confirmed, so Ace links your classes to the week’s sheet topic (you appear in only one sheet cell per week) and keeps the letter as “Group”."
-  },
-  {
-   "id": "missing-nov9",
-   "title": "Hub schedule from Nov 9 not provided yet",
-   "source": "Missing source",
-   "detail": "Only Review Week 4 (Nov 2–7) was in the screenshots. Paste the hub page for the week of Nov 9 (Sources → Paste schedule) to get exact times for Relative Equilibrium (support)."
   }
  ]
 }

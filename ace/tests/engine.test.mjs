@@ -469,3 +469,22 @@ test('deliverables: one list of handouts, lead PowerPoints and exams with steps 
   assert.equal(late.status, 'overdue'); assert.equal(late.done, false);
   assert.ok(E.deliverables(state, now).every(x => x.steps.every(s => s.task)));
 });
+
+test('screenshot updates: newer import changes weeks in place, records role changes, removes dropped weeks, resolves review items', () => {
+  const now = mk(2026, 11, 6, 16), src = { id: 'sheet', method: 'screenshot' };
+  const base = S.parseTopicGrid(grid, { initials: 'GDL', now }).units.map(u => ({ ...u, source: src }));
+  const a = E.importMerge({ sources: { sheet: {} } }, { createdAt: 1, units: base, review: [{ id: 'missing-nov9', title: 'x' }] }, { now });
+  assert.equal(a.state.units.length, 5);
+  assert.ok(a.state.unitHistory.every(h => h.type === 'imported'), 'first import is not reported as changes');
+  // later screenshot: Fluid Flow 2 becomes lead, Kinetics 2 gone (full sheet), a new week added
+  const later = base.filter(u => u.topic !== 'Kinetics 2').map(u => u.topic === 'Fluid Flow 2' ? { ...u, role: 'lead', verified: true } : u)
+    .concat([{ ...base[0], key: '2026-12-21|1', topic: 'Hydraulic Machines', role: 'lead', weekStart: mk(2026, 12, 21) }]);
+  const b = E.importMerge(a.state, { createdAt: 2, units: later, unitsComplete: true, resolve: ['missing-nov9'] }, { now: now + 1 });
+  assert.equal(b.report.units.updated, 1); assert.equal(b.report.units.removed, 1); assert.equal(b.report.units.added, 1);
+  assert.equal(b.state.units.find(u => u.topic === 'Fluid Flow 2').role, 'lead');
+  assert.deepEqual(b.state.unitHistory.filter(h => h.type !== 'imported').map(h => `${h.type}:${h.topic}`).sort(), ['added:Hydraulic Machines', 'changed:Fluid Flow 2', 'removed:Kinetics 2']);
+  assert.ok(b.state.review.find(r => r.id === 'missing-nov9').resolvedAt);
+  // re-running the same import changes nothing
+  const c = E.importMerge(b.state, { createdAt: 2, units: later, unitsComplete: true }, { now: now + 2 });
+  assert.equal(c.report.units.updated + c.report.units.added + c.report.units.removed, 0);
+});

@@ -580,7 +580,7 @@ export function focusAreas(ev) {
 export function importMerge(state, data, { now }) {
   const st = JSON.parse(JSON.stringify(state));
   st.sessions ||= []; st.units ||= []; st.evals ||= []; st.review ||= []; st.unitHistory ||= [];
-  const rep = { sessions: { added: 0, updated: 0, unchanged: 0, conflicts: 0 }, units: { added: 0, unchanged: 0, skipped: 0 }, evals: { added: 0, unchanged: 0 }, review: 0 };
+  const rep = { sessions: { added: 0, updated: 0, unchanged: 0, conflicts: 0 }, units: { added: 0, updated: 0, removed: 0, unchanged: 0, skipped: 0 }, evals: { added: 0, unchanged: 0 }, review: 0 };
   const byKey = new Map(st.sessions.map(s => [sessionKey(s), s]));
   for (const raw of data.sessions || []) {
     const inc = { section: '', location: '', platform: '', format: 'in_person', status: 'scheduled', ...raw };
@@ -596,11 +596,24 @@ export function importMerge(state, data, { now }) {
   if (data.units?.length) {
     if (liveSheet) rep.units.skipped += data.units.length; // the live sheet wins over screenshot evidence
     else {
-      const have = new Map(st.units.map(u => [u.key, u]));
+      // Screenshots are the official source: a newer screenshot import updates weeks in place.
+      const have = new Map(st.units.map(u => [u.key, u])), first = !st.units.length, ver = data.createdAt || now;
       for (const u of data.units) {
-        if (have.has(u.key)) { rep.units.unchanged++; continue; }
-        st.units.push({ ...u, source: { ...u.source, at: now }, since: now }); rep.units.added++;
-        st.unitHistory.push({ type: 'imported', key: u.key, topic: u.topic, role: u.role, weekStart: u.weekStart, at: now });
+        const ex = have.get(u.key);
+        if (!ex) {
+          st.units.push({ ...u, source: { ...u.source, at: now }, since: now, importedFrom: ver }); rep.units.added++;
+          st.unitHistory.push({ type: first ? 'imported' : 'added', key: u.key, topic: u.topic, role: u.role, weekStart: u.weekStart, at: now });
+          continue;
+        }
+        if (ver <= (ex.importedFrom || 0)) { rep.units.unchanged++; continue; } // (live-sheet weeks never reach here: see liveSheet above)
+        const f = ['topic', 'role'].filter(k => ex[k] !== u[k]);
+        Object.assign(ex, u, { source: { ...u.source, at: now }, since: ex.since, importedFrom: ver });
+        if (f.length) st.unitHistory.push({ type: 'changed', key: u.key, topic: u.topic, fields: f, to: Object.fromEntries(f.map(k => [k, u[k]])), weekStart: u.weekStart, at: now });
+        rep.units[f.length ? 'updated' : 'unchanged']++;
+      }
+      if (data.unitsComplete) { // a full-sheet screenshot: weeks no longer on it (from its first week on) are removed
+        const keys = new Set(data.units.map(u => u.key)), from = Math.min(...data.units.map(u => u.weekStart));
+        st.units = st.units.filter(u => { const gone = u.source?.method === 'screenshot' && u.weekStart >= from && !keys.has(u.key); if (gone) { rep.units.removed++; st.unitHistory.push({ type: 'removed', key: u.key, topic: u.topic, role: u.role, weekStart: u.weekStart, at: now }); } return !gone; });
       }
       st.units.sort((a, b) => a.weekStart - b.weekStart);
     }
@@ -608,6 +621,7 @@ export function importMerge(state, data, { now }) {
   if (data.identity?.name && !st.identity?.name) st.identity = { ...(st.identity || {}), name: data.identity.name };
   for (const e of data.evals || []) { if (st.evals.some(x => x.id === e.id)) rep.evals.unchanged++; else { st.evals.push({ ...e, importedAt: now }); rep.evals.added++; } }
   for (const r of data.review || []) if (!st.review.some(x => x.id === r.id)) { st.review.push({ ...r, at: now }); rep.review++; }
+  for (const id of data.resolve || []) { const r = st.review.find(x => x.id === id); if (r && !r.resolvedAt) r.resolvedAt = now; }
   rep.review += rep.sessions.conflicts;
   return { state: st, report: rep };
 }

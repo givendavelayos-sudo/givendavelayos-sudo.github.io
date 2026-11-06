@@ -2,7 +2,8 @@ import * as E from './engine.js';
 import * as S from './sources.js';
 
 /* ================================================================ store */
-const KEY = 'ace.v1', GKEY = 'ace.gkey';
+const KEY = 'ace.v1';
+try { localStorage.removeItem('ace.gkey'); } catch {} // the Google Sheets API key is no longer used
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/13n5Hfh216lruqi4I4wzNvIxEvPX4wkTp83bbMNF3boQ/edit?usp=sharing';
 const HUB = { schedule: 'https://hub.gertcrev.com/admin/group-chat/my-schedule', evals: 'https://hub.gertcrev.com/admin/evaluations?show=1&instructor=a5a7af21-c35f-4dd8-b87c-d1c9a35ada32&type=&batch=&section=&program=' };
 const blank = () => ({ v: 1, identity: { name: '', initials: 'GDL', email: '' }, cfg: { initials: 'GDL' }, sources: { schedule: {}, sheet: { url: SHEET_URL }, evals: {} },
@@ -10,7 +11,6 @@ const blank = () => ({ v: 1, identity: { name: '', initials: 'GDL', email: '' },
 let state;
 try { state = { ...blank(), ...JSON.parse(localStorage.getItem(KEY) || 'null') }; } catch { state = blank(); }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { toast('Could not save on this device'); } };
-const gkey = { get: () => { try { return localStorage.getItem(GKEY) || ''; } catch { return ''; } }, set: v => { try { v ? localStorage.setItem(GKEY, v) : localStorage.removeItem(GKEY); } catch {} } };
 
 /* ================================================================ ui helpers */
 const $ = s => document.querySelector(s);
@@ -30,7 +30,7 @@ const I = {
   bell: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   back: '<path d="M15 18l-6-6 6-6"/>', chev: '<path d="M9 6l6 6-6 6"/>', lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
-  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', face: '<path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 10v1M15 10v1M12 10v3h-1M9.5 16a3.5 3.5 0 0 0 5 0"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', _face: '<path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M9 10v1M15 10v1M12 10v3h-1M9.5 16a3.5 3.5 0 0 0 5 0"/>',
   up: '<path d="M6 15l6-6 6 6"/>', down: '<path d="M6 9l6 6 6-6"/>', del: '<path d="M21 5H9l-6 7 6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/><path d="m16 10-4 4M12 10l4 4"/>', alert: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17v.5"/>', x: '<path d="M6 6l12 12M18 6 6 18"/>',
 };
 const ico = (n, s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
@@ -123,7 +123,7 @@ const HOME_CARDS = [['next', 'Next class'], ['today', 'Focus today'], ['upcoming
 function nextCard(s, t, c) {
   const r = E.readiness(s, state, c), arr = state.arrivals[s.id], lb = E.leaveBy(s, c), inClass = t >= s.start && t < s.end;
   const soon = !s.approx && !arr && s.start - t < 3 * 36e5 && t < s.end, late = soon && t > lb;
-  const when = s.approx ? `Week of ${E.fmtDay(s.start)} · class times not imported yet` : inClass ? `In class now · until ${E.fmtTime(s.end)}` : `${E.fmtDayRel(s.start, t)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)}${s.section ? ' · ' + s.section : ''}`;
+  const when = s.approx ? `Week of ${E.fmtDay(s.start)} · official schedule not released yet` : inClass ? `In class now · until ${E.fmtTime(s.end)}` : `${E.fmtDayRel(s.start, t)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)}${s.section ? ' · ' + s.section : ''}`;
   return `<div class="card hero ${late ? 'late' : ''}"><div class="eyebrow">Next class${s.role ? ' · ' + (s.role === 'lead' ? 'Lead' : 'Support') : ''}</div>
     <div class="h-title">${esc(s.subject)}</div><div class="h-sub">${esc(when)}${arr ? ` · arrived ${esc(arr.status.replace('_', ' '))}` : ''}</div>
     <div class="h-ready"><div class="row"><span>Preparation</span><b>${r.done} of ${r.total}</b></div>${bar(r.done, r.total, 'light')}</div>
@@ -173,7 +173,7 @@ function schedule() {
       h += `<button class="lrow ${past ? 'past' : ''}" data-a="class" data-id="${esc(s.id)}">${dateChip(s.start)}<div class="grow"><div class="l-t">${E.fmtTime(s.start)}–${E.fmtTime(s.end)}${cf.has(s.id) ? ' <span class="tag bad">Overlap</span>' : ''}</div>
         <div class="l-s">${esc([s.kind === 'consultation' ? s.subject : s.section, s.format === 'online' ? 'Online' : '', s.group ? 'Group ' + s.group : ''].filter(Boolean).join(' · ') || s.subject)}</div></div>${right}</button>`;
     }
-    if (!real.length && unit) h += `<div class="lrow"><div class="grow"><div class="l-t muted">Class times not imported</div><div class="l-s">Paste this week from the hub to see your exact classes</div></div><button class="btn sec sm" data-a="paste-sched" data-week="${E.dayKey(mon)}">Paste</button></div>`;
+    if (!real.length && unit) h += `<div class="lrow"><div class="grow"><div class="l-t muted">Official schedule not released yet</div><div class="l-s">Prep counts back from Monday until the hub schedule is out</div></div><button class="btn sec sm" data-a="paste-sched" data-week="${E.dayKey(mon)}" aria-label="Paste the hub schedule for this week">Paste</button></div>`;
     if (unit) h += `<button class="lrow sub" data-a="class" data-id="u:${esc(unit.key)}"><div class="grow l-s">Topic prep · ${E.readiness(E.unitItems(state).find(x => x.id === 'u:' + unit.key), state, c).done} of ${E.readiness(E.unitItems(state).find(x => x.id === 'u:' + unit.key), state, c).total} ready · shared by all classes this week</div>${ico('chev', 14)}</button>`;
     h += `</div></section>`;
   }
@@ -266,12 +266,10 @@ function connectionsHTML() {
   const wk = E.dayKey(E.mondayOf(t)), wk2 = E.dayKey(E.addDays(E.mondayOf(t), 7));
   const hist = (state.unitHistory || []).filter(h => h.type !== 'imported').slice(-4).reverse();
   const open = (state.review || []).filter(r => !r.resolvedAt);
-  return `<div class="card"><div class="head"><h3>Lead instructor sheet</h3>${fr(sh)}</div>
-    <div class="muted small">${esc(E.freshness(sh, c, t).label)}. Cells with <b>${esc(c.initials || '—')}</b>: neon blue = Lead, other colours = Support. Read-only.</div>
-    <label>Google Sheet link</label><input data-f="sources.sheet.url" value="${esc(sh.url || '')}">
-    <label>Google API key · stays on this device</label><input type="password" data-a="gkey" value="${esc(gkey.get())}" placeholder="Sheets API key, restricted to this site">
-    ${sh.error ? `<div class="warnbox">${esc(sh.error)}</div>` : ''}${(sh.warnings || []).map(w => `<div class="warnbox">${esc(w)}</div>`).join('')}
-    <button class="btn wide" style="margin-top:12px" data-a="sync-sheet">Sync now</button>
+  const imp = Object.values(state.imports || {}).filter(v => v.report?.units && (v.report.units.added || v.report.units.updated || v.report.units.unchanged)).sort((a, b) => b.at - a.at)[0];
+  return `<div class="card"><div class="head"><h3>Lead & support weeks</h3><span class="tag ${(state.units || []).length ? 'ok' : 'amb'}">${(state.units || []).length ? 'From screenshots' : 'None yet'}</span></div>
+    <div class="muted small">Send a screenshot of the lead-instructor sheet in your Claude chat whenever it changes; Ace is updated from it (cells with <b>${esc(c.initials || '—')}</b>: neon blue = Lead, other colours = Support).</div>
+    <div class="small" style="margin-top:10px">${(state.units || []).length} teaching weeks · ${(state.units || []).filter(u => u.role === 'lead').length} lead${imp ? ` · last updated ${E.fmtAgo(imp.at, t)}` : ''}</div>
     ${hist.length ? `<div class="cat-h">Recent changes</div>${hist.map(x => `<div class="small" style="padding:3px 0">${esc(x.type)} · ${esc(x.topic)} <span class="muted">${E.fmtAgo(x.at, t)}</span></div>`).join('')}` : ''}</div>
   <div class="card" style="margin-top:12px"><div class="head"><h3>Class schedule (hub)</h3>${fr(sc)}</div>
     <div class="muted small">The hub needs your login, so Ace never stores your password. Open your week, Select All → Copy, then paste. Only your classes are kept, and you review them before saving.</div>
@@ -358,12 +356,10 @@ function alerts() {
     const lb = E.leaveBy(next, c);
     if (!state.arrivals[next.id] && lb - t < 3 * 36e5 && next.start > t) add(`lb:${next.id}`, { tone: lb < t ? 'bad' : '', icon: 'clock', title: `${next.format === 'online' ? 'Be online by' : 'Leave by'} ${E.fmtTime(lb)}`, sub: `${next.subject} at ${E.fmtTime(next.start)}`, act: 'class', actId: next.id, label: 'Open' });
   }
-  for (const [k, label] of [['sheet', 'Lead sheet'], ['schedule', 'Class schedule']]) {
+  for (const [k, label] of [['schedule', 'Class schedule']]) {
     const f = E.freshness(state.sources[k], c, t);
     if (f.state === 'failed' || f.state === 'stale') add(`sy:${k}:${E.dayKey(t)}`, { tone: f.state === 'failed' ? 'bad' : 'amb', icon: 'sources', title: `${label}: ${f.state === 'failed' ? 'sync failed' : 'may be outdated'}`, sub: f.label, act: 'tab', actId: 'connections', label: 'Update' });
   }
-  const unv = (state.units || []).filter(x => !x.verified && x.weekStart + 7 * 864e5 > t).length;
-  if (unv) add(`uv:${unv}:${state.sources.sheet.lastOk || 0}`, { tone: 'amb', icon: 'sources', title: `${unv} sheet week${unv > 1 ? 's' : ''} unverified`, sub: 'Sync the lead sheet to confirm lead/support', act: 'tab', actId: 'connections', label: 'Sync' });
   for (const r of state.review || []) if (!r.resolvedAt) add(`rv:${r.id}`, { tone: 'amb', icon: 'alert', title: `Needs review · ${r.title}`, sub: r.detail || '', act: 'review', actId: r.id, label: 'Details', review: r });
   const order = { bad: 0, lead: 1, amb: 2, '': 3 };
   return out.sort((a, b) => order[a.tone] - order[b.tone]);
@@ -404,7 +400,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.4.0';
+const VERSION = '0.4.1';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -423,7 +419,8 @@ async function applyImport(data, id, label) {
   save(); render(); return m.report;
 }
 /* One-time imports shipped with the app (your screenshot data). Runs once per device; safe to re-run. */
-const SEEDS = ['seed/gertc-2026-11-06.json'];
+// Each screenshot batch you send is shipped as a new file here; every device imports each one once.
+const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json'];
 async function runSeeds() {
   for (const url of SEEDS) {
     const id = url.split('/').pop();
@@ -442,14 +439,14 @@ const PANELS = {
     const u = ui(), c = cfg(), L = lock.get(), perm = 'Notification' in window ? Notification.permission : 'unsupported';
     return ['Settings', `<label class="searchbox">${ico('search', 18)}<input id="setq" placeholder="Search settings" value="${esc(setQ)}" autocomplete="off"></label>
       ${grp('Profile', [rowBox('Name', `<input data-f="identity.name" value="${esc(state.identity.name)}" placeholder="e.g. Given Dave Layos">`), rowBox('Initials in schedules', `<input data-f="cfg.initials" value="${esc(c.initials)}" style="text-transform:uppercase" maxlength="4">`, 'Ace keeps only cells with these initials from the hub schedule and the lead sheet.')])}
-      ${grp('Connections', [rowLink('Lead instructor sheet', E.freshness(state.sources.sheet, c, Date.now()).label, 'panel', 'connections'), rowLink('Class schedule (hub)', E.freshness(state.sources.schedule, c, Date.now()).label, 'panel', 'connections'), rowLink('Evaluations', state.evals.length ? `${state.evals.length} imported` : 'None imported yet', 'panel', 'connections')])}
+      ${grp('Connections', [rowLink('Lead & support weeks', `${(state.units || []).length} weeks · from screenshots`, 'panel', 'connections'), rowLink('Class schedule (hub)', E.freshness(state.sources.schedule, c, Date.now()).label, 'panel', 'connections'), rowLink('Evaluations', state.evals.length ? `${state.evals.length} imported` : 'None imported yet', 'panel', 'connections')])}
       ${grp('Appearance', [rowBox('Theme', `<div class="seg">${[['system', 'System'], ['light', 'Light'], ['dark', 'Dark'], ['amoled', 'AMOLED']].map(([k, l]) => `<button class="${u.theme === k ? 'on' : ''}" data-a="theme" data-id="${k}">${l}</button>`).join('')}</div>`),
         rowBox('App color', `<div class="swatches">${ACCENTS.map(([n, hx]) => `<button class="sw ${u.accent === hx ? 'on' : ''}" style="--c:${hx || '#5a9e5f'}" data-a="accent" data-id="${hx}" aria-label="${n}"></button>`).join('')}<label class="sw custom ${u.accent && !ACCENTS.some(x => x[1] === u.accent) ? 'on' : ''}" style="--c:${u.accent || '#5a9e5f'}" aria-label="Custom color"><input type="color" data-a="accent-custom" value="${u.accent || '#5a9e5f'}"></label></div>`)])}
       ${grp('Home screen', [rowLink('Cards on Home', `${HOME_CARDS.length - Object.values(u.home.hidden).filter(Boolean).length} shown · reorder or hide`, 'panel', 'home')])}
       ${grp('Preferences', [rowToggle('Hide scores on Home', 'Shows •••• instead of your evaluation score', 'ui.hideScores', u.hideScores), rowToggle('24-hour time', '13:00 instead of 1:00 PM', 'ui.clock24', u.clock24)])}
       ${grp('Teaching', [rowLink('Teaching rules', `Cutoffs ${E.fmtTime(E.atTime(Date.now(), c.cutoffTime))} · lead PPT ${c.leadPptDaysBefore} days ahead · buffers`, 'panel', 'rules')])}
       ${grp('Security', [rowToggle('App lock', L?.hash ? 'PIN required when opening Ace' : 'Protect your evaluations with a PIN', 'lock', !!L?.hash),
-        ...(L?.hash ? [rowLink('Change PIN', '', 'pin-change'), `<label class="srow"><div class="grow"><div class="s-l">Face ID unlock</div><div class="s-s">${faceOk ? 'Unlock with your face' : 'Not available on this device or browser'}</div></div><input type="checkbox" class="switch" data-a="faceid" ${L.cred ? 'checked' : ''} ${faceOk ? '' : 'disabled'}></label>`] : [])])}
+        ...(L?.hash ? [rowLink('Change PIN', '', 'pin-change')] : [])])}
       ${grp('Notifications', [rowLink('Reminders', perm === 'granted' ? 'On for this device' : perm === 'denied' ? 'Blocked — allow in iPhone Settings → Ace' : 'Tap to allow (open Ace from the Home Screen first)', 'notif'),
         rowToggle('Leave-by / log-in time', '15 minutes before', 'ui.notif.leave', u.notif.leave), rowToggle('Deadlines', 'Handouts, exams, lead duties — 3 hours before', 'ui.notif.deadlines', u.notif.deadlines),
         rowToggle('Lead PowerPoint', 'The day before it’s due', 'ui.notif.leadppt', u.notif.leadppt), rowToggle('Schedule & role changes', 'After a sync finds changes', 'ui.notif.changes', u.notif.changes),
@@ -473,7 +470,7 @@ const PANELS = {
   help() {
     const step = (t, d) => `<div class="card" style="margin-bottom:10px"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></div>`;
     return ['How to use Ace', [
-      step('1 · Connect your sources', 'Sources → <b>Lead sheet</b>: add your Google API key and tap Sync now. Neon-blue GDL cells become Lead weeks; other GDL cells are Support.<br>Sources → <b>Class schedule</b>: open the hub week, Select All → Copy, then Paste schedule. Only your GDL classes are kept.'),
+      step('1 · Keep your sources current', '<b>Lead & support weeks</b> come from screenshots of the lead-instructor sheet: send a new screenshot in your Claude chat when it changes. Neon-blue GDL cells are Lead weeks; other GDL cells are Support.<br><b>Class schedule</b>: when the official hub week is released, open it, Select All → Copy, then Settings → Connections → Paste schedule. Only your GDL classes are kept.'),
       step('2 · Prepare once per topic', 'Open a class to see its checklist. Slides, solutions and studying are shared by every class of that topic-week. Room, link and buffer are per class.'),
       step('3 · Follow “Most important next”', 'Today ranks everything — readiness, handouts, lead PowerPoints and exams — by official deadline, suggested targets and effort.'),
       step('4 · Lead weeks', 'PowerPoint finalized 7 days before the week, handout due the Wednesday before (8 PM), exam due that week’s Wednesday (8 PM). Mark submitted only after you actually submit.'),
@@ -483,8 +480,9 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.4', 'Nov 6, 2026', ['Cleaner app: 4 tabs — Today, Schedule, Tasks, Performance', 'Today shows only your next class, today’s focus and what’s coming up', 'All handouts, lead PowerPoints and exams in one Tasks list with steps', 'Schedule groups classes by teaching week with topic and role', 'Performance: your score, the top 3 things to improve, real habit stats', 'Connections moved into Settings', 'One design system across every screen'])
-      + v('0.3', 'Nov 6, 2026', ['Settings with search, like Power', 'Alerts bell: changes, deadlines, sync problems', 'App lock with PIN and Face ID', 'Themes: System, Light, Dark, AMOLED · app colors', 'Reorder or hide Home cards · hide scores · 24-hour time', 'Choose which reminders you get, plus a morning plan'])
+    return ['What’s new', v('0.4.1', 'Nov 6, 2026', ['Lead & support weeks now come only from your screenshots (no Google sign-in or API key)', 'Weeks from Nov 9 show “official schedule not released yet”', 'App lock uses your PIN only'])
+      + v('0.4', 'Nov 6, 2026', ['Cleaner app: 4 tabs — Today, Schedule, Tasks, Performance', 'Today shows only your next class, today’s focus and what’s coming up', 'All handouts, lead PowerPoints and exams in one Tasks list with steps', 'Schedule groups classes by teaching week with topic and role', 'Performance: your score, the top 3 things to improve, real habit stats', 'Connections moved into Settings', 'One design system across every screen'])
+      + v('0.3', 'Nov 6, 2026', ['Settings with search, like Power', 'Alerts bell: changes, deadlines, sync problems', 'App lock with PIN', 'Themes: System, Light, Dark, AMOLED · app colors', 'Reorder or hide Home cards · hide scores · 24-hour time', 'Choose which reminders you get, plus a morning plan'])
       + v('0.2', 'Nov 6, 2026', ['Reads the hub schedule grid and evaluation page', 'Prep shared across all classes of a topic-week', 'Taglish/Bisaya comment analysis', 'Smoother tab switching']) + v('0.1', 'Nov 6, 2026', ['First release: lead sheet, handouts, exams, readiness, planner, growth'])];
   },
 };
@@ -498,11 +496,9 @@ function filterSettings() {
   const nr = p.querySelector('#noresult'); if (nr) { nr.hidden = any; nr.querySelector('span').textContent = setQ; }
 }
 
-/* ---------- app lock: PIN (salted SHA-256) + optional Face ID (WebAuthn platform authenticator), device-only */
+/* ---------- app lock: PIN (salted SHA-256), device-only */
 const LKEY = 'ace.lock';
 const lock = { get() { try { return JSON.parse(localStorage.getItem(LKEY) || 'null'); } catch { return null; } }, set(v) { try { v ? localStorage.setItem(LKEY, JSON.stringify(v)) : localStorage.removeItem(LKEY); } catch {} } };
-let faceOk = false;
-(async () => { try { faceOk = !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch {} })();
 async function sha(x) { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(x)); return [...new Uint8Array(b)].map(v => v.toString(16).padStart(2, '0')).join(''); }
 const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
 const unb64 = x => Uint8Array.from(atob(x), ch => ch.charCodeAt(0));
@@ -518,7 +514,7 @@ function renderLock(err) {
   el.innerHTML = `<img src="icon-192.png" width="64" height="64" style="border-radius:16px" alt=""><div class="l-t">${err ? 'Wrong PIN' : 'Enter your PIN'}</div>
     <div class="pins ${err ? 'shake' : ''}">${Array.from({ length: L.len }, (_, i) => `<i class="${i < pinBuf.length ? 'on' : ''}"></i>`).join('')}</div>
     <div class="keypad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-a="pin" data-id="${n}">${n}</button>`).join('')}
-    ${L.cred && faceOk ? `<button data-a="face-unlock" aria-label="Unlock with Face ID">${ico('face', 26)}</button>` : '<span></span>'}<button data-a="pin" data-id="0">0</button><button data-a="pin" data-id="del" aria-label="Delete">${ico('del', 24)}</button></div>`;
+    <span></span><button data-a="pin" data-id="0">0</button><button data-a="pin" data-id="del" aria-label="Delete">${ico('del', 24)}</button></div>`;
 }
 function unlockNow() { locked = false; const el = $('.lock'); if (el) { el.classList.add('out'); setTimeout(() => el.remove(), 250); } render(); }
 async function pinKey(k) {
@@ -526,20 +522,6 @@ async function pinKey(k) {
   if (k === 'del') pinBuf = pinBuf.slice(0, -1); else if (pinBuf.length < L.len) pinBuf += k;
   renderLock();
   if (pinBuf.length === L.len) { if (await sha(L.salt + pinBuf) === L.hash) unlockNow(); else { pinBuf = ''; renderLock(true); } }
-}
-async function faceUnlock() {
-  const L = lock.get(); if (!L?.cred) return;
-  try { await navigator.credentials.get({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), rpId: location.hostname, allowCredentials: [{ type: 'public-key', id: unb64(L.cred), transports: ['internal'] }], userVerification: 'required', timeout: 60000 } }); unlockNow(); }
-  catch { toast('Face ID didn’t work — use your PIN'); }
-}
-async function enableFaceId() {
-  try {
-    const cred = await navigator.credentials.create({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { name: 'Ace', id: location.hostname },
-      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'ace-lock', displayName: 'Ace app lock' }, pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' }, timeout: 60000, attestation: 'none' } });
-    lock.set({ ...lock.get(), cred: b64(cred.rawId) }); toast('Face ID added');
-  } catch { toast('Face ID setup was cancelled'); }
-  renderPanel();
 }
 function pinSheet(mode) {
   sheet(`<h2>${mode === 'off' ? 'Turn off app lock' : mode === 'change' ? 'Change PIN' : 'Set a PIN'}</h2>
@@ -554,7 +536,7 @@ async function pinSave(mode) {
   if (!/^\d{4,6}$/.test(v.p1 || '')) return toast('PIN must be 4–6 digits');
   if (v.p1 !== v.p2) return toast('PINs do not match');
   const salt = b64(crypto.getRandomValues(new Uint8Array(16)));
-  lock.set({ salt, hash: await sha(salt + v.p1), len: v.p1.length, cred: mode === 'change' ? L?.cred : null });
+  lock.set({ salt, hash: await sha(salt + v.p1), len: v.p1.length });
   closeSheet(); renderPanel(); toast(mode === 'new' ? 'App lock on' : 'PIN changed');
 }
 document.addEventListener('visibilitychange', () => {
@@ -600,21 +582,6 @@ function render() {
 }
 
 /* ================================================================ import flows */
-async function syncSheet() {
-  const src = state.sources.sheet, t = now();
-  src.lastTry = t;
-  try {
-    const { grid, title, tab: tabName } = await S.fetchSheetGrid(src.url, gkey.get());
-    const { units, warnings } = S.parseTopicGrid(grid, { initials: cfg().initials, now: t });
-    const m = E.mergeUnits(state.units, units, { source: { id: 'sheet', name: title }, now: t });
-    state.units = m.units; state.unitHistory = [...(state.unitHistory || []), ...m.history].slice(-200);
-    Object.assign(src, { lastOk: t, error: null, warnings, title, tab: tabName, method: 'api', firstOk: src.firstOk || t });
-    if (ui().notif.changes) for (const h of m.history.filter(h => h.type !== 'added' || src.firstOk !== t)) notify(`uh:${h.key}:${h.at}`, h.type === 'removed' ? `Removed from the sheet: ${h.topic}` : h.to?.role === 'lead' ? `You are now LEAD: ${h.topic}` : `Sheet change: ${h.topic}`, `Week of ${E.fmtDay(h.weekStart)}`);
-    const roleUp = m.history.filter(h => h.type === 'changed' && h.to?.role === 'lead');
-    toast(roleUp.length ? `New lead week: ${roleUp[0].topic}` : `Sheet synced · ${units.length} weeks`);
-  } catch (e) { src.error = e.message; toast('Sync failed — showing last saved data'); }
-  save(); render();
-}
 let pendingImport = null;
 /** What a pasted class will show as: the sheet topic of that week when there is exactly one, else the grid label. */
 function topicFor(s) {
@@ -691,7 +658,6 @@ document.addEventListener('click', async e => {
       reviewSessions(r.sessions, { unparsed: r.unparsed, week: E.dayKey(monday), method: 'paste' }); break; }
     case 'file-sched': $('#schedFile').click(); break;
     case 'commit-sched': commitSchedule(); break;
-    case 'sync-sheet': el.textContent = 'Syncing…'; await syncSheet(); break;
     case 'hrole': { const c = cfg(), r = new Set(c.handoutRoles); r.has(id) ? r.delete(id) : r.add(id); state.cfg.handoutRoles = [...r]; save(); render(); break; }
     case 'ov-set': { const d = $('#ovDate').value, to = $('#ovTo').value; if (!d || !to) return toast('Pick the normal Wednesday and the new time'); (state.cfg.cutoffOverrides ||= {})[d] = to; save(); render(); break; }
     case 'ov-skip': { const d = $('#ovDate').value; if (!d) return toast('Pick the normal Wednesday'); (state.cfg.cutoffOverrides ||= {})[d] = 'skip'; save(); render(); break; }
@@ -732,11 +698,10 @@ document.addEventListener('click', async e => {
     case 'accent': ui().accent = id; save(); applyTheme(); render(); break;
     case 'hmove': { const o = ui().home.order, i = o.indexOf(id), j = i + +el.dataset.d; if (j < 0 || j >= o.length) break; [o[i], o[j]] = [o[j], o[i]]; save(); render(); break; }
     case 'pin': pinKey(id); break;
-    case 'face-unlock': faceUnlock(); break;
     case 'pin-change': pinSheet('change'); break;
     case 'pin-save': await pinSave(id); break;
     case 'update': { toast('Checking for updates…'); try { const r = await navigator.serviceWorker?.getRegistration(); await r?.update(); } catch {} setTimeout(() => location.reload(), 700); break; }
-    case 'reset': if (confirm('Erase ALL Ace data on this device? Export a backup first if you might need it.')) { state = blank(); state.imports = { 'gertc-2026-11-06.json': { at: t, report: null, label: 'Screenshot import (skipped after erase)' } }; save(); closePanel(); render(); toast('Erased'); } break;
+    case 'reset': if (confirm('Erase ALL Ace data on this device? Export a backup first if you might need it.')) { state = blank(); state.imports = Object.fromEntries(SEEDS.map(u => [u.split('/').pop(), { at: t, report: null, label: 'Screenshot import (skipped after erase)' }])); save(); closePanel(); render(); toast('Erased'); } break;
   }
 });
 document.addEventListener('change', async e => {
@@ -744,7 +709,6 @@ document.addEventListener('change', async e => {
   if (el.dataset.f === 'lock') { const on = el.checked; el.checked = !on; pinSheet(on ? 'new' : 'off'); return; }
   if (el.dataset.a === 'accent-custom') { ui().accent = el.value; save(); applyTheme(); render(); return; }
   if (el.dataset.a === 'hshow') { ui().home.hidden[el.dataset.id] = !el.checked; save(); render(); return; }
-  if (el.dataset.a === 'faceid') { if (el.checked) await enableFaceId(); else { const L = lock.get(); if (L) { delete L.cred; lock.set(L); } toast('Face ID unlock off'); renderPanel(); } return; }
   if (el.id === 'mg' && el.files[0]) { try { const d = JSON.parse(await el.files[0].text()); const r = await applyImport(d, `file:${el.files[0].name}`, `File · ${el.files[0].name}`); toast(`Merged: ${importSummary(r)}`); } catch { toast('Not an Ace data file'); } el.value = ''; return; }
   if (el.dataset.f) {
     const [root, ...path] = el.dataset.f.split('.'); let o = state[root] ||= {};
@@ -754,7 +718,6 @@ document.addEventListener('change', async e => {
     if (el.dataset.f === 'cfg.initials') v = v.toUpperCase().trim();
     o[path.at(-1)] = v; save(); if (root === 'ui') applyTheme(); render(); return;
   }
-  if (el.dataset.a === 'gkey') { gkey.set(el.value.trim()); toast('Key saved on this device'); return; }
   if (el.dataset.a === 'tpl') { const s = state.sessions.find(x => x.id === el.dataset.id); if (s) s.template = el.value; else { (state.cfg.unitTemplates ||= {})[el.dataset.id] = el.value; } save(); render(); classSheet(el.dataset.id); return; }
   if (el.dataset.a === 'note') { state.notes[el.dataset.id] = el.value; save(); return; }
   if (el.id === 'schedFile' && el.files[0]) { const txt = await el.files[0].text(); const r = S.parseSchedule(txt, { identity: { name: state.identity.name, email: state.identity.email } }); reviewSessions(r.sessions, { unparsed: (r.skipped || []).map(x => `Row ${x.row}: ${x.reason}`), method: r.format }); el.value = ''; return; }
