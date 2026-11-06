@@ -451,3 +451,21 @@ test('calendar export: classes and deadlines as valid ICS with stable UIDs', () 
   assert.equal(ics, E.toICS(state, now), 'deterministic');
   assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, (ics.match(/END:VEVENT/g) || []).length);
 });
+
+test('deliverables: one list of handouts, lead PowerPoints and exams with steps and status', () => {
+  const now = mk(2026, 11, 6, 16);
+  const { units } = S.parseTopicGrid(grid, { initials: 'GDL', now });
+  const state = { units, duties: [{ id: 'd1', title: 'Review co-instructor slides', due: mk(2026, 11, 12, 17) }] };
+  const d = E.deliverables(state, now);
+  const titles = d.map(x => `${x.kind}:${x.title}:${E.dayKey(x.due)}`);
+  assert.deepEqual(titles.slice(0, 4), ['leadppt:Fluid Flow 1 PowerPoint:2026-11-09', 'handout:Fluid Flow 1 handout:2026-11-11', 'duty:Review co-instructor slides:2026-11-12', 'exam:Exam: Fluid Flow 1:2026-11-18']);
+  const ppt = d[0];
+  assert.equal(ppt.steps.length, 2); assert.equal(ppt.next.id, 'slides_draft'); assert.equal(ppt.status, 'soon', 'due Mon 8 AM, under 3 days away');
+  // ticking the planner task updates the deliverable (same ids)
+  state.readiness = { [ppt.unitId]: { slides_draft: now, slides_final: now } };
+  assert.equal(E.deliverables(state, now)[0].status, 'done');
+  // a past-due unsubmitted handout is overdue; submission is never assumed
+  const late = E.deliverables(state, mk(2026, 11, 12, 9)).find(x => x.kind === 'handout');
+  assert.equal(late.status, 'overdue'); assert.equal(late.done, false);
+  assert.ok(E.deliverables(state, now).every(x => x.steps.every(s => s.task)));
+});

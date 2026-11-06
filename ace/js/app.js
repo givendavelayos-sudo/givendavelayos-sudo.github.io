@@ -36,18 +36,6 @@ const I = {
 const ico = (n, s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
 let toastT;
 function toast(msg) { document.querySelector('.toast')?.remove(); const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.append(t); clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 2600); }
-function ring(p, size = 104, label = '') {
-  const r = size / 2 - 8, c = 2 * Math.PI * r, v = Math.max(0, Math.min(1, p || 0));
-  const col = p == null ? 'var(--faint)' : v >= .9 ? 'var(--green-2)' : v >= .6 ? 'var(--amber)' : 'var(--red)';
-  return `<div class="ring" style="width:${size}px;height:${size}px"><svg viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="9"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${c * v} ${c}"/></svg><div class="c">${label}</div></div>`;
-}
-const badge = (verified, txt) => verified ? `<span class="pill">${esc(txt || 'Verified')}</span>` : `<span class="pill amb">${esc(txt || 'Unverified')}</span>`;
-function srcBadge(src) {
-  if (!src) return '';
-  if (src.id === 'user') return '<span class="pill amb">You entered</span>';
-  const f = E.freshness(state.sources[src.id === 'sheet' ? 'sheet' : 'schedule'], cfg(), now());
-  return f.state === 'live' ? `<span class="pill">${src.id === 'sheet' ? 'Sheet' : 'Hub'} · ${E.fmtAgo(src.at, now())}</span>` : `<span class="pill amb">Cached</span>`;
-}
 
 /* ================================================================ actions */
 // Manual assessments live in state.assessments; auto lead exams keep their progress in state.exams[id].
@@ -61,7 +49,7 @@ function markTask(id, on = true) {
   if (id.startsWith('rd:')) { const sid = id.slice(3, id.lastIndexOf(':')); (state.readiness[sid] ||= {}); on ? state.readiness[sid][last] = t : delete state.readiness[sid][last]; }
   else if (id.startsWith('ho:')) {
     const hid = id.slice(0, id.lastIndexOf(':')), h = (state.handouts[hid] ||= { stages: {} });
-    if (last === 'submit') return confirmSubmit(hid);
+    if (last === 'submit') { if (on) return confirmSubmit(hid); if (!confirm('Undo this submission?')) return; delete h.submittedAt; delete h.cutoffAt; save(); render(); return; }
     h.stages ||= {}; on ? h.stages[last] = t : delete h.stages[last];
   } else if (id.startsWith('as:')) {
     const a = assessRec(parts[1]); if (!a) return;
@@ -96,249 +84,207 @@ function closeSheet() { document.querySelector('.scrim')?.remove(); }
 const formVals = () => Object.fromEntries([...document.querySelectorAll('.sheet [name]')].map(el => [el.name, el.type === 'checkbox' ? el.checked : el.value]));
 
 /* ================================================================ screens */
-let tab = (location.hash || '#home').slice(1);
-if (!['home', 'week', 'work', 'growth', 'sources'].includes(tab)) tab = 'home';
+const TAB_ALIAS = { week: 'schedule', work: 'tasks', growth: 'performance', sources: 'connections' };
+let tab = (location.hash || '#home').slice(1); tab = TAB_ALIAS[tab] || tab;
+if (!['home', 'schedule', 'tasks', 'performance'].includes(tab)) tab = 'home';
 
+/* ================================================================ shared UI pieces (design system) */
 function header(title, sub) {
-  const st = E.streak(state, now()), n = alerts().length;
-  return `<div class="top"><div class="grow"><h1>${esc(title)}</h1><div class="sub">${esc(sub)}</div></div><div class="top-actions">
-    ${st ? `<span class="streak" title="Consecutive teaching days: on time and ≥90% ready">${ico('flame', 18)}${st}</span>` : ''}
-    <button class="icon-btn" data-a="alerts" aria-label="Alerts">${ico('bell', 20)}${n ? `<span class="dot">${n > 9 ? '9+' : n}</span>` : ''}</button>
-    <button class="icon-btn" data-a="settings" aria-label="Settings">${ico('gear', 20)}</button></div></div>`;
+  const n = alerts().length;
+  return `<header class="top"><div class="grow"><h1>${esc(title)}</h1>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div><div class="top-actions">
+    <button class="icon-btn" data-a="alerts" aria-label="Alerts${n ? `, ${n} new` : ''}">${ico('bell', 20)}${n ? `<span class="dot">${n > 9 ? '9+' : n}</span>` : ''}</button>
+    <button class="icon-btn" data-a="settings" aria-label="Settings">${ico('gear', 20)}</button></div></header>`;
 }
-function staleBanner() {
-  const c = cfg(), t = now(), out = [];
-  const sch = E.freshness(state.sources.schedule, c, t), sh = E.freshness(state.sources.sheet, c, t);
-  if (sh.state !== 'live') out.push(`<b>Lead sheet:</b> ${esc(sh.label)}`);
-  if (sch.state !== 'live') out.push(`<b>Class times:</b> ${esc(sch.state === 'never' ? 'not imported yet — paste your hub schedule' : sch.label)}`);
-  return out.length ? `<button class="warnbox" style="width:100%;text-align:left;margin:0 0 12px" data-a="tab" data-id="sources">${out.join('<br>')} →</button>` : '';
+const secH = (title, action = '') => `<div class="sec-h"><h2>${esc(title)}</h2>${action}</div>`;
+const emptyCard = (title, text, actions = '') => `<div class="card empty"><b>${esc(title)}</b><span>${text}</span>${actions ? `<div class="empty-actions">${actions}</div>` : ''}</div>`;
+const DOW3 = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const dateChip = (ms, cls = '') => { if (!ms) return '<div class="datechip">—</div>'; const p = E.P(ms); return `<div class="datechip ${cls}"><span>${DOW3[p.dow]}</span><b>${p.d}</b></div>`; };
+const roleTag = (r, verified = true) => r ? `<span class="tag ${r}">${r === 'lead' ? 'Lead' : 'Support'}${verified ? '' : ' ?'}</span>` : '';
+const bar = (v, max = 1, cls = '') => `<div class="prog ${cls}"><i style="width:${Math.max(0, Math.min(1, v / max)) * 100}%"></i></div>`;
+const KIND = { handout: 'Handout', leadppt: 'Lead PowerPoint', exam: 'Exam', assessment: 'Assessment', duty: 'Lead duty' };
+const STATUS = { overdue: ['bad', 'Overdue'], behind: ['amb', 'Behind plan'], soon: ['amb', 'Due soon'], ok: ['', 'On track'], done: ['ok', 'Done'] };
+const dueText = (ms, t) => !ms ? 'No due date' : ms < t ? `Was due ${E.fmtDayRel(ms, t)} · ${E.fmtTime(ms)}` : `Due ${E.fmtDayRel(ms, t)} · ${E.fmtTime(ms)}`;
+const scoreTxt = v => ui().hideScores ? '••••' : v == null ? '—' : (+v).toFixed(2);
+function taskCtx(x) { return x.kind === 'readiness' ? ['class', x.ref] : x.kind === 'handout' ? ['deliv', x.ref] : x.kind === 'assessment' ? ['deliv', 'as:' + x.ref] : ['deliv', 'du:' + x.ref]; }
+function taskRow(x, t, first) {
+  const [a, id] = taskCtx(x);
+  return `<div class="lrow task ${first ? 'first' : ''}"><button class="box-btn" data-a="task" data-id="${esc(x.id)}" aria-label="Mark done"><span class="box">${ico('check', 15)}</span></button>
+    <button class="lmain" data-a="${a}" data-id="${esc(id)}"><div class="l-t">${esc(x.title)}</div><div class="l-s">${esc(x.sub)}</div></button>
+    <span class="when ${x.overdue ? 'bad' : ''}">${x.overdue ? 'Overdue' : `${x.official ? 'Due' : 'By'} ${E.fmtDayRel(x.target, t) === 'Today' ? E.fmtTime(x.target) : DOW3[E.P(x.target).dow].slice(0, 1) + DOW3[E.P(x.target).dow].slice(1).toLowerCase()}`}</span></div>`;
+}
+function delivRow(d, t) {
+  const [cls, label] = STATUS[d.status];
+  return `<button class="lrow" data-a="deliv" data-id="${esc(d.id)}">${dateChip(d.due, d.status === 'overdue' ? 'bad' : '')}<div class="grow"><div class="l-t">${esc(d.title)}</div>
+    <div class="l-s">${KIND[d.kind]}${d.due ? ' · ' + E.fmtTime(d.due) : ''} · ${d.done ? 'All steps done' : d.next ? 'Next: ' + esc(d.next.label) : ''}</div>${bar(d.doneCount, d.steps.length)}</div><span class="tag ${cls}">${label}</span></button>`;
 }
 
+/* ================================================================ Today */
+const HOME_CARDS = [['next', 'Next class'], ['today', 'Focus today'], ['upcoming', 'Coming up'], ['performance', 'Performance']];
+function nextCard(s, t, c) {
+  const r = E.readiness(s, state, c), arr = state.arrivals[s.id], lb = E.leaveBy(s, c), inClass = t >= s.start && t < s.end;
+  const soon = !s.approx && !arr && s.start - t < 3 * 36e5 && t < s.end, late = soon && t > lb;
+  const when = s.approx ? `Week of ${E.fmtDay(s.start)} · class times not imported yet` : inClass ? `In class now · until ${E.fmtTime(s.end)}` : `${E.fmtDayRel(s.start, t)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)}${s.section ? ' · ' + s.section : ''}`;
+  return `<div class="card hero ${late ? 'late' : ''}"><div class="eyebrow">Next class${s.role ? ' · ' + (s.role === 'lead' ? 'Lead' : 'Support') : ''}</div>
+    <div class="h-title">${esc(s.subject)}</div><div class="h-sub">${esc(when)}${arr ? ` · arrived ${esc(arr.status.replace('_', ' '))}` : ''}</div>
+    <div class="h-ready"><div class="row"><span>Preparation</span><b>${r.done} of ${r.total}</b></div>${bar(r.done, r.total, 'light')}</div>
+    ${soon ? `<div class="h-alert">${ico('clock', 16)} ${s.format === 'online' ? 'Be online by' : 'Leave by'} <b>${E.fmtTime(lb)}</b></div>` : ''}
+    <div class="h-actions">${soon ? `<button class="btn light" data-a="arrive" data-id="${esc(s.id)}">I’m here</button>` : r.next ? `<button class="btn light" data-a="task" data-id="rd:${esc(r.next.key)}:${r.next.id}">${ico('check', 16)} ${esc(r.next.label)}</button>` : `<span class="h-done">${ico('check', 16)} Fully prepared</span>`}
+      <button class="btn glass" data-a="class" data-id="${esc(s.id)}">Checklist</button></div></div>`;
+}
 function home() {
-  const t = now(), c = cfg(), P = E.P(t);
-  const hello = P.h < 12 ? 'Good morning' : P.h < 18 ? 'Good afternoon' : 'Good evening';
-  const name = state.identity.name?.split(' ')[0];
-  const items = E.teachingItems(state).filter(s => s.end > t);
-  const next = items[0], pl = E.plan(state, t), dl = E.deadlines(state, t, 5);
-  let h = header(`${hello}${name ? ', ' + name : ''}`, E.fmtDay(t)) + staleBanner();
-
-  // Next class readiness
-  h += '<!--sec:next-->';
-  if (next) {
-    const r = E.readiness(next, state, c), arr = state.arrivals[next.id];
-    const lb = E.leaveBy(next, c), inClass = t >= next.start && t < next.end;
-    const urgent = !next.approx && !arr && t > lb;
-    const cls = urgent ? 'late' : (!next.approx && next.start - t < 24 * 36e5 && r.pct < .7) ? 'warn' : '';
-    const when = next.approx ? `Week of ${E.fmtDay(next.start)}` : inClass ? 'In progress' : `${E.fmtDayRel(next.start, t)} · ${E.fmtTime(next.start)}–${E.fmtTime(next.end)}`;
-    h += `<div class="card hero ${cls}"><div class="row" style="align-items:flex-start"><div class="grow">
-      <div class="eyebrow">Next class${next.role ? ' · ' + (next.role === 'lead' ? 'You are lead' : 'Support') : ''}</div>
-      <div class="big" style="font-size:clamp(24px,7vw,30px)">${esc(next.subject)}</div>
-      <div class="t">${esc(when)}${!next.approx && !inClass ? ` · in ${E.fmtDur(next.start - t)}` : ''}</div></div>
-      ${ring(r.pct, 86, `${Math.round(r.pct * 100)}%<small>ready</small>`)}</div>
-      <div class="chips">${next.approx ? `<span class="chip">Class time: from hub schedule</span>` : `<span class="chip">${next.format === 'online' ? 'Be online by' : 'Leave by'} <b>${E.fmtTime(lb)}</b></span><span class="chip">${esc(next.location || next.platform || '')}</span>`}
-        <span class="chip"><b>${r.done}</b>/${r.total} confirmed</span>${r.unconfirmed ? `<span class="chip">${r.unconfirmed} not yet confirmed</span>` : ''}</div>
-      ${r.next ? `<button class="btn" data-a="task" data-id="rd:${esc(r.next.key)}:${r.next.id}">${ico('check', 18)} Done: ${esc(r.next.label)}</button>` : `<div class="t" style="margin-top:12px">✓ Fully prepared. Use spare time to rehearse your opening.</div>`}
-      <div class="row" style="margin-top:10px;gap:8px"><button class="btn ghost sm" style="background:#ffffff26;color:#fff;border:0" data-a="class" data-id="${esc(next.id)}">Open checklist</button>
-      ${!next.approx && !arr && t > next.start - 3 * 36e5 && t < next.end ? `<button class="btn sm" style="background:#fff;color:#1c4a21" data-a="arrive" data-id="${esc(next.id)}">I’m here</button>` : ''}
-      ${arr ? `<span class="chip">Arrived · ${esc(arr.status.replace('_', ' '))}</span>` : ''}</div></div>`;
-  } else h += `<div class="card hero"><div class="eyebrow">Next class</div><div class="big" style="font-size:28px">Nothing scheduled</div><div class="t">Sync your lead sheet and paste your hub schedule to see what’s next.</div><button class="btn" data-a="tab" data-id="sources">Connect sources</button></div>`;
-
-  // Most important next action
-  h += '<!--sec:focus-->';
-  if (pl.next) h += `<div class="card focus" style="margin-top:12px"><div class="eyebrow">Most important next</div><div style="font-weight:800;font-size:17px;margin-top:6px">${esc(pl.next.title)}</div>
-    <div class="muted small" style="margin-top:2px">${esc(pl.next.sub)}</div><div class="row" style="margin-top:6px">${pl.next.overdue ? '<span class="pill bad">Overdue target</span>' : `<span class="pill amb">${pl.next.official ? 'Official deadline' : 'Suggested target'} · ${E.fmtDur(pl.next.target - t)}</span>`}<span class="muted small">~${pl.next.min} min</span></div>
-    <div class="row" style="margin-top:12px;gap:8px"><button class="btn sm" data-a="task" data-id="${esc(pl.next.id)}">${ico('check', 16)} Done</button><button class="btn ghost sm" data-a="snooze" data-id="${esc(pl.next.id)}">Later today</button></div></div>`;
-
-  // Today's priorities
-  h += '<!--sec:priorities-->';
-  const list = pl.today.filter(x => x.id !== pl.next?.id).slice(0, 5);
-  h += `<div class="card" style="margin-top:12px"><div class="head"><h3>Today’s priorities</h3><span class="muted small">${pl.minutes} / ${pl.capacity} min</span></div>
-    ${list.length ? list.map(taskRow).join('') : `<div class="muted small">${pl.next ? 'Just the one above. Nothing else is pressing.' : 'Nothing pressing. A good day to get ahead on next week.'}</div>`}
-    ${pl.later.length ? `<button class="link" style="margin-top:10px" data-a="tab" data-id="work">${pl.later.length} more coming up →</button>` : ''}</div>`;
-
-  // Deadlines
-  h += '<!--sec:deadlines-->';
-  h += `<div class="card" style="margin-top:12px"><div class="head"><h3>Upcoming deadlines</h3><button class="link" data-a="tab" data-id="work">All</button></div>
-    ${dl.length ? dl.map(d => `<div class="item"><div class="grow"><div style="font-weight:700">${esc(d.title)}</div><div class="muted small">${E.fmtDayRel(d.at, t)} · ${E.fmtTime(d.at)} · ${d.at < t ? `<span style="color:var(--red)">passed ${E.fmtDur(t - d.at)} ago — confirm if submitted</span>` : 'in ' + E.fmtDur(d.at - t)}</div></div>
-      ${d.kind === 'handout' ? (d.verified ? '' : '<span class="pill amb">Time unverified</span>') : d.kind === 'lead' ? '<span class="pill">Lead</span>' : badge(d.verified, d.verified ? 'Verified date' : 'Unverified')}</div>`).join('') : '<div class="muted small">No deadlines found yet.</div>'}</div>`;
-
-  // Assignments
-  h += '<!--sec:assignments-->';
-  const us = (state.units || []).filter(u => u.weekStart + 7 * 864e5 > t).slice(0, 4);
-  h += `<div class="card" style="margin-top:12px"><div class="head"><h3>My assignments</h3>${state.sources.sheet.lastOk ? `<span class="muted small">Sheet · ${E.fmtAgo(state.sources.sheet.lastOk, t)}</span>` : ''}</div>
-    ${us.length ? us.map(u => `<div class="item"><div class="grow"><div style="font-weight:700">${esc(u.topic)}</div><div class="muted small">${esc(u.week)} · week of ${E.fmtDay(u.weekStart)}${u.coInstructors?.length ? ' · with ' + esc(u.coInstructors.join(', ')) : ''}</div></div>
-      <span class="pill ${u.role === 'lead' ? '' : 'amb'}" style="${u.role === 'lead' ? 'background:#00ffff22;color:#5ff' : ''}">${u.role === 'lead' ? 'Lead' : 'Support'}</span>${u.verified ? '' : ' <span class="pill amb">?</span>'}</div>`).join('') : '<div class="muted small">Sync the lead sheet in Sources.</div>'}</div>`;
-
-  // Improvement focus (from real evaluation data only)
-  h += '<!--sec:insight-->';
-  const evA = E.analyzeEvals(state.evals), fa = E.focusAreas(evA)[0];
-  if (fa) {
-    const th = E.THEMES[fa.key], tip = th.tips.find(x => !state.practices.some(p => p.text === x && !p.archived)), crit = evA.criteria.find(c => E.themeForCriterion(c.name) === fa.key);
-    h += `<div class="card focus" style="margin-top:12px"><div class="eyebrow">Improvement focus · from your evaluation</div><div style="font-weight:800;font-size:17px;margin-top:6px">${esc(th.label)}</div>
-      <div class="muted small" style="margin-top:3px">${crit ? `${esc(crit.name)} · <b>${ui().hideScores ? '••••' : crit.latest.toFixed(2)}</b>` : ''}${crit && fa.concerns ? ' · ' : ''}${fa.concerns ? `${fa.concerns} comment${fa.concerns > 1 ? 's' : ''} mention it` : ''}</div>
-      ${tip ? `<div class="quote" style="margin-top:10px">${esc(tip)}</div>` : ''}
-      <div class="row" style="margin-top:12px;gap:8px">${tip ? `<button class="btn sm" data-a="adopt" data-k="${fa.key}" data-tip="${esc(tip)}">Adopt this practice</button>` : ''}<button class="btn ghost sm" data-a="tab" data-id="growth">See plan</button></div></div>`;
+  const t = now(), c = cfg(), u = ui(), P = E.P(t), sec = {};
+  const hello = P.h < 12 ? 'Good morning' : P.h < 18 ? 'Good afternoon' : 'Good evening', first = state.identity.name?.split(' ')[0];
+  const next = E.teachingItems(state).find(s => s.end > t && s.kind !== 'consultation');
+  sec.next = next ? nextCard(next, t, c) : `<div class="card hero"><div class="eyebrow">Next class</div><div class="h-title">Nothing scheduled</div><div class="h-sub">Connect your lead sheet and hub schedule to see what’s next.</div><div class="h-actions"><button class="btn light" data-a="connections">Open connections</button></div></div>`;
+  // the next class's prep is already on the card above, so Focus today lists everything else
+  const pl = E.plan(state, t), rest = pl.today.filter(x => !(next && x.kind === 'readiness' && x.ref === next.id && x.item === E.readiness(next, state, c).next?.id)), list = rest.slice(0, 4), more = pl.later.length + Math.max(0, rest.length - 4);
+  const mins = list.reduce((n, x) => n + x.min, 0), dur = mins >= 60 ? `${Math.floor(mins / 60)}h${mins % 60 ? ' ' + (mins % 60) + 'm' : ''}` : `${mins} min`;
+  sec.today = secH('Focus today', list.length ? `<span class="muted small">About ${dur} of work</span>` : '') + `<div class="card list">${list.length ? list.map((x, i) => taskRow(x, t, i === 0)).join('') : '<div class="empty-line">Nothing pressing today.</div>'}${more ? `<button class="more" data-a="tab" data-id="tasks">${more} more coming up ${ico('chev', 14)}</button>` : ''}</div>`;
+  const dv = E.deliverables(state, t).filter(d => !d.done).slice(0, 3);
+  sec.upcoming = secH('Coming up', '<button class="link" data-a="tab" data-id="tasks">All tasks</button>') + `<div class="card list">${dv.length ? dv.map(d => delivRow(d, t)).join('') : '<div class="empty-line">No deliverables due.</div>'}</div>`;
+  const ev = E.analyzeEvals(state.evals), fa = E.focusAreas(ev)[0];
+  if (ev) {
+    const th = fa && E.THEMES[fa.key], crit = fa && ev.criteria.find(x => E.themeForCriterion(x.name) === fa.key);
+    sec.performance = secH('Performance') + `<button class="card perf" data-a="tab" data-id="performance"><div class="perf-score"><b>${scoreTxt(ev.latest?.v)}</b><span>of 5</span></div>
+      <div class="grow">${th ? `<div class="l-s">Improve next</div><div class="l-t">${esc(th.label)}</div><div class="l-s">${crit ? esc(crit.name) + ' · ' + scoreTxt(crit.latest) : ''}${fa.concerns ? `${crit ? ' · ' : ''}${fa.concerns} comments` : ''}</div>` : '<div class="l-t">No clear weak spot</div>'}</div>${ico('chev', 16)}</button>`;
   }
-  // Excellence progress
-  h += '<!--sec:progress-->';
-  const j = E.journey(state, t);
-  h += `<div class="tiles" style="margin-top:12px"><button class="tile" data-a="tab" data-id="growth"><div class="n">${pct(j.lead.punctual)}</div><div class="l">On time (30d)</div></button>
-    <button class="tile" data-a="tab" data-id="growth"><div class="n">${pct(j.lead.readyAtStart)}</div><div class="l">Ready at start</div></button>
-    <button class="tile" data-a="tab" data-id="growth"><div class="n">${ui().hideScores ? '••••' : j.outcome?.latest != null ? j.outcome.latest.toFixed(2) : '—'}</div><div class="l">Latest eval /5</div></button></div>`;
-
-  // Reflection
-  h += '<!--sec:reflection-->';
-  const Q = ['Prepared early is calm on time.', 'Teach the student in the back row.', 'Clarity is a kindness.', 'Excellence is a habit you rehearse, not a mood you wait for.', 'Check the solution as if a student will find the error.', 'Start on time; finish with a summary.', 'Every question asked is a gift. Make it safe to ask.'];
-  h += `<p class="muted small" style="text-align:center;margin:22px 10px 4px;font-style:italic">“${Q[Math.floor(t / 864e5) % Q.length]}”</p>`;
-  return arrangeHome(h);
-}
-/** Reorder / hide Home cards per Settings → Home screen. */
-function arrangeHome(h) {
-  const parts = h.split(/<!--sec:(\w+)-->/), head = parts[0], sec = {};
-  for (let i = 1; i < parts.length; i += 2) sec[parts[i]] = parts[i + 1];
-  const u = ui();
-  return head + u.home.order.filter(k => !u.home.hidden[k] && sec[k]).map(k => `<div class="hsec">${sec[k]}</div>`).join('');
-}
-function taskRow(t) {
-  return `<button class="tick" data-a="task" data-id="${esc(t.id)}"><span class="box">${ico('check', 16)}</span><span class="lbl">${esc(t.title)}<span class="hint">${esc(t.sub)} · ${t.overdue ? 'overdue' : (t.official ? 'due ' : 'by ') + E.fmtDayRel(t.target, now()) + ' ' + E.fmtTime(t.target)}</span></span>${t.official ? '<span class="pill amb">Official</span>' : ''}</button>`;
+  return header(`${hello}${first ? ', ' + first : ''}`, E.fmtDay(t)) + u.home.order.filter(k => !u.home.hidden[k] && sec[k]).map(k => `<section class="hsec">${sec[k]}</section>`).join('');
 }
 
-function week() {
-  const t = now(), c = cfg();
-  let h = header('Week', 'Classes & teaching weeks') + staleBanner();
-  const ch = (state.changes || []).filter(x => !x.seen).slice(-6).reverse();
-  if (ch.length) h += `<div class="card" style="margin-bottom:12px;border-color:var(--amber)"><div class="head"><h3>${ico('alert', 18)} Schedule changes</h3><button class="link" data-a="seen">Got it</button></div>
-    ${ch.map(x => `<div class="item small"><div class="grow"><b>${esc({ added: 'New', changed: 'Changed', cancelled: 'Cancelled', missing: 'No longer listed (unconfirmed)' }[x.type])}</b> · ${esc((x.after || x.before).subject)} · ${E.fmtDay((x.after || x.before).start)}${x.fields ? ' · ' + esc(x.fields.join(', ')) : ''}</div></div>`).join('')}</div>`;
-  const cf = E.conflicts(state, c).filter(x => x.a.start > t - 864e5);
-  if (cf.length) h += `<div class="warnbox" style="margin:0 0 12px">${cf.map(x => x.kind === 'overlap' ? `Overlap: ${esc(x.a.subject)} and ${esc(x.b.subject)} on ${E.fmtDay(x.a.start)}` : `Only ${Math.round(x.gapMin)} min between ${esc(x.a.subject)} and ${esc(x.b.subject)} (different rooms)`).join('<br>')}</div>`;
-  const items = E.teachingItems(state).filter(s => s.end > t - 864e5 && s.start < t + 35 * 864e5);
-  if (!items.length) return h + `<div class="card empty"><b>No classes yet</b>Paste your schedule from the hub or sync the lead sheet in Sources.</div><button class="btn ghost" style="margin-top:12px" data-a="add-class">${ico('plus', 18)} Add a class manually</button>`;
-  let lastWeek = '';
-  for (const s of items) {
-    const wk = E.dayKey(E.mondayOf(s.start));
-    if (wk !== lastWeek) { h += `<div class="day-h">Week of ${E.fmtDay(E.mondayOf(s.start))}</div>`; lastWeek = wk; }
-    const r = E.readiness(s, state, c), arr = state.arrivals[s.id];
-    h += `<button class="card sess" style="width:100%;text-align:left;margin-bottom:10px" data-a="class" data-id="${esc(s.id)}"><div class="sess-h"><div class="grow">
-      <div class="sess-t">${esc(s.subject)}</div><div class="sess-m">${s.approx ? `${esc(s.unit?.week || '')} · ${esc(s.section)} · times from hub` : `${E.fmtDayRel(s.start, t)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.section || s.location || s.platform || (s.format === 'online' ? 'Online' : ''))}${s.group ? ' · Group ' + esc(s.group) : ''}`}</div>
-      <div class="row" style="gap:6px;margin-top:8px">${s.role ? `<span class="pill ${s.role === 'lead' ? '' : 'amb'}">${s.role === 'lead' ? 'Lead' : 'Support'}</span>` : ''}${srcBadge(s.source)}${arr ? `<span class="pill ${arr.status === 'late' ? 'bad' : ''}">${esc(arr.status.replace('_', ' '))}</span>` : ''}</div></div>
-      ${ring(r.pct, 58, `<span style="font-size:14px">${Math.round(r.pct * 100)}%</span>`)}</div></button>`;
+/* ================================================================ Schedule */
+function schedule() {
+  const t = now(), c = cfg(), mon0 = E.mondayOf(t);
+  let h = header('Schedule', 'Classes and teaching weeks') + `<div class="toolbar"><button class="btn sec sm" data-a="paste-sched">${ico('plus', 16)} Paste hub week</button><button class="btn sec sm" data-a="add-class">Add class</button></div>`;
+  const items = E.teachingItems(state).filter(s => s.start >= mon0 && s.start < E.addDays(mon0, 42));
+  const cf = new Set(E.conflicts(state, c).flatMap(x => [x.a.id, x.b.id]));
+  let any = false;
+  for (let w = 0; w < 6; w++) {
+    const mon = E.addDays(mon0, w * 7), wk = items.filter(s => s.start >= mon && s.start < E.addDays(mon, 7));
+    const unit = (state.units || []).find(u => E.dayKey(u.weekStart) === E.dayKey(mon));
+    if (!wk.length && !unit) continue;
+    any = true;
+    const label = w === 0 ? 'This week' : w === 1 ? 'Next week' : `Week of ${E.fmtDay(mon)}`;
+    const topic = unit ? `${unit.week} · ${unit.topic}` : wk.find(s => s.weekTitle)?.weekTitle || '';
+    const real = wk.filter(s => !s.approx);
+    h += `<section class="week"><div class="wk-h"><div class="grow"><div class="wk-t">${label}</div>${topic ? `<div class="l-s">${esc(topic)}</div>` : ''}</div>${unit ? roleTag(unit.role, unit.verified) : ''}</div><div class="card list">`;
+    for (const s of real) {
+      const r = E.readiness(s, state, c), arr = state.arrivals[s.id], past = s.end < t;
+      const right = arr ? `<span class="tag ${arr.status === 'late' ? 'bad' : 'ok'}">${esc(arr.status === 'on_time' ? 'On time' : arr.status === 'early' ? 'Early' : 'Late')}</span>` : past ? '<span class="tag">Not logged</span>' : `<span class="pct ${r.pct >= .99 ? 'ok' : ''}">${Math.round(r.pct * 100)}%</span>`;
+      h += `<button class="lrow ${past ? 'past' : ''}" data-a="class" data-id="${esc(s.id)}">${dateChip(s.start)}<div class="grow"><div class="l-t">${E.fmtTime(s.start)}–${E.fmtTime(s.end)}${cf.has(s.id) ? ' <span class="tag bad">Overlap</span>' : ''}</div>
+        <div class="l-s">${esc([s.kind === 'consultation' ? s.subject : s.section, s.format === 'online' ? 'Online' : '', s.group ? 'Group ' + s.group : ''].filter(Boolean).join(' · ') || s.subject)}</div></div>${right}</button>`;
+    }
+    if (!real.length && unit) h += `<div class="lrow"><div class="grow"><div class="l-t muted">Class times not imported</div><div class="l-s">Paste this week from the hub to see your exact classes</div></div><button class="btn sec sm" data-a="paste-sched" data-week="${E.dayKey(mon)}">Paste</button></div>`;
+    if (unit) h += `<button class="lrow sub" data-a="class" data-id="u:${esc(unit.key)}"><div class="grow l-s">Topic prep · ${E.readiness(E.unitItems(state).find(x => x.id === 'u:' + unit.key), state, c).done} of ${E.readiness(E.unitItems(state).find(x => x.id === 'u:' + unit.key), state, c).total} ready · shared by all classes this week</div>${ico('chev', 14)}</button>`;
+    h += `</div></section>`;
   }
-  return h + `<button class="btn ghost" data-a="add-class">${ico('plus', 18)} Add a class manually</button>`;
+  if (!any) h += emptyCard('No classes yet', 'Paste your week from the hub, or connect the lead sheet to see your teaching weeks.', `<button class="btn sm" data-a="paste-sched">Paste hub week</button><button class="btn sec sm" data-a="connections">Connections</button>`);
+  return h;
 }
 
+/* ================================================================ Tasks */
+function tasks() {
+  const t = now(), all = E.deliverables(state, t), m = E.mondayOf(t);
+  let h = header('Tasks', 'Handouts, PowerPoints, exams and duties');
+  const groups = [['Overdue', d => !d.done && d.due && d.due < t], ['This week', d => !d.done && d.due >= t && d.due < E.addDays(m, 7)], ['Next week', d => !d.done && d.due >= E.addDays(m, 7) && d.due < E.addDays(m, 14)], ['Later', d => !d.done && (!d.due || d.due >= E.addDays(m, 14))], ['Done', d => d.done]];
+  let any = false;
+  for (const [name, f] of groups) { const l = all.filter(f); if (!l.length) continue; any = true; h += secH(name) + `<div class="card list">${l.map(d => delivRow(d, t)).join('')}</div>`; }
+  if (!any) h += emptyCard('No tasks yet', 'Handouts, lead PowerPoints and lead exams appear automatically from your lead sheet.');
+  const c = cfg();
+  h += `<button class="btn sec wide" data-a="add-deliv">${ico('plus', 16)} Add a deliverable</button>
+    <button class="rules-note" data-a="panel" data-id="rules">Handouts: Wed ${E.fmtTime(E.atTime(t, c.cutoffTime))} before the teaching week · lead PPT ${c.leadPptDaysBefore} days ahead · lead exam: that week’s Wed ${E.fmtTime(E.atTime(t, c.examTime))} ${ico('chev', 12)}</button>`;
+  return h;
+}
+function delivSheet(id) {
+  const t = now(), d = E.deliverables(state, t).find(x => x.id === id); if (!d) return;
+  const [cls, label] = STATUS[d.status];
+  sheet(`<div class="row"><div class="eyebrow grow">${KIND[d.kind]}</div><span class="tag ${cls}">${label}</span></div><h2>${esc(d.title)}</h2>
+    <div class="muted small">${dueText(d.due, t)}${d.verified ? '' : ' · date unverified'} · ${esc(d.note || '')}</div>${(d.flags || []).map(f => `<div class="warnbox">${esc(f)}</div>`).join('')}
+    <div style="margin:14px 0 4px">${bar(d.doneCount, d.steps.length)}</div>
+    <div class="steps">${d.steps.map(s => `<button class="tick ${s.doneAt ? 'on' : ''}" data-a="${s.doneAt ? 'untask' : 'task'}" data-id="${esc(s.task)}" data-back="${esc(id)}"><span class="box">${ico('check', 15)}</span><span class="lbl">${esc(s.label)}<span class="hint">${s.doneAt ? 'Done ' + E.fmtDayRel(s.doneAt, t) + ' · ' + E.fmtTime(s.doneAt) : (s.official ? 'Official deadline · ' : 'Suggested · ') + E.fmtDayRel(s.target, t) + ' ' + E.fmtTime(s.target)}</span></span></button>`).join('')}</div>
+    <div class="muted small" style="margin-top:10px">Ace never marks something submitted on its own — tick “Submitted” only after you actually submit.</div>
+    <div class="row" style="margin-top:14px;gap:8px;flex-wrap:wrap">${d.kind === 'leadppt' ? `<button class="btn sec sm" data-a="class" data-id="${esc(d.unitId)}">Full prep checklist</button>` : ''}
+      ${(d.kind === 'exam' || d.kind === 'assessment') && d.done ? `<button class="btn sec sm" data-a="revision" data-id="${esc(d.ref)}">Revision requested</button>` : ''}
+      ${(d.kind === 'assessment' || d.kind === 'exam') && !d.auto ? `<button class="btn sec sm danger" data-a="del-as" data-id="${esc(d.ref)}">Delete</button>` : ''}${d.kind === 'duty' ? `<button class="btn sec sm danger" data-a="del-duty" data-id="${esc(d.ref)}">Delete</button>` : ''}</div>`);
+}
+
+/* ================================================================ class checklist */
 function classSheet(id) {
-  const t = now(), c = cfg(), s = E.teachingItems(state).find(x => x.id === id) || state.sessions.find(x => x.id === id);
+  const t = now(), c = cfg(), s = E.teachingItems(state).find(x => x.id === id) || E.unitItems(state).find(x => x.id === id) || state.sessions.find(x => x.id === id);
   if (!s) return;
   const r = E.readiness(s, state, c), arr = state.arrivals[s.id];
-  const groups = Object.entries(E.CATS).map(([k, label]) => { const rows = r.rows.filter(x => x.cat === k); return rows.length ? `<div class="day-h" style="margin-top:14px">${label} · ${rows.filter(x => x.doneAt).length}/${rows.length}</div>
-    ${rows.map(x => `<button class="tick ${x.doneAt ? 'on' : ''}" data-a="rd" data-id="${esc(s.id)}" data-item="${x.id}"><span class="box">${ico('check', 16)}</span><span class="lbl">${esc(x.official && s.role === 'lead' ? x.label + ' (lead deadline)' : x.label)}<span class="hint">${s.unit && !E.SESSION_ITEMS.has(x.id) && !s.approx ? 'Shared by all classes this week · ' : ''}${x.doneAt ? 'Confirmed ' + E.fmtDayRel(x.doneAt, t) + ' ' + E.fmtTime(x.doneAt) : 'Not yet confirmed · by ' + E.fmtDayRel(s.start - x.lead * 36e5, t) + ' ' + E.fmtTime(s.start - x.lead * 36e5)}</span></span></button>`).join('')}` : ''; }).join('');
+  const groups = Object.entries(E.CATS).map(([k, label]) => { const rows = r.rows.filter(x => x.cat === k); return rows.length ? `<div class="cat-h">${label}<span>${rows.filter(x => x.doneAt).length}/${rows.length}</span></div>
+    ${rows.map(x => `<button class="tick ${x.doneAt ? 'on' : ''}" data-a="rd" data-id="${esc(s.id)}" data-item="${x.id}"><span class="box">${ico('check', 15)}</span><span class="lbl">${esc(x.official && s.role === 'lead' ? x.label + ' · lead deadline' : x.label)}<span class="hint">${x.doneAt ? 'Done ' + E.fmtDayRel(x.doneAt, t) : 'By ' + E.fmtDayRel(s.start - x.lead * 36e5, t) + ' ' + E.fmtTime(s.start - x.lead * 36e5)}${s.unit && !E.SESSION_ITEMS.has(x.id) && !s.approx ? ' · shared this week' : ''}</span></span></button>`).join('')}` : ''; }).join('');
   const tpls = Object.entries(c.templates).map(([k, v]) => `<option value="${k}" ${E.templateFor(s, c) === v ? 'selected' : ''}>${esc(v.label)}</option>`).join('');
-  sheet(`<h2>${esc(s.subject)}</h2><div class="muted small">${s.approx ? `Week of ${E.fmtDay(s.start)} · ${esc(s.section)} · ${s.role === 'lead' ? 'Lead (neon blue in sheet)' : 'Support'}${s.unit?.cell ? ' · cell ' + esc(s.unit.cell) : ''}` : `${E.fmtDay(s.start)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.location || s.platform)}`}</div>
-    ${s.approx ? '<div class="warnbox">Readiness targets count back from the start of this week until the exact class time is imported from the hub.</div>' : ''}
-    ${s.unit && !s.unit.verified ? `<div class="warnbox">Unverified: ${esc(s.unit.reasons.join('; '))}</div>` : ''}
-    <div class="row" style="margin-top:14px">${ring(r.pct, 70, `<span style="font-size:16px">${Math.round(r.pct * 100)}%</span>`)}<div class="grow small muted">Readiness = items you have confirmed ÷ items in this class’s template (${r.total}). Unconfirmed items count as not ready.</div></div>
+  sheet(`<div class="row"><div class="eyebrow grow">${s.approx ? 'Topic prep' : 'Class'}${s.role ? ' · ' + (s.role === 'lead' ? 'Lead' : 'Support') : ''}</div>${s.unit && !s.unit.verified ? '<span class="tag amb">Unverified</span>' : ''}</div>
+    <h2>${esc(s.subject)}</h2><div class="muted small">${s.approx ? `Week of ${E.fmtDay(s.start)} · applies to every class of this topic` : `${E.fmtDay(s.start)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.section || s.location || s.platform || '')}`}</div>
+    <div style="margin:14px 0 2px" class="row"><div class="grow">${bar(r.done, r.total)}</div><b class="small">${r.done} of ${r.total}</b></div>
     ${groups}
-    ${!s.approx && t > s.start - 3 * 36e5 ? `<div class="day-h" style="margin-top:14px">Arrival</div>${arr ? `<div class="row"><span class="pill ${arr.status === 'late' ? 'bad' : ''}">${esc(arr.status.replace('_', ' '))}${arr.at ? ' · ' + E.fmtTime(arr.at) : ''}</span><button class="link" data-a="unarrive" data-id="${esc(s.id)}">Undo</button></div>` :
-      `<div class="seg"><button data-a="arrive" data-id="${esc(s.id)}">I’m here now</button><button data-a="arrive-m" data-id="${esc(s.id)}" data-st="early">Was early</button><button data-a="arrive-m" data-id="${esc(s.id)}" data-st="on_time">On time</button><button data-a="arrive-m" data-id="${esc(s.id)}" data-st="late">Late</button></div>`}` : ''}
-    <label>Template for this class</label><select data-a="tpl" data-id="${esc(s.id)}">${tpls}</select>
-    <label>Notes</label><textarea data-a="note" data-id="${esc(s.id)}" placeholder="Hard parts, student questions to expect, what to try…">${esc(state.notes[s.id] || '')}</textarea>
-    ${s.source?.id === 'user' ? `<button class="btn danger" style="margin-top:14px" data-a="del-class" data-id="${esc(s.id)}">Delete class</button>` : ''}`);
+    ${!s.approx && t > s.start - 3 * 36e5 ? `<div class="cat-h">Arrival</div>${arr ? `<div class="row"><span class="tag ${arr.status === 'late' ? 'bad' : 'ok'}">${esc(arr.status.replace('_', ' '))}${arr.at ? ' · ' + E.fmtTime(arr.at) : ''}</span><button class="link" data-a="unarrive" data-id="${esc(s.id)}">Undo</button></div>` :
+      `<div class="seg"><button data-a="arrive" data-id="${esc(s.id)}">I’m here</button><button data-a="arrive-m" data-id="${esc(s.id)}" data-st="early">Early</button><button data-a="arrive-m" data-id="${esc(s.id)}" data-st="on_time">On time</button><button data-a="arrive-m" data-id="${esc(s.id)}" data-st="late">Late</button></div>`}` : ''}
+    <details class="more-opts"><summary>Notes & checklist type</summary><label>Notes</label><textarea data-a="note" data-id="${esc(s.id)}" placeholder="Hard parts, questions to expect, what to try…">${esc(state.notes[s.id] || '')}</textarea>
+      <label>Checklist type</label><select data-a="tpl" data-id="${esc(s.id)}">${tpls}</select>
+      ${s.source?.id === 'user' ? `<button class="btn sec sm danger" style="margin-top:12px" data-a="del-class" data-id="${esc(s.id)}">Delete class</button>` : ''}</details>`);
 }
 
-function work() {
-  const t = now(), c = cfg();
-  let h = header('Work', 'Handouts, lead duties, assessments');
-  const cyc = E.handoutCycles(state, t, { ahead: 2 });
-  const byCut = new Map(); for (const x of cyc) (byCut.get(x.cutoffKey) || byCut.set(x.cutoffKey, []).get(x.cutoffKey)).push(x);
-  h += `<div class="day-h">Wednesday handouts</div>`;
-  if (!c.cutoffVerified) h += `<div class="warnbox" style="margin:0 0 10px">Cutoff time is assumed to be <b>${esc(c.cutoffTime)}</b> — confirm the real time in Sources → Rules.</div>`;
-  if (!c.handoutRolesVerified) h += `<div class="warnbox" style="margin:0 0 10px">Handouts are listed for your <b>${esc(c.handoutRoles.join(' + '))}</b> weeks. Confirm in Sources → Rules whether support weeks need one.</div>`;
-  if (!byCut.size) h += '<div class="card empty"><b>No handouts due</b>Handouts appear automatically from next week’s classes.</div>';
-  for (const [, list] of byCut) {
-    const x0 = list[0];
-    h += `<div class="card" style="margin-bottom:10px"><div class="head"><div><h3>Due ${E.fmtDayRel(x0.cutoff, t)} · ${E.fmtTime(x0.cutoff)}</h3><div class="muted small">For classes in the week of ${E.fmtDay(x0.weekStart)}${x0.holiday ? ' · ⚠︎ holiday — confirm cutoff' : ''}${x0.overridden ? ' · adjusted' : ''}</div></div>${x0.cutoff < t ? '<span class="pill bad">Past due</span>' : `<span class="pill amb">${E.fmtDur(x0.cutoff - t)}</span>`}</div>
-      ${list.map(x => { const st = E.handoutStatus(x); return `<div style="padding:10px 0;border-top:1px solid var(--line)"><div class="row"><b class="grow">${esc(x.subject)}</b><span class="pill ${st === 'submitted' ? '' : st === 'ready' ? '' : 'amb'}">${esc({ not_started: 'Not started', in_progress: 'In progress', ready: 'Ready — not submitted', submitted: 'Submitted' }[st])}</span></div>
-        <div class="chips" style="margin-top:8px">${E.HANDOUT_STAGES.map(sg => { const done = sg.id === 'submit' ? x.submittedAt : x.stages[sg.id]; return `<button class="pill ${done ? '' : 'amb'}" style="${done ? '' : 'background:var(--card-2);color:var(--muted)'}" data-a="${done && sg.id !== 'submit' ? 'untask' : 'task'}" data-id="${esc(x.id)}:${sg.id}">${done ? '✓ ' : ''}${esc(sg.label)}${!done && sg.id !== 'submit' ? ' · ' + ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][E.P(E.handoutTarget(x, sg, c)).dow] : ''}</button>`; }).join('')}</div></div>`; }).join('')}
-      <div class="muted small" style="margin-top:8px">Mon/Tue labels are suggested milestones, not official deadlines.</div></div>`;
-  }
-  // Lead PowerPoint
-  const leads = E.unitItems(state).filter(u => u.role === 'lead' && u.start + 7 * 864e5 > t);
-  h += `<div class="day-h">Lead instructor · PowerPoint (${c.leadPptDaysBefore} days ahead)</div>`;
-  h += leads.length ? leads.map(u => { const due = E.leadPptDue(u.unit, c), done = state.readiness[u.id]?.slides_final, draft = state.readiness[u.id]?.slides_draft; return `<div class="card" style="margin-bottom:10px"><div class="row"><div class="grow"><b>${esc(u.subject)}</b><div class="muted small">${esc(u.unit.week)} · teaching week of ${E.fmtDay(u.start)}${u.unit.coInstructors?.length ? ' · with ' + esc(u.unit.coInstructors.join(', ')) : ''}</div></div>${done ? '<span class="pill">Finalized</span>' : due < t ? '<span class="pill bad">Overdue</span>' : `<span class="pill amb">Due ${E.fmtDayRel(due, t)}</span>`}</div>
-    <div class="chips"><button class="pill ${draft ? '' : 'amb'}" data-a="rdt" data-id="${esc(u.id)}" data-item="slides_draft">${draft ? '✓ ' : ''}Draft</button><button class="pill ${done ? '' : 'amb'}" data-a="rdt" data-id="${esc(u.id)}" data-item="slides_final">${done ? '✓ ' : ''}Finalized · ${E.fmtDay(due)} ${E.fmtTime(due)}</button><button class="pill" style="background:var(--card-2);color:var(--muted)" data-a="class" data-id="${esc(u.id)}">Full checklist</button></div></div>`; }).join('') : '<div class="card muted small">No lead weeks found in the sheet.</div>';
-  // Lead duties (user-defined)
-  h += `<div class="day-h">Other lead responsibilities</div><div class="card">${(state.duties || []).filter(d => !d.doneAt).map(d => `<button class="tick" data-a="task" data-id="du:${esc(d.id)}"><span class="box">${ico('check', 16)}</span><span class="lbl">${esc(d.title)}<span class="hint">${esc(d.subject || '')}${d.due ? ' · due ' + E.fmtDay(d.due) + ' ' + E.fmtTime(d.due) : ''}</span></span>${badge(d.verified, d.verified ? 'Confirmed' : 'Unconfirmed')}</button>`).join('') || '<div class="muted small">Ace doesn’t invent lead duties. Add only ones you’ve confirmed with your coordinator.</div>'}
-    <button class="btn ghost sm" style="margin-top:10px" data-a="add-duty">${ico('plus', 16)} Add responsibility</button></div>`;
-  // Assessments
-  h += `<div class="day-h">Assessments & exams</div>`;
-  const as = E.allAssessments(state).filter(a => !(a.auto && a.stages?.submit && a.due < t - 7 * 864e5)).sort((a, b) => a.due - b.due);
-  h += as.length ? as.map(a => { const p = E.assessmentPlan(a, c); const sub = a.stages?.submit; return `<div class="card" style="margin-bottom:10px"><div class="row"><div class="grow"><b>${esc(a.title)}</b><div class="muted small">${a.auto ? 'Lead exam · from sheet' : esc(a.kind) + ' · ' + esc(a.subject || '')} · due ${E.fmtDay(a.due)} ${E.fmtTime(a.due)} ${a.dueVerified ? '' : '(unverified)'}</div></div>${sub ? '<span class="pill">Submitted</span>' : `<span class="pill amb">${p.start > t ? 'Start ' + E.fmtDayRel(p.start, t) : 'In progress'}</span>`}</div>
-      <div class="chips">${p.stages.map(st => `<button class="pill ${st.doneAt ? '' : 'amb'}" style="${st.doneAt ? '' : 'background:var(--card-2);color:var(--muted)'}" data-a="${st.doneAt && st.id !== 'submit' ? 'untask' : 'task'}" data-id="as:${esc(a.id)}:${st.id}">${st.doneAt ? '✓ ' : ''}${esc(st.label)}</button>`).join('')}</div>
-      <div class="row" style="margin-top:10px;gap:8px">${sub ? `<button class="btn ghost sm" data-a="revision" data-id="${esc(a.id)}">Revision requested</button>` : ''}${a.auto ? '' : `<button class="btn ghost sm" data-a="del-as" data-id="${esc(a.id)}">Delete</button>`}<span class="muted small grow" style="text-align:right">~${Math.round(p.total / 60 * 10) / 10}h · ${p.days} work days</span></div></div>`; }).join('') : '<div class="card muted small">No assessments yet.</div>';
-  h += `<button class="btn ghost" style="margin-top:4px" data-a="add-as">${ico('plus', 18)} Add assessment or exam</button>`;
-  return h;
+/* ================================================================ Performance */
+function focusCard(f, ev, i) {
+  const th = E.THEMES[f.key], crit = ev.criteria.find(x => E.themeForCriterion(x.name) === f.key), tm = ev.themes.find(x => x.key === f.key);
+  return `<div class="card focus-card"><div class="row" style="align-items:flex-start"><span class="rank">${i + 1}</span><div class="grow"><div class="l-t">${esc(th.label)}</div>
+    <div class="l-s">${crit ? `${esc(crit.name)} · ${scoreTxt(crit.latest)}` : 'From comments'}${tm?.neg ? ` · ${tm.neg} comment${tm.neg > 1 ? 's' : ''} raise it` : ''}</div></div></div>
+    ${th.tips.slice(0, 2).map(tip => { const ad = state.practices.some(p => p.text === tip && !p.archived); return `<div class="action"><span>${esc(tip)}</span>${ad ? '<span class="tag ok">Adopted</span>' : `<button class="btn sec sm" data-a="adopt" data-k="${f.key}" data-tip="${esc(tip)}">Adopt</button>`}</div>`; }).join('')}
+    ${tm?.quotes.length ? `<details><summary>What students said (${tm.quotes.length}) · Ace’s reading</summary>${tm.quotes.map(q => `<div class="quote">“${esc(q)}”</div>`).join('')}</details>` : ''}</div>`;
 }
-
-function growth() {
-  const t = now(), j = E.journey(state, t), ev = E.analyzeEvals(state.evals);
-  let h = header('Growth', 'Instructor Excellence Journey');
-  h += `<div class="card hero"><div class="eyebrow">Goal</div><div class="big">5.00 <span style="font-size:18px;opacity:.8">/ 5</span></div>
-    <div class="t">${ev?.latest ? `Latest evaluation: <b>${ev.latest.v.toFixed(2)}</b>${ev.prev ? ` (${ev.latest.v >= ev.prev.v ? '+' : ''}${(ev.latest.v - ev.prev.v).toFixed(2)} vs previous)` : ''}` : 'Import an evaluation to see your outcome score.'}</div>
-    <div class="chips"><span class="chip">Leading = habits you control</span><span class="chip">Outcome = actual evaluation scores</span></div></div>`;
-  h += `<div class="card" style="margin-top:12px"><div class="head"><h3>Journey · last ${j.days} days</h3></div>${j.dims.map(d => `<div class="bar-row"><div class="top2"><span>${esc(d.label)}</span><span>${d.lead != null ? pct(d.lead) : '<span class="muted">no data yet</span>'}${d.outcome != null ? ` · <span style="color:var(--gold)">${d.outcome.toFixed(2)}</span>` : ''}</span></div>
-    <div class="bar"><i class="${d.lead == null ? '' : d.lead < .6 ? 'vlow' : d.lead < .9 ? 'low' : ''}" style="width:${(d.lead ?? 0) * 100}%"></i></div><div class="muted small" style="margin-top:4px">${esc(d.note)}</div></div>`).join('')}
-    <div class="muted small" style="margin-top:12px">Bars = leading indicators from your logged activity. Gold = matching evaluation criterion (confirmed score).</div></div>`;
-  // evaluations
-  h += `<div class="day-h">Evaluations · confirmed results</div>`;
-  if (!ev) h += `<div class="card empty"><b>No evaluations yet</b>Open the hub, copy your evaluation page and paste it here.</div>`;
+function performance() {
+  const t = now(), ev = E.analyzeEvals(state.evals);
+  let h = header('Performance', 'Evaluations, habits and what to improve');
+  if (!ev) h += emptyCard('No evaluation yet', 'Import your evaluation results to see your scores and what to improve first.', `<button class="btn sm" data-a="merge">Import file</button><button class="btn sec sm" data-a="paste-eval">Paste from hub</button>`);
   else {
-    h += `<div class="card">${ev.criteria.map(c => `<div class="bar-row"><div class="top2"><span>${esc(c.name)}</span><span>${c.latest.toFixed(2)}${c.delta != null ? `<span class="delta ${c.delta >= 0 ? 'up' : 'down'}">${c.delta >= 0 ? '▲' : '▼'}${Math.abs(c.delta).toFixed(2)}</span>` : ''}</span></div><div class="bar"><i class="${c.latest < 4.3 ? 'vlow' : c.latest < 4.8 ? 'low' : ''}" style="width:${c.latest / 5 * 100}%"></i></div></div>`).join('')}
-      <div class="muted small" style="margin-top:10px">${ev.count} evaluation${ev.count > 1 ? 's' : ''} · ${ev.strengths.length ? 'Strengths: ' + esc(ev.strengths.join(', ')) : 'Gold line = 5.0 target'}</div></div>`;
-    // interpretation
-    if (ev.themes.length) h += `<div class="day-h">What comments may be saying · interpretation</div><div class="card"><div class="muted small" style="margin-bottom:6px">Keyword-based reading of comments. Not a confirmed finding — read the quotes.</div>${ev.themes.slice(0, 6).map(th => `<div style="padding:10px 0;border-top:1px solid var(--line)"><div class="row"><b class="grow">${esc(th.label)}</b>${th.neg ? `<span class="pill bad">${th.neg} concern${th.neg > 1 ? 's' : ''}</span>` : ''}${th.pos ? `<span class="pill">${th.pos} positive</span>` : ''}</div>${th.quotes.slice(0, 2).map(q => `<div class="quote">“${esc(q)}”</div>`).join('')}${!th.quotes.length && th.praise[0] ? `<div class="quote" style="border-left:3px solid var(--green)">“${esc(th.praise[0])}”</div>` : ''}</div>`).join('')}</div>
-    ${(() => { const st = ev.themes.filter(x => x.pos > x.neg).map(x => x.label); return st.length ? `<div class="card" style="margin-top:10px;border-color:var(--green)"><div class="eyebrow" style="color:var(--green-2)">Strengths students mention</div><div class="small" style="margin-top:6px">${esc(st.join(' · '))}</div></div>` : ''; })()}`;
-    // development plan
-    const keys = E.focusAreas(ev).slice(0, 4).map(f => f.key);
-    if (keys.length) h += `<div class="day-h">Development plan</div>${keys.map(k => `<div class="card focus" style="margin-bottom:10px"><div class="eyebrow">${esc(E.THEMES[k].label)}</div>${E.THEMES[k].tips.map(tip => { const adopted = state.practices.find(p => p.text === tip && !p.archived); return `<div class="row" style="margin-top:10px"><div class="grow small">${esc(tip)}</div>${adopted ? '<span class="pill">Adopted</span>' : `<button class="btn ghost sm" data-a="adopt" data-k="${k}" data-tip="${esc(tip)}">Adopt</button>`}</div>`; }).join('')}</div>`).join('')}`;
+    const last = state.evals.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).at(-1);
+    h += `<div class="card summary"><div class="perf-score big"><b>${scoreTxt(ev.latest?.v)}</b><span>of 5</span></div><div class="grow"><div class="l-t">${esc(last.period || 'Latest evaluation')}</div>
+      <div class="l-s">${last.responses ? last.responses + ' responses · ' : ''}${ev.prev ? `${ev.latest.v >= ev.prev.v ? '▲' : '▼'} ${Math.abs(ev.latest.v - ev.prev.v).toFixed(2)} vs previous` : 'first evaluation in Ace'}</div>
+      <div style="margin-top:8px">${bar(ev.latest?.v || 0, 5)}</div><div class="l-s">${ui().hideScores ? '' : `${(5 - (ev.latest?.v || 0)).toFixed(2)} to 5.00`}</div></div></div>`;
+    const fas = E.focusAreas(ev).slice(0, 3);
+    if (fas.length) h += secH('What to improve') + fas.map((f, i) => focusCard(f, ev, i)).join('');
+    h += secH('Scores by criterion') + `<div class="card list">${ev.criteria.map(c => `<div class="lrow crit"><div class="grow"><div class="l-t">${esc(c.name)}</div>${bar(c.latest, 5, c.latest < 4.5 ? 'amb' : '')}</div><b class="score">${scoreTxt(c.latest)}</b></div>`).join('')}</div>`;
+    const st = ev.themes.filter(x => x.pos > x.neg).map(x => x.label);
+    if (st.length) h += `<div class="note-ok">${ico('star', 16)}<span>Students praise your <b>${esc(st.join(', ').toLowerCase())}</b>.</span></div>`;
   }
+  const j = E.journey(state, t);
+  const hab = [['On time', j.lead.punctual, `${j.logged} arrival${j.logged === 1 ? '' : 's'} logged`], ['Ready at class start', j.lead.readyAtStart, `${j.classes} class${j.classes === 1 ? '' : 'es'}`], ['Submitted on time', j.lead.responsibility, 'handouts & exams']].filter(x => x[1] != null);
+  h += secH('Habits · last 30 days') + (hab.length ? `<div class="card stats">${hab.map(([l, v, n]) => `<div class="stat"><b>${pct(v)}</b><span>${l}</span><small>${n}</small></div>`).join('')}</div>`
+    : `<div class="card"><div class="empty-line">Tap “I’m here” when you arrive and tick off your prep — your on-time and readiness rates appear here.</div></div>`);
   const pr = state.practices.filter(p => !p.archived);
-  if (pr.length) h += `<div class="day-h">Practices I’m applying</div><div class="card">${pr.map(p => `<div class="item"><div class="grow"><div class="small" style="font-weight:700">${esc(p.text)}</div><div class="muted small">${esc(E.THEMES[p.key]?.label || '')} · applied ${p.applied.length}× · last ${p.applied.length ? E.fmtAgo(p.applied.at(-1), t) : 'never'}</div></div><button class="btn sm" data-a="apply" data-id="${esc(p.id)}">+1 today</button><button class="circle" style="width:34px;height:34px" data-a="unadopt" data-id="${esc(p.id)}">${ico('x', 14)}</button></div>`).join('')}</div>`;
-  h += `<div class="row" style="margin-top:12px;gap:8px"><button class="btn" data-a="paste-eval">Paste from hub</button><button class="btn ghost" data-a="add-eval">Enter manually</button></div>`;
-  if (state.evals.length) h += `<div class="day-h">History</div><div class="card">${state.evals.slice().sort((a, b) => b.date.localeCompare(a.date)).map(e => `<div class="item"><div class="grow"><b>${esc(e.period || e.date)}</b><div class="muted small">${esc(e.date)} · ${Object.keys(e.criteria || {}).length} criteria · ${(e.comments || []).length} comments · ${esc(e.source)}</div></div><b>${e.overall != null ? (+e.overall).toFixed(2) : '—'}</b><button class="circle" style="width:34px;height:34px" data-a="del-eval" data-id="${esc(e.id)}">${ico('x', 14)}</button></div>`).join('')}</div>`;
+  if (pr.length) h += secH('Practices you’re applying') + `<div class="card list">${pr.map(p => `<div class="lrow"><div class="grow"><div class="l-t small">${esc(p.text)}</div><div class="l-s">Applied ${p.applied.length}× ${p.applied.length ? '· last ' + E.fmtAgo(p.applied.at(-1), t) : ''}</div></div><button class="btn sec sm" data-a="apply" data-id="${esc(p.id)}">+1</button><button class="circle sm" data-a="unadopt" data-id="${esc(p.id)}" aria-label="Stop tracking">${ico('x', 14)}</button></div>`).join('')}</div>`;
+  if (state.evals.length) h += secH('Evaluations', '<button class="link" data-a="paste-eval">Add</button>') + `<div class="card list">${state.evals.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(e => `<div class="lrow"><div class="grow"><div class="l-t">${esc(e.period || e.date)}</div><div class="l-s">${esc(e.date)} · ${Object.keys(e.criteria || {}).length} criteria · ${(e.comments || []).length} comments · ${esc(e.source || '')}</div></div><b class="score">${scoreTxt(e.overall)}</b><button class="circle sm" data-a="del-eval" data-id="${esc(e.id)}" aria-label="Delete">${ico('x', 14)}</button></div>`).join('')}</div>`;
   return h;
 }
 
-function sources() {
+/* ================================================================ Connections (Settings) */
+function connectionsHTML() {
   const t = now(), c = cfg(), sh = state.sources.sheet, sc = state.sources.schedule;
-  const fr = x => { const f = E.freshness(x, c, t); return `<span class="pill ${f.state === 'live' ? '' : f.state === 'failed' ? 'bad' : 'amb'}">${esc(f.label)}</span>`; };
+  const fr = x => { const f = E.freshness(x, c, t); return `<span class="tag ${f.state === 'live' ? 'ok' : f.state === 'failed' ? 'bad' : 'amb'}">${esc(f.state === 'live' ? 'Up to date' : f.state === 'failed' ? 'Failed' : f.state === 'never' ? 'Not connected' : 'Outdated')}</span>`; };
   const wk = E.dayKey(E.mondayOf(t)), wk2 = E.dayKey(E.addDays(E.mondayOf(t), 7));
-  const hist = (state.unitHistory || []).slice(-5).reverse();
-  return header('Sources', 'Where Ace gets its information') + `
-
-  <div class="card" style="margin-top:12px"><div class="head"><h3>Lead instructor sheet</h3>${fr(sh)}</div>
-    <div class="muted small">Reads each cell containing <b>${esc(c.initials || '—')}</b>. Neon-blue background → Lead (PowerPoint due ${c.leadPptDaysBefore} days before the week). Any other colour → Support. Read-only.</div>
+  const hist = (state.unitHistory || []).filter(h => h.type !== 'imported').slice(-4).reverse();
+  const open = (state.review || []).filter(r => !r.resolvedAt);
+  return `<div class="card"><div class="head"><h3>Lead instructor sheet</h3>${fr(sh)}</div>
+    <div class="muted small">${esc(E.freshness(sh, c, t).label)}. Cells with <b>${esc(c.initials || '—')}</b>: neon blue = Lead, other colours = Support. Read-only.</div>
     <label>Google Sheet link</label><input data-f="sources.sheet.url" value="${esc(sh.url || '')}">
-    <label>Google API key · stored only on this device</label><input type="password" data-a="gkey" value="${esc(gkey.get())}" placeholder="Restricted to Sheets API + this site">
-    <div class="muted small" style="margin-top:6px">Colours aren’t included in CSV exports, so the Sheets API is required. The sheet must be shared as “Anyone with the link can view”.</div>
+    <label>Google API key · stays on this device</label><input type="password" data-a="gkey" value="${esc(gkey.get())}" placeholder="Sheets API key, restricted to this site">
     ${sh.error ? `<div class="warnbox">${esc(sh.error)}</div>` : ''}${(sh.warnings || []).map(w => `<div class="warnbox">${esc(w)}</div>`).join('')}
-    <button class="btn" style="margin-top:12px" data-a="sync-sheet">Sync now</button>
-    ${sh.lastOk ? `<div class="muted small" style="margin-top:8px">${(state.units || []).length} weeks found (${state.units.filter(u => u.role === 'lead').length} lead) · tab “${esc(sh.tab || '')}”</div>` : ''}
-    ${hist.length ? `<div class="day-h">Recent changes</div>${hist.map(x => `<div class="small" style="padding:4px 0">${esc(x.type)} · ${esc(x.topic)}${x.fields ? ' · ' + esc(x.fields.map(f => `${f}: ${JSON.stringify(x.from[f])} → ${JSON.stringify(x.to[f])}`).join(', ')) : ''} <span class="muted">${E.fmtAgo(x.at, t)}</span></div>`).join('')}` : ''}</div>
-
-  <div class="card" style="margin-top:12px"><div class="head"><h3>Class schedule · hub</h3>${fr(sc)}</div>
-    <div class="muted small">The hub needs your login, so Ace never stores your password. Open your week, select all, copy, and paste it here. You’ll review every class before it’s saved.</div>
-    <div class="row" style="margin-top:10px;gap:8px"><a class="btn ghost sm" target="_blank" rel="noopener" href="${HUB.schedule}?week=${wk}">This week</a><a class="btn ghost sm" target="_blank" rel="noopener" href="${HUB.schedule}?week=${wk2}">Next week</a></div>
-    <button class="btn" style="margin-top:10px" data-a="paste-sched">Paste schedule</button>
-    <button class="link" style="margin-top:10px" data-a="file-sched">Or import a CSV / .ics file</button><input type="file" id="schedFile" accept=".csv,.ics,.txt,text/csv,text/calendar" hidden></div>
-
-  <div class="card" style="margin-top:12px"><h3>Evaluations · hub</h3><div class="muted small" style="margin-top:4px">Copy your evaluation results page and paste it in Growth. Student names aren’t kept; emails and ID numbers are masked.</div>
-    <div class="row" style="margin-top:10px;gap:8px"><a class="btn ghost sm" target="_blank" rel="noopener" href="${HUB.evals}">Open evaluations</a><button class="btn sm" data-a="paste-eval">Paste results</button></div></div>
-
-  ${Object.keys(state.imports || {}).length || (state.review || []).some(r => !r.resolvedAt) ? `<div class="card" style="margin-top:12px"><div class="head"><h3>Imported evidence</h3></div>
-    ${Object.entries(state.imports || {}).filter(([, v]) => v.report).map(([k, v]) => `<div class="item small"><div class="grow"><b>${esc(v.label || k)}</b><div class="muted">${esc(importSummary(v.report))} · ${E.fmtAgo(v.at, t)}</div></div></div>`).join('')}
-    ${(state.review || []).filter(r => !r.resolvedAt).map(r => `<div class="item small"><div class="grow"><b>Review:</b> ${esc(r.title)}<div class="muted">${esc(r.detail || '')}</div></div><button class="btn ghost sm" data-a="review-ok" data-id="${esc(r.id)}">OK</button></div>`).join('')}
-    <div class="muted small" style="margin-top:8px">Screenshot data is evidence, not a live source: sync the sheet and paste the hub schedule to verify and update it.</div></div>` : ''}
-  <button class="card srclink" data-a="settings" style="margin-top:12px;width:100%;text-align:left"><div class="row"><div class="grow"><b>Teaching rules, reminders, app lock & backup</b><div class="muted small">Now in Settings</div></div>${ico('chev', 18)}</div></button>`;
+    <button class="btn wide" style="margin-top:12px" data-a="sync-sheet">Sync now</button>
+    ${hist.length ? `<div class="cat-h">Recent changes</div>${hist.map(x => `<div class="small" style="padding:3px 0">${esc(x.type)} · ${esc(x.topic)} <span class="muted">${E.fmtAgo(x.at, t)}</span></div>`).join('')}` : ''}</div>
+  <div class="card" style="margin-top:12px"><div class="head"><h3>Class schedule (hub)</h3>${fr(sc)}</div>
+    <div class="muted small">The hub needs your login, so Ace never stores your password. Open your week, Select All → Copy, then paste. Only your classes are kept, and you review them before saving.</div>
+    <div class="row" style="margin-top:10px;gap:8px"><a class="btn sec sm" target="_blank" rel="noopener" href="${HUB.schedule}?week=${wk}">Open this week</a><a class="btn sec sm" target="_blank" rel="noopener" href="${HUB.schedule}?week=${wk2}">Open next week</a></div>
+    <button class="btn wide" style="margin-top:10px" data-a="paste-sched">Paste schedule</button>
+    <button class="link" style="margin-top:10px" data-a="file-sched">Import a CSV or .ics file instead</button></div>
+  <div class="card" style="margin-top:12px"><div class="head"><h3>Evaluations (hub)</h3>${state.evals.length ? '<span class="tag ok">Imported</span>' : '<span class="tag amb">None yet</span>'}</div>
+    <div class="muted small">Copy your results page and paste it, or import a file. Emails and ID numbers are masked.</div>
+    <div class="row" style="margin-top:10px;gap:8px"><a class="btn sec sm" target="_blank" rel="noopener" href="${HUB.evals}">Open results</a><button class="btn sec sm" data-a="paste-eval">Paste</button><button class="btn sec sm" data-a="merge">Import file</button></div></div>
+  ${Object.values(state.imports || {}).some(v => v.report) || open.length ? `<div class="card" style="margin-top:12px"><div class="head"><h3>Imported evidence</h3></div>
+    ${Object.entries(state.imports || {}).filter(([, v]) => v.report).map(([k, v]) => `<div class="small" style="padding:4px 0"><b>${esc(v.label || k)}</b><div class="muted">${esc(importSummary(v.report))} · ${E.fmtAgo(v.at, t)}</div></div>`).join('')}
+    ${open.map(r => `<div class="lrow"><div class="grow"><div class="l-t small">${esc(r.title)}</div><div class="l-s">${esc(r.detail || '')}</div></div><button class="btn sec sm" data-a="review-ok" data-id="${esc(r.id)}">OK</button></div>`).join('')}
+    <div class="muted small" style="margin-top:6px">Screenshot data is evidence, not a live source. Sync the sheet and paste the hub schedule to confirm it.</div></div>` : ''}`;
 }
 
 /* ================================================================ settings, alerts, lock */
@@ -359,7 +305,6 @@ function rulesHTML() {
     ${Object.entries(c.cutoffOverrides).map(([k, v]) => `<div class="small" style="margin-top:6px">${esc(k)} → ${esc(v)} <button class="link" data-a="ov-del" data-id="${esc(k)}">remove</button></div>`).join('')}</div>`;
 }
 /* ---------- preferences (stored with your data; exported in backups) */
-const HOME_CARDS = [['next', 'Next class readiness'], ['focus', 'Most important next'], ['priorities', 'Today’s priorities'], ['deadlines', 'Upcoming deadlines'], ['assignments', 'My assignments'], ['insight', 'Improvement focus'], ['progress', 'Excellence progress'], ['reflection', 'Daily reflection']];
 const UI_DEF = { theme: 'system', accent: '', hideScores: false, clock24: false, home: { order: HOME_CARDS.map(x => x[0]), hidden: {} },
   notif: { leave: true, deadlines: true, leadppt: true, changes: true, morning: false, morningTime: '06:30' }, dismissed: {} };
 function ui() {
@@ -395,17 +340,17 @@ function alerts() {
     const s = x.after || x.before;
     add(`ch:${x.key}:${x.at}`, { tone: x.type === 'added' ? '' : x.type === 'changed' ? 'amb' : 'bad', icon: 'week', change: x,
       title: `${{ added: 'New class', changed: 'Class changed', cancelled: 'Class cancelled', missing: 'Class no longer listed' }[x.type]} · ${s.subject}`,
-      sub: `${E.fmtDay(s.start)} · ${E.fmtTime(s.start)}${x.fields ? ' · ' + x.fields.join(', ') : ''}${x.type === 'missing' ? ' · unconfirmed' : ''}`, act: 'tab', actId: 'week', label: 'View' });
+      sub: `${E.fmtDay(s.start)} · ${E.fmtTime(s.start)}${x.fields ? ' · ' + x.fields.join(', ') : ''}${x.type === 'missing' ? ' · unconfirmed' : ''}`, act: 'tab', actId: 'schedule', label: 'View' });
   }
   const first = state.sources.sheet.firstOk || 0;
   for (const h of (state.unitHistory || []).filter(h => ['added', 'changed', 'removed'].includes(h.type) && t - h.at < 14 * 864e5 && h.at > first)) {
     const lead = h.role === 'lead' || h.to?.role === 'lead';
     add(`uh:${h.key}:${h.at}`, { tone: lead ? 'lead' : 'amb', icon: 'sources',
       title: h.type === 'added' ? `${h.role === 'lead' ? 'New lead week' : 'New support week'} · ${h.topic}` : h.type === 'removed' ? `Removed from the sheet · ${h.topic}` : `${h.topic} · ${Object.entries(h.to || {}).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' · ')}`,
-      sub: `Week of ${E.fmtDay(h.weekStart)}`, act: 'tab', actId: 'work', label: 'Open' });
+      sub: `Week of ${E.fmtDay(h.weekStart)}`, act: 'tab', actId: 'tasks', label: 'Open' });
   }
   for (const d of E.deadlines(state, t, 12)) if (d.at - t < 48 * 36e5) add(`dl:${d.kind}:${d.ref}:${d.at}`, { tone: d.at < t ? 'bad' : 'amb', icon: 'clock', title: d.title,
-    sub: d.at < t ? `Passed ${E.fmtDur(t - d.at)} ago — confirm once submitted` : `Due ${E.fmtDayRel(d.at, t)} ${E.fmtTime(d.at)} · in ${E.fmtDur(d.at - t)}`, act: 'tab', actId: 'work', label: 'Open' });
+    sub: d.at < t ? `Passed ${E.fmtDur(t - d.at)} ago — confirm once submitted` : `Due ${E.fmtDayRel(d.at, t)} ${E.fmtTime(d.at)} · in ${E.fmtDur(d.at - t)}`, act: 'tab', actId: 'tasks', label: 'Open' });
   const next = E.teachingItems(state).find(s => !s.approx && s.end > t);
   if (next && next.start - t < 24 * 36e5) {
     const r = E.readiness(next, state, c);
@@ -415,10 +360,10 @@ function alerts() {
   }
   for (const [k, label] of [['sheet', 'Lead sheet'], ['schedule', 'Class schedule']]) {
     const f = E.freshness(state.sources[k], c, t);
-    if (f.state === 'failed' || f.state === 'stale') add(`sy:${k}:${E.dayKey(t)}`, { tone: f.state === 'failed' ? 'bad' : 'amb', icon: 'sources', title: `${label}: ${f.state === 'failed' ? 'sync failed' : 'may be outdated'}`, sub: f.label, act: 'tab', actId: 'sources', label: 'Update' });
+    if (f.state === 'failed' || f.state === 'stale') add(`sy:${k}:${E.dayKey(t)}`, { tone: f.state === 'failed' ? 'bad' : 'amb', icon: 'sources', title: `${label}: ${f.state === 'failed' ? 'sync failed' : 'may be outdated'}`, sub: f.label, act: 'tab', actId: 'connections', label: 'Update' });
   }
   const unv = (state.units || []).filter(x => !x.verified && x.weekStart + 7 * 864e5 > t).length;
-  if (unv) add(`uv:${unv}:${state.sources.sheet.lastOk || 0}`, { tone: 'amb', icon: 'sources', title: `${unv} sheet week${unv > 1 ? 's' : ''} unverified`, sub: 'Sync the lead sheet to confirm lead/support', act: 'tab', actId: 'sources', label: 'Sync' });
+  if (unv) add(`uv:${unv}:${state.sources.sheet.lastOk || 0}`, { tone: 'amb', icon: 'sources', title: `${unv} sheet week${unv > 1 ? 's' : ''} unverified`, sub: 'Sync the lead sheet to confirm lead/support', act: 'tab', actId: 'connections', label: 'Sync' });
   for (const r of state.review || []) if (!r.resolvedAt) add(`rv:${r.id}`, { tone: 'amb', icon: 'alert', title: `Needs review · ${r.title}`, sub: r.detail || '', act: 'review', actId: r.id, label: 'Details', review: r });
   const order = { bad: 0, lead: 1, amb: 2, '': 3 };
   return out.sort((a, b) => order[a.tone] - order[b.tone]);
@@ -459,7 +404,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -497,11 +442,12 @@ const PANELS = {
     const u = ui(), c = cfg(), L = lock.get(), perm = 'Notification' in window ? Notification.permission : 'unsupported';
     return ['Settings', `<label class="searchbox">${ico('search', 18)}<input id="setq" placeholder="Search settings" value="${esc(setQ)}" autocomplete="off"></label>
       ${grp('Profile', [rowBox('Name', `<input data-f="identity.name" value="${esc(state.identity.name)}" placeholder="e.g. Given Dave Layos">`), rowBox('Initials in schedules', `<input data-f="cfg.initials" value="${esc(c.initials)}" style="text-transform:uppercase" maxlength="4">`, 'Ace keeps only cells with these initials from the hub schedule and the lead sheet.')])}
+      ${grp('Connections', [rowLink('Lead instructor sheet', E.freshness(state.sources.sheet, c, Date.now()).label, 'panel', 'connections'), rowLink('Class schedule (hub)', E.freshness(state.sources.schedule, c, Date.now()).label, 'panel', 'connections'), rowLink('Evaluations', state.evals.length ? `${state.evals.length} imported` : 'None imported yet', 'panel', 'connections')])}
       ${grp('Appearance', [rowBox('Theme', `<div class="seg">${[['system', 'System'], ['light', 'Light'], ['dark', 'Dark'], ['amoled', 'AMOLED']].map(([k, l]) => `<button class="${u.theme === k ? 'on' : ''}" data-a="theme" data-id="${k}">${l}</button>`).join('')}</div>`),
         rowBox('App color', `<div class="swatches">${ACCENTS.map(([n, hx]) => `<button class="sw ${u.accent === hx ? 'on' : ''}" style="--c:${hx || '#5a9e5f'}" data-a="accent" data-id="${hx}" aria-label="${n}"></button>`).join('')}<label class="sw custom ${u.accent && !ACCENTS.some(x => x[1] === u.accent) ? 'on' : ''}" style="--c:${u.accent || '#5a9e5f'}" aria-label="Custom color"><input type="color" data-a="accent-custom" value="${u.accent || '#5a9e5f'}"></label></div>`)])}
       ${grp('Home screen', [rowLink('Cards on Home', `${HOME_CARDS.length - Object.values(u.home.hidden).filter(Boolean).length} shown · reorder or hide`, 'panel', 'home')])}
       ${grp('Preferences', [rowToggle('Hide scores on Home', 'Shows •••• instead of your evaluation score', 'ui.hideScores', u.hideScores), rowToggle('24-hour time', '13:00 instead of 1:00 PM', 'ui.clock24', u.clock24)])}
-      ${grp('Teaching', [rowLink('Teaching rules', `Cutoffs ${E.fmtTime(E.atTime(Date.now(), c.cutoffTime))} · lead PPT ${c.leadPptDaysBefore} days ahead · buffers`, 'panel', 'rules'), rowLink('Data sources', 'Lead sheet, hub schedule, evaluations', 'go-sources')])}
+      ${grp('Teaching', [rowLink('Teaching rules', `Cutoffs ${E.fmtTime(E.atTime(Date.now(), c.cutoffTime))} · lead PPT ${c.leadPptDaysBefore} days ahead · buffers`, 'panel', 'rules')])}
       ${grp('Security', [rowToggle('App lock', L?.hash ? 'PIN required when opening Ace' : 'Protect your evaluations with a PIN', 'lock', !!L?.hash),
         ...(L?.hash ? [rowLink('Change PIN', '', 'pin-change'), `<label class="srow"><div class="grow"><div class="s-l">Face ID unlock</div><div class="s-s">${faceOk ? 'Unlock with your face' : 'Not available on this device or browser'}</div></div><input type="checkbox" class="switch" data-a="faceid" ${L.cred ? 'checked' : ''} ${faceOk ? '' : 'disabled'}></label>`] : [])])}
       ${grp('Notifications', [rowLink('Reminders', perm === 'granted' ? 'On for this device' : perm === 'denied' ? 'Blocked — allow in iPhone Settings → Ace' : 'Tap to allow (open Ace from the Home Screen first)', 'notif'),
@@ -510,11 +456,10 @@ const PANELS = {
         rowToggle('Morning plan', 'Your most important task and today’s priorities', 'ui.notif.morning', u.notif.morning), ...(u.notif.morning ? [rowBox('Morning plan time', `<input type="time" data-f="ui.notif.morningTime" value="${esc(u.notif.morningTime)}">`)] : []),
         `<div class="srow col"><div class="s-s">Reminders arrive while Ace is open or recently opened. Background push needs the server phase.</div></div>`])}
       ${grp('Calendar', [rowLink('Add classes & deadlines to your calendar', 'Download an .ics file for Google or Apple Calendar', 'ics'), `<div class="srow col"><div class="s-s">Google Calendar: Settings → Import & export → Import the file. Re-import after schedule changes (events update, not duplicate). A live Google Calendar sync needs Google sign-in and isn’t set up yet.</div></div>`])}
-      ${grp('Imports', [rowLink('Import data file (merge)', 'Adds new records only · never duplicates or overwrites', 'merge'), ...Object.entries(state.imports || {}).map(([k, v]) => `<div class="srow col"><div class="s-l">${esc(v.label || k)}</div><div class="s-s">${esc(importSummary(v.report))} · ${E.fmtAgo(v.at, Date.now())}</div></div>`)])}
-      ${grp('Backup & data', [rowLink('Export backup', 'Save a copy of everything (not your API key or PIN)', 'export'), rowLink('Restore backup (replace all)', 'From an Ace JSON backup', 'import'), `<button class="srow danger" data-a="reset"><div class="grow"><div class="s-l">Erase all data on this device</div></div></button>`])}
+      ${grp('Backup & data', [rowLink('Import data file (merge)', 'Adds new records only · never duplicates or overwrites', 'merge'), rowLink('Export backup', 'Save a copy of everything (not your API key or PIN)', 'export'), rowLink('Restore backup (replace all)', 'From an Ace JSON backup', 'import'), `<button class="srow danger" data-a="reset"><div class="grow"><div class="s-l">Erase all data on this device</div></div></button>`])}
       ${grp('Help', [rowLink('How to use Ace', 'Sources, readiness, handouts, growth', 'panel', 'help')])}
       ${grp('About', [`<div class="srow col about"><div class="row"><img src="icon-192.png" width="44" height="44" style="border-radius:11px" alt=""><div><div class="s-l">Ace</div><div class="s-s">Your instructor excellence companion. Version ${VERSION}</div></div></div></div>`, rowLink('What’s new', '', 'panel', 'whatsnew'), rowLink('Check for updates', '', 'update')])}
-      <input type="file" id="bk" accept=".json,application/json" hidden><input type="file" id="mg" accept=".json,application/json" hidden>
+      
       <div class="empty small" id="noresult" hidden>No settings match “<span></span>”</div>`];
   },
   home() {
@@ -524,6 +469,7 @@ const PANELS = {
       <input type="checkbox" class="switch" data-a="hshow" data-id="${k}" ${u.home.hidden[k] ? '' : 'checked'}></div>`).join('')}</div>`];
   },
   rules() { return ['Teaching rules', rulesHTML()]; },
+  connections() { return ['Connections', connectionsHTML()]; },
   help() {
     const step = (t, d) => `<div class="card" style="margin-bottom:10px"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></div>`;
     return ['How to use Ace', [
@@ -537,7 +483,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.3', 'Nov 6, 2026', ['Settings with search, like Power', 'Alerts bell: changes, deadlines, sync problems', 'App lock with PIN and Face ID', 'Themes: System, Light, Dark, AMOLED · app colors', 'Reorder or hide Home cards · hide scores · 24-hour time', 'Choose which reminders you get, plus a morning plan'])
+    return ['What’s new', v('0.4', 'Nov 6, 2026', ['Cleaner app: 4 tabs — Today, Schedule, Tasks, Performance', 'Today shows only your next class, today’s focus and what’s coming up', 'All handouts, lead PowerPoints and exams in one Tasks list with steps', 'Schedule groups classes by teaching week with topic and role', 'Performance: your score, the top 3 things to improve, real habit stats', 'Connections moved into Settings', 'One design system across every screen'])
+      + v('0.3', 'Nov 6, 2026', ['Settings with search, like Power', 'Alerts bell: changes, deadlines, sync problems', 'App lock with PIN and Face ID', 'Themes: System, Light, Dark, AMOLED · app colors', 'Reorder or hide Home cards · hide scores · 24-hour time', 'Choose which reminders you get, plus a morning plan'])
       + v('0.2', 'Nov 6, 2026', ['Reads the hub schedule grid and evaluation page', 'Prep shared across all classes of a topic-week', 'Taglish/Bisaya comment analysis', 'Smoother tab switching']) + v('0.1', 'Nov 6, 2026', ['First release: lead sheet, handouts, exams, readiness, planner, growth'])];
   },
 };
@@ -616,20 +563,23 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ================================================================ render */
-const TABS = [['home', 'Today'], ['week', 'Week'], ['work', 'Work'], ['growth', 'Growth'], ['sources', 'Sources']];
+const TABS = [['home', 'Today', 'home'], ['schedule', 'Schedule', 'week'], ['tasks', 'Tasks', 'work'], ['performance', 'Performance', 'growth']];
 const scrollMem = {};
 /** Tab bar is built once; switching only moves the lens and recolours labels (no rebuild, no flicker). */
 function renderTabs() {
   const el = $('#tabs');
   if (!el.dataset.ready) {
-    el.innerHTML = '<span class="tab-lens" aria-hidden="true"></span>' + TABS.map(([k, l]) => `<button data-a="tab" data-id="${k}" aria-label="${l}">${ico(k, 22)}<span>${l}</span></button>`).join('');
+    el.innerHTML = '<span class="tab-lens" aria-hidden="true"></span>' + TABS.map(([k, l, ic]) => `<button data-a="tab" data-id="${k}" aria-label="${l}">${ico(ic, 22)}<span>${l}</span></button>`).join('');
     el.dataset.ready = '1';
   }
-  el.style.setProperty('--i', TABS.findIndex(x => x[0] === tab));
+  el.style.setProperty('--i', TABS.findIndex(x => x[0] === tab)); el.style.setProperty('--n', TABS.length);
   el.querySelectorAll('button').forEach(b => { const on = b.dataset.id === tab; b.classList.toggle('on', on); on ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'); });
 }
 /** Switch tab like Power: slide the new screen in from the side you tapped, keep each tab's scroll position. */
+function openConnections() { setQ = ''; panels.length = 0; openPanel('connections'); }
 function go(next) {
+  next = TAB_ALIAS[next] || next;
+  if (next === 'connections') { closeSheet(); return openConnections(); }
   if (next === tab) { scrollTo({ top: 0, behavior: 'smooth' }); return; }
   const idx = k => TABS.findIndex(x => x[0] === k);
   scrollMem[tab] = scrollY;
@@ -644,7 +594,7 @@ function go(next) {
 }
 function render() {
   if (panels.length) renderPanel();
-  const screens = { home, week, work, growth, sources };
+  const screens = { home, schedule, tasks, performance };
   $('#app').innerHTML = screens[tab]();
   renderTabs();
 }
@@ -690,7 +640,7 @@ function commitSchedule() {
   const r = E.mergeSchedule(state.sessions, chosen, { source: { id: 'hub', name: 'Hub schedule', method: p.method }, now: t, windowStart: ws, windowEnd: we });
   state.sessions = r.sessions; state.changes = [...state.changes, ...r.changes.filter(c => c.type !== 'added' || state.sources.schedule.lastOk)].slice(-300);
   Object.assign(state.sources.schedule, { lastOk: t, lastTry: t, error: null, method: p.method });
-  save(); closeSheet(); go('week');
+  save(); closeSheet(); go('schedule');
   const n = r.changes.reduce((o, c) => (o[c.type] = (o[c.type] || 0) + 1, o), {});
   toast(Object.entries(n).map(([k, v]) => `${v} ${k}`).join(' · ') || 'No changes');
 }
@@ -703,16 +653,27 @@ document.addEventListener('click', async e => {
   switch (a) {
     case 'tab': go(id); break;
     case 'close': closeSheet(); break;
-    case 'task': markTask(id, true); if (!id.endsWith(':submit')) toast('Done ✓'); break;
-    case 'untask': markTask(id, false); break;
+    case 'task': markTask(id, true); if (!id.endsWith(':submit')) { toast('Done ✓'); if (el.dataset.back) delivSheet(el.dataset.back); } break;
+    case 'untask': markTask(id, false); if (el.dataset.back) delivSheet(el.dataset.back); break;
+    case 'deliv': delivSheet(id); break;
+    case 'connections': openConnections(); break;
+    case 'add-deliv': sheet(`<h2>Add a deliverable</h2><div class="muted small">Handouts, lead PowerPoints and lead exams are added automatically from your lead sheet. Add anything else here.</div>
+      <label>Type</label><select name="kind" id="dk"><option>Exam</option><option>Quiz</option><option>Assessment</option><option>Problem set</option><option value="duty">Lead duty</option></select>
+      <label>Title</label><input name="title" placeholder="e.g. Midterm exam set A"><label>Subject</label><input name="subject">
+      <label>Due (Manila time)</label><input type="datetime-local" name="due"><label class="row" style="color:var(--text);font-weight:600"><input type="checkbox" name="verified"> Date confirmed by an official notice</label>
+      <label>Estimated effort (hours)</label><input type="number" step="0.5" name="effortH" value="4">
+      <button class="btn wide" style="margin-top:16px" data-a="save-deliv">Save</button>`); break;
+    case 'save-deliv': { const v = formVals(); if (!v.title) return toast('Add a title'); const due = v.due ? E.parseLocal(v.due) : null;
+      if (v.kind === 'duty') state.duties.push({ id: S.newId('d'), title: v.title, subject: v.subject, due, min: Math.round((+v.effortH || .5) * 60), verified: v.verified });
+      else { if (!due) return toast('Exams and assessments need a due date'); state.assessments.push({ id: S.newId('a'), title: v.title, kind: v.kind, subject: v.subject, due, dueVerified: v.verified, effortH: +v.effortH || 4, stages: {} }); }
+      save(); closeSheet(); render(); toast('Added to Tasks'); break; }
+    case 'del-duty': if (confirm('Delete this duty?')) { state.duties = state.duties.filter(x => x.id !== id); save(); closeSheet(); render(); } break;
     case 'snooze': state.snooze[id] = t + 3 * 36e5; save(); render(); break;
     case 'class': classSheet(id); break;
     case 'rd': { const it = el.dataset.item, s = E.teachingItems(state).find(x => x.id === id); const k = s ? E.readinessKey(s, it) : id; (state.readiness[k] ||= {}); state.readiness[k][it] ? delete state.readiness[k][it] : state.readiness[k][it] = t; save(); render(); classSheet(id); break; }
-    case 'rdt': { const it = el.dataset.item; (state.readiness[id] ||= {}); state.readiness[id][it] ? delete state.readiness[id][it] : state.readiness[id][it] = t; save(); render(); break; }
     case 'arrive': logArrival(id); closeSheet(); break;
     case 'arrive-m': logArrival(id, el.dataset.st); closeSheet(); break;
     case 'unarrive': delete state.arrivals[id]; save(); render(); classSheet(id); break;
-    case 'seen': state.changes.forEach(c => c.seen = true); save(); render(); break;
     case 'do-submit': { const v = formVals(); const h = (state.handouts[id] ||= { stages: {} }); h.submittedAt = E.parseLocal(v.at); h.cutoffAt = +el.dataset.cut || null; h.evidence = v.ev; h.confirmedBy = 'you'; save(); closeSheet(); render(); toast(h.cutoffAt && h.submittedAt > h.cutoffAt ? 'Submitted (after cutoff)' : 'Submitted on time ✓'); break; }
     case 'do-asubmit': { const v = formVals(); const x = assessRec(id); (x.stages ||= {}).submit = E.parseLocal(v.at); save(); closeSheet(); render(); break; }
     case 'add-class': sheet(`<h2>Add a class</h2><label>Subject / topic</label><input name="subject"><div class="two"><div><label>Date</label><input type="date" name="date" value="${E.dayKey(t)}"></div><div><label>Format</label><select name="format"><option value="in_person">In person</option><option value="online">Online</option></select></div></div>
@@ -721,15 +682,10 @@ document.addEventListener('click', async e => {
     case 'save-class': { const v = formVals(); if (!v.subject) return toast('Add a subject'); const day = E.parseLocal(v.date); let s0 = E.atTime(day, v.start), s1 = E.atTime(day, v.end); if (s1 <= s0) s1 += 864e5;
       state.sessions.push({ id: S.newId('s'), subject: v.subject, section: '', start: s0, end: s1, format: v.format, location: v.format === 'online' ? '' : v.where, platform: v.format === 'online' ? v.where : '', status: 'scheduled', source: { id: 'user', at: t } }); save(); closeSheet(); render(); break; }
     case 'del-class': state.sessions = state.sessions.filter(s => s.id !== id); save(); closeSheet(); render(); break;
-    case 'add-duty': sheet(`<h2>Lead responsibility</h2><div class="muted small">Add only duties you’ve confirmed.</div><label>What</label><input name="title" placeholder="e.g. Review co-instructor’s problem set"><label>Subject</label><input name="subject"><label>Due</label><input type="datetime-local" name="due"><label>Estimated minutes</label><input type="number" name="min" value="30"><label class="row" style="color:var(--text)"><input type="checkbox" name="verified" style="width:auto"> Confirmed with coordinator</label><button class="btn" style="margin-top:16px" data-a="save-duty">Save</button>`); break;
-    case 'save-duty': { const v = formVals(); if (!v.title) return; state.duties.push({ id: S.newId('d'), title: v.title, subject: v.subject, due: v.due ? E.parseLocal(v.due) : null, min: +v.min || 30, verified: v.verified }); save(); closeSheet(); render(); break; }
-    case 'add-as': sheet(`<h2>Assessment or exam</h2><label>Title</label><input name="title" placeholder="e.g. Hydraulics prelim exam"><div class="two"><div><label>Type</label><select name="kind"><option>Exam</option><option>Quiz</option><option>Assessment</option><option>Problem set</option></select></div><div><label>Subject</label><input name="subject"></div></div>
-      <label>Due (Manila)</label><input type="datetime-local" name="due"><label class="row" style="color:var(--text)"><input type="checkbox" name="dueVerified" style="width:auto"> Due date confirmed from an official notice</label><label>Estimated total effort (hours)</label><input type="number" step="0.5" name="effortH" value="6"><button class="btn" style="margin-top:16px" data-a="save-as">Save</button>`); break;
-    case 'save-as': { const v = formVals(); if (!v.title || !v.due) return toast('Title and due date needed'); state.assessments.push({ id: S.newId('a'), title: v.title, kind: v.kind, subject: v.subject, due: E.parseLocal(v.due), dueVerified: v.dueVerified, effortH: +v.effortH || 6, stages: {} }); save(); closeSheet(); render(); break; }
-    case 'del-as': if (confirm('Delete this assessment?')) { state.assessments = state.assessments.filter(x => x.id !== id); save(); render(); } break;
+    case 'del-as': if (confirm('Delete this assessment?')) { state.assessments = state.assessments.filter(x => x.id !== id); save(); closeSheet(); render(); } break;
     case 'revision': sheet(`<h2>Revision requested</h2><label>What was asked</label><input name="note"><label>Due</label><input type="datetime-local" name="due"><button class="btn" style="margin-top:16px" data-a="save-rev" data-id="${esc(id)}">Save</button>`); break;
     case 'save-rev': { const v = formVals(); const x = assessRec(id), due = E.allAssessments(state).find(a => a.id === id)?.due; x.revision = { note: v.note, due: v.due ? E.parseLocal(v.due) : due, doneAt: null }; save(); closeSheet(); render(); break; }
-    case 'paste-sched': { const wk = E.dayKey(E.mondayOf(t)); sheet(`<h2>Paste hub schedule</h2><label>Week (Monday) — from the page’s ?week=</label><input type="date" name="week" value="${wk}"><label>Page text</label><textarea name="txt" rows="8" placeholder="On the hub schedule page: Select All → Copy, then paste here. Only your ${esc(cfg().initials)} classes are kept."></textarea><button class="btn" style="margin-top:12px" data-a="parse-sched">Read classes</button>`); break; }
+    case 'paste-sched': { const wk = el.dataset.week || E.dayKey(E.mondayOf(t)); sheet(`<h2>Paste hub schedule</h2><label>Week (Monday) — from the page’s ?week=</label><input type="date" name="week" value="${wk}"><label>Page text</label><textarea name="txt" rows="8" placeholder="On the hub schedule page: Select All → Copy, then paste here. Only your ${esc(cfg().initials)} classes are kept."></textarea><button class="btn" style="margin-top:12px" data-a="parse-sched">Read classes</button>`); break; }
     case 'parse-sched': { const v = formVals(); const ws = E.parseLocal(v.week); if (Number.isNaN(ws)) return toast('Pick the week'); const monday = E.mondayOf(ws); const g = S.parseScheduleGrid(v.txt, { initials: cfg().initials, weekStart: monday }); const r = g || S.parseSchedulePaste(v.txt, monday);
       if (g && !g.sessions.length) return toast(`No “${cfg().initials}” cells found in that schedule`);
       reviewSessions(r.sessions, { unparsed: r.unparsed, week: E.dayKey(monday), method: 'paste' }); break; }
@@ -752,7 +708,7 @@ document.addEventListener('click', async e => {
     case 'save-eval': { const v = formVals(), n = +el.dataset.n, criteria = {}; for (let i = 0; i < n; i++) if (v['cn' + i] && v['cv' + i] !== '') criteria[v['cn' + i].trim()] = +v['cv' + i];
       if (v.overall === '' && !Object.keys(criteria).length) return toast('No scores to save');
       state.evals.push({ id: S.newId('e'), period: v.period || pendingImport?.period || '', date: v.date || pendingImport?.date || E.dayKey(t), overall: v.overall === '' ? null : +v.overall, criteria, comments: String(v.comments || '').split('\n').map(x => S.maskPII(x.trim())).filter(Boolean), source: el.dataset.src, savedAt: t });
-      save(); closeSheet(); go('growth'); break; }
+      save(); closeSheet(); go('performance'); break; }
     case 'del-eval': if (confirm('Delete this evaluation?')) { state.evals = state.evals.filter(x => x.id !== id); save(); render(); } break;
     case 'adopt': state.practices.push({ id: S.newId('p'), key: el.dataset.k, text: el.dataset.tip, adoptedAt: t, applied: [] }); save(); render(); toast('Adopted. Tap +1 each class you apply it.'); break;
     case 'apply': { const p = state.practices.find(p => p.id === id); p.applied.push(t); save(); render(); break; }
@@ -765,14 +721,13 @@ document.addEventListener('click', async e => {
     case 'alerts': alertsSheet(); break;
     case 'alerts-clear': alerts().forEach(a => dismissAlert(a.id)); closeSheet(); render(); toast('All caught up ✨'); break;
     case 'alert-go': { const a = alerts().find(x => x.id === id); closeSheet(); if (!a) break;
-      if (a.review) sheet(`<h2>Needs review</h2><div style="font-weight:700;margin-top:6px">${esc(a.review.title)}</div><div class="muted small" style="margin-top:6px">${esc(a.review.detail || '')}</div>${a.review.source ? `<div class="pill amb" style="margin-top:10px">Source: ${esc(a.review.source)}</div>` : ''}<div class="row" style="margin-top:16px"><button class="btn ghost" data-a="close">Later</button><button class="btn" data-a="review-ok" data-id="${esc(a.review.id)}">Mark reviewed</button></div>`);
+      if (a.review) sheet(`<h2>Needs review</h2><div style="font-weight:700;margin-top:6px">${esc(a.review.title)}</div><div class="muted small" style="margin-top:6px">${esc(a.review.detail || '')}</div>${a.review.source ? `<div class="tag amb" style="margin-top:10px">Source: ${esc(a.review.source)}</div>` : ''}<div class="row" style="margin-top:16px"><button class="btn ghost" data-a="close">Later</button><button class="btn" data-a="review-ok" data-id="${esc(a.review.id)}">Mark reviewed</button></div>`);
       else if (a.act === 'tab') go(a.actId); else if (a.act === 'class') classSheet(a.actId); break; }
     case 'alert-x': dismissAlert(id); render(); alertsSheet(); break;
     case 'review-ok': { const r = (state.review || []).find(x => x.id === id); if (r) r.resolvedAt = t; save(); closeSheet(); render(); toast('Marked reviewed'); break; }
     case 'settings': setQ = ''; panels.length = 0; openPanel('settings'); break;
     case 'panel': openPanel(id); break;
     case 'pback': backPanel(); break;
-    case 'go-sources': closePanel(); go('sources'); break;
     case 'theme': ui().theme = id; save(); applyTheme(); render(); break;
     case 'accent': ui().accent = id; save(); applyTheme(); render(); break;
     case 'hmove': { const o = ui().home.order, i = o.indexOf(id), j = i + +el.dataset.d; if (j < 0 || j >= o.length) break; [o[i], o[j]] = [o[j], o[i]]; save(); render(); break; }
@@ -806,7 +761,7 @@ document.addEventListener('change', async e => {
   if (el.id === 'bk' && el.files[0]) { try { const d = JSON.parse(await el.files[0].text()); if (!d || d.v !== 1) throw 0; state = { ...blank(), ...d }; save(); render(); toast('Backup restored'); } catch { toast('Not an Ace backup file'); } el.value = ''; }
 });
 document.addEventListener('input', e => { if (e.target.id === 'setq') { setQ = e.target.value; filterSettings(); } });
-window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h && h !== tab && TABS.some(x => x[0] === h)) go(h); });
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); const n = TAB_ALIAS[h] || h; if (n && n !== tab && (n === 'connections' || TABS.some(x => x[0] === n))) go(n); });
 
 /* ================================================================ reminders (while open) */
 async function notify(key, title, body) {

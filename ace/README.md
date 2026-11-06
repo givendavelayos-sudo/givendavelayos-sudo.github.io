@@ -1,5 +1,7 @@
 # Ace — Instructor Excellence
 
+**Structure (v0.4):** Today · Schedule · Tasks · Performance, plus Settings (gear) and Alerts (bell).
+
 A personal, iPhone-first assistant that answers one question every morning:
 **“What is the most important thing I should work on next to be fully prepared and professionally reliable?”**
 
@@ -30,7 +32,7 @@ language (deep-green palette, elevated cards, gradient hero card, glass tab bar,
 
 ```bash
 cd ace
-npm test                 # 31 unit tests; runs with TZ=America/New_York to prove Manila handling
+npm test                 # 32 unit tests; runs with TZ=America/New_York to prove Manila handling
 npm run serve            # http://localhost:5180
 ```
 

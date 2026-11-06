@@ -10,6 +10,20 @@ _Last updated 2026-11-06 · deployed from `givendavelayos-sudo/gdgertc` (main) o
   banner after 30 h, no horizontal overflow.
 - Power untouched (no files outside `ace/` changed).
 
+## v0.4 (Nov 6) — cleanup & redesign (baseline tag: `v0.3.0-baseline`)
+- Navigation: 4 tabs **Today · Schedule · Tasks · Performance**; Sources moved to Settings → Connections;
+  old hash links (#week, #work, #growth, #sources) redirect.
+- Today: next class (one action), Focus today (without repeating the card's task), Coming up (3 deliverables),
+  Performance (only with real evaluation data). Removed: stale banner (bell covers it), assignments card, "—" tiles, quote.
+- Tasks: `E.deliverables()` unifies handouts, lead PowerPoints, exams/assessments and lead duties (one row pattern,
+  one detail sheet with steps; same task ids as the planner). One "Add a deliverable" form replaces two.
+- Schedule: grouped by teaching week with sheet topic + role, past classes greyed, "Paste" where class times are missing,
+  topic prep row shared by the week.
+- Performance: score summary, top 3 focus areas (2 actions each, quotes collapsed), criteria, strengths, habit stats only
+  when data exists, practices, evaluations. Removed: 5.00 hero, 8 "no data yet" bars, ~16-tip wall.
+- style.css rewritten as one design system (tokens, card/list-row/tag/button/sheet patterns, empty/feedback states).
+- Removed dead code: ring(), srcBadge(), badge(), staleBanner(), arrangeHome(), week/work/growth/sources screens.
+
 ## v0.3 (Nov 6)
 - Settings (Power pattern): search; Profile; Appearance (System/Light/Dark/AMOLED, app colour); Home screen cards
   (reorder/hide); Preferences (hide scores, 24-hour); Teaching rules; Security (PIN app lock + Face ID via WebAuthn,

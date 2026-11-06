@@ -624,3 +624,43 @@ export function toICS(state, now) {
     ...ev.flatMap(([uid, a, b, sum, loc, desc]) => ['BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${z(now)}`, `DTSTART:${z(a)}`, `DTEND:${z(b)}`, `SUMMARY:${escI(sum)}`, ...(loc ? [`LOCATION:${escI(loc)}`] : []), ...(desc ? [`DESCRIPTION:${escI(desc)}`] : []), 'END:VEVENT']),
     'END:VCALENDAR'].join('\r\n');
 }
+
+/**
+ * Every deliverable in one list: Wednesday handouts, lead PowerPoints, exams/assessments and lead duties.
+ * Each has an official due date, ordered steps (suggested targets + the official submit step) and a status.
+ * Step `task` ids are the same ids the planner uses, so ticking a step anywhere updates everywhere.
+ */
+export function deliverables(state, now) {
+  const cfg = cfgOf(state), out = [];
+  for (const h of handoutCycles(state, now, { back: 2, ahead: 4 })) {
+    out.push({ id: h.id, kind: 'handout', title: `${h.subject} handout`, subject: h.subject, due: h.cutoff, verified: h.cutoffVerified,
+      note: `For classes in the week of ${fmtDay(h.weekStart)}`, flags: h.holiday ? ['Holiday — confirm the cutoff'] : [],
+      steps: HANDOUT_STAGES.map(st => ({ id: st.id, label: st.id === 'submit' ? 'Submitted' : st.label, task: `${h.id}:${st.id}`, target: handoutTarget(h, st, cfg), doneAt: (st.id === 'submit' ? h.submittedAt : h.stages[st.id]) || null, official: st.id === 'submit' })),
+      done: !!h.submittedAt });
+  }
+  for (const u of unitItems(state)) {
+    if (u.role !== 'lead' || u.start + 7 * DAY <= now) continue;
+    const due = leadPptDue(u.unit, cfg), r = state.readiness?.[u.id] || {};
+    out.push({ id: `lp:${u.id}`, kind: 'leadppt', title: `${u.subject} PowerPoint`, subject: u.subject, due, verified: !!u.unit.verified, unitId: u.id,
+      note: `Lead · teaching week of ${fmtDay(u.start)}`, flags: [],
+      steps: [['slides_draft', 'Slides drafted', atTime(addDays(u.start, -cfg.leadDraftDaysBefore), cfg.leadPptTime), false], ['slides_final', 'PowerPoint finalized', due, true]]
+        .map(([id, label, target, official]) => ({ id, label, task: `rd:${u.id}:${id}`, target, doneAt: r[id] || null, official })),
+      done: !!r.slides_final });
+  }
+  for (const a of allAssessments(state)) {
+    if (a.due < now - 14 * DAY) continue;
+    const p = assessmentPlan(a, cfg), open = a.revision && !a.revision.doneAt;
+    out.push({ id: `as:${a.id}`, kind: a.auto || /exam/i.test(a.kind || '') ? 'exam' : 'assessment', title: a.title, subject: a.subject, due: a.due, verified: !!a.dueVerified, ref: a.id, auto: !!a.auto,
+      note: a.auto ? 'Lead · due that teaching week’s Wednesday' : (a.kind || 'Assessment'), flags: [], start: p.start,
+      steps: p.stages.map(st => ({ id: st.id, label: st.id === 'submit' ? 'Submitted' : st.label, task: `as:${a.id}:${st.id}`, target: st.target, doneAt: st.doneAt, official: st.id === 'submit' })),
+      done: !!a.stages?.submit && !open });
+  }
+  for (const d of state.duties || []) out.push({ id: `du:${d.id}`, kind: 'duty', title: d.title, subject: d.subject, due: d.due || null, verified: !!d.verified, ref: d.id, note: 'Lead responsibility', flags: [],
+    steps: [{ id: 'done', label: 'Done', task: `du:${d.id}`, target: d.due || now, doneAt: d.doneAt || null, official: true }], done: !!d.doneAt });
+  for (const x of out) {
+    const open = x.steps.filter(s => !s.doneAt);
+    x.next = open[0] || null; x.doneCount = x.steps.length - open.length;
+    x.status = x.done ? 'done' : x.due && x.due < now ? 'overdue' : x.next && x.next.target < now ? 'behind' : x.due && x.due - now < 3 * DAY ? 'soon' : 'ok';
+  }
+  return out.sort((a, b) => (a.due ?? Infinity) - (b.due ?? Infinity));
+}
