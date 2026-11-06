@@ -325,10 +325,36 @@ function sources() {
 }
 
 /* ================================================================ render */
+const TABS = [['home', 'Today'], ['week', 'Week'], ['work', 'Work'], ['growth', 'Growth'], ['sources', 'Sources']];
+const scrollMem = {};
+/** Tab bar is built once; switching only moves the lens and recolours labels (no rebuild, no flicker). */
+function renderTabs() {
+  const el = $('#tabs');
+  if (!el.dataset.ready) {
+    el.innerHTML = '<span class="tab-lens" aria-hidden="true"></span>' + TABS.map(([k, l]) => `<button data-a="tab" data-id="${k}" aria-label="${l}">${ico(k, 22)}<span>${l}</span></button>`).join('');
+    el.dataset.ready = '1';
+  }
+  el.style.setProperty('--i', TABS.findIndex(x => x[0] === tab));
+  el.querySelectorAll('button').forEach(b => { const on = b.dataset.id === tab; b.classList.toggle('on', on); on ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'); });
+}
+/** Switch tab like Power: slide the new screen in from the side you tapped, keep each tab's scroll position. */
+function go(next) {
+  if (next === tab) { scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const idx = k => TABS.findIndex(x => x[0] === k);
+  scrollMem[tab] = scrollY;
+  const dir = idx(next) > idx(tab) ? 1 : -1;
+  tab = next;
+  try { history.replaceState(null, '', '#' + next); } catch {}
+  closeSheet(); render();
+  const app = $('#app');
+  app.style.setProperty('--dir', dir);
+  app.classList.remove('screen-in'); void app.offsetWidth; app.classList.add('screen-in');
+  scrollTo(0, scrollMem[next] || 0);
+}
 function render() {
   const screens = { home, week, work, growth, sources };
   $('#app').innerHTML = screens[tab]();
-  $('#tabs').innerHTML = [['home', 'Today'], ['week', 'Week'], ['work', 'Work'], ['growth', 'Growth'], ['sources', 'Sources']].map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-a="tab" data-id="${k}">${ico(k, 22)}${l}</button>`).join('');
+  renderTabs();
 }
 
 /* ================================================================ import flows */
@@ -365,7 +391,7 @@ function commitSchedule() {
   const r = E.mergeSchedule(state.sessions, chosen, { source: { id: 'hub', name: 'Hub schedule', method: p.method }, now: t, windowStart: ws, windowEnd: we });
   state.sessions = r.sessions; state.changes = [...state.changes, ...r.changes.filter(c => c.type !== 'added' || state.sources.schedule.lastOk)].slice(-300);
   Object.assign(state.sources.schedule, { lastOk: t, lastTry: t, error: null, method: p.method });
-  save(); closeSheet(); tab = 'week'; render();
+  save(); closeSheet(); go('week');
   const n = r.changes.reduce((o, c) => (o[c.type] = (o[c.type] || 0) + 1, o), {});
   toast(Object.entries(n).map(([k, v]) => `${v} ${k}`).join(' · ') || 'No changes');
 }
@@ -376,7 +402,7 @@ document.addEventListener('click', async e => {
   const a = el.dataset.a, id = el.dataset.id;
   const t = now();
   switch (a) {
-    case 'tab': tab = id; location.hash = id; closeSheet(); render(); scrollTo(0, 0); break;
+    case 'tab': go(id); break;
     case 'close': closeSheet(); break;
     case 'task': markTask(id, true); if (!id.endsWith(':submit')) toast('Done ✓'); break;
     case 'untask': markTask(id, false); break;
@@ -425,7 +451,7 @@ document.addEventListener('click', async e => {
     case 'save-eval': { const v = formVals(), n = +el.dataset.n, criteria = {}; for (let i = 0; i < n; i++) if (v['cn' + i] && v['cv' + i] !== '') criteria[v['cn' + i].trim()] = +v['cv' + i];
       if (v.overall === '' && !Object.keys(criteria).length) return toast('No scores to save');
       state.evals.push({ id: S.newId('e'), period: v.period || pendingImport?.period || '', date: v.date || pendingImport?.date || E.dayKey(t), overall: v.overall === '' ? null : +v.overall, criteria, comments: String(v.comments || '').split('\n').map(x => S.maskPII(x.trim())).filter(Boolean), source: el.dataset.src, savedAt: t });
-      save(); closeSheet(); tab = 'growth'; render(); break; }
+      save(); closeSheet(); go('growth'); break; }
     case 'del-eval': if (confirm('Delete this evaluation?')) { state.evals = state.evals.filter(x => x.id !== id); save(); render(); } break;
     case 'adopt': state.practices.push({ id: S.newId('p'), key: el.dataset.k, text: el.dataset.tip, adoptedAt: t, applied: [] }); save(); render(); toast('Adopted. Tap +1 each class you apply it.'); break;
     case 'apply': { const p = state.practices.find(p => p.id === id); p.applied.push(t); save(); render(); break; }
@@ -452,7 +478,7 @@ document.addEventListener('change', async e => {
   if (el.id === 'schedFile' && el.files[0]) { const txt = await el.files[0].text(); const r = S.parseSchedule(txt, { identity: { name: state.identity.name, email: state.identity.email } }); reviewSessions(r.sessions, { unparsed: (r.skipped || []).map(x => `Row ${x.row}: ${x.reason}`), method: r.format }); el.value = ''; return; }
   if (el.id === 'bk' && el.files[0]) { try { const d = JSON.parse(await el.files[0].text()); if (!d || d.v !== 1) throw 0; state = { ...blank(), ...d }; save(); render(); toast('Backup restored'); } catch { toast('Not an Ace backup file'); } el.value = ''; }
 });
-window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h && h !== tab && ['home', 'week', 'work', 'growth', 'sources'].includes(h)) { tab = h; render(); } });
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h && h !== tab && TABS.some(x => x[0] === h)) go(h); });
 
 /* ================================================================ reminders (while open) */
 async function notify(key, title, body) {
