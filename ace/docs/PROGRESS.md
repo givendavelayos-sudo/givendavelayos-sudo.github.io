@@ -10,6 +10,16 @@ _Last updated 2026-11-06 · deployed from `givendavelayos-sudo/gdgertc` (main) o
   banner after 30 h, no horizontal overflow.
 - Power untouched (no files outside `ace/` changed).
 
+## v0.5 (Nov 6)
+- **Schedule redesigned** after the user's hub "My Schedule" screenshot: next-class card with a Mon–Sun strip
+  (hours per day, today outlined), "The week at a glance" time grid (blocks coloured by section, red now-line,
+  today highlighted), selected-day panel with Previous/Next week. State: `schedWeek`, `schedDay` in `js/app.js`.
+- **Evaluation ships encrypted** (`seed/sealed/evaluation-2026-11-06.json`, AES-256-GCM, PBKDF2-SHA-256 600k):
+  `S.seal`/`S.unseal`; unlocked once in Performance with a passcode given to the user in chat (never committed).
+  Build with `ACE_PASSCODE=… node tests/build-sealed.mjs plain.json out.json "label"`.
+- `seed/gertc-2026-11-06c.json`: Week 4 topics (Mon online: Soil Properties and Soil Compaction; Tue/Thu:
+  Buoyancy and Stability); review item for the X3 vs EX section name; `importMerge` now treats subject changes as updates.
+
 ## v0.4.1 (Nov 6) — user decisions
 - **No Google Sheet sync**: lead/support weeks come only from screenshots the user sends. Each batch is shipped as a
   new file in `seed/` (add it to `SEEDS` in `js/app.js`, build with `tests/build-seed.mjs`). `E.importMerge` updates

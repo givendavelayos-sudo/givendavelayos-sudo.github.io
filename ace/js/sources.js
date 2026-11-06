@@ -456,3 +456,26 @@ export function parseSchedule(text, opts) {
 }
 export const newId = p => `${p}_${hash(String(Math.random()) + Date.now())}`;
 export { parseLocal };
+
+/* ------------------------------------------------------------ sealed (encrypted) imports */
+// Private data (e.g. evaluation results) can ship inside the public app only in encrypted form.
+// AES-256-GCM, key = PBKDF2-SHA-256(passcode, random salt, 600k iterations). Wrong passcode → decryption fails.
+const B64 = { enc: u8 => btoa(String.fromCharCode(...u8)), dec: s => Uint8Array.from(atob(s), c => c.charCodeAt(0)) };
+async function sealKey(pass, salt, iterations) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+export async function seal(obj, pass, { label = '', iterations = 600000 } = {}) {
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await sealKey(pass, salt, iterations), new TextEncoder().encode(JSON.stringify(obj))));
+  return { v: 1, kind: 'ace-sealed', label, kdf: { name: 'PBKDF2', hash: 'SHA-256', iterations, salt: B64.enc(salt) }, cipher: 'AES-GCM', iv: B64.enc(iv), ct: B64.enc(ct) };
+}
+/** Returns the decrypted object, or throws Error('wrong passcode'). */
+export async function unseal(sealed, pass) {
+  if (sealed?.kind !== 'ace-sealed') throw new Error('not a sealed file');
+  try {
+    const key = await sealKey(String(pass || '').trim(), B64.dec(sealed.kdf.salt), sealed.kdf.iterations);
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: B64.dec(sealed.iv) }, key, B64.dec(sealed.ct));
+    return JSON.parse(new TextDecoder().decode(pt));
+  } catch { throw new Error('wrong passcode'); }
+}

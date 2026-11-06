@@ -1,6 +1,7 @@
 // Builds the screenshot imports shipped with Ace (screenshots are the official source for lead/support weeks).
 // seed/gertc-2026-11-06.json  — first import (Nov 6)
 // seed/gertc-2026-11-06b.json — update: weeks confirmed by the user; no official hub schedule from Nov 9 yet
+// seed/gertc-2026-11-06c.json — update: Week 4 topics from the user's hub “My Schedule” screenshot
 // Only the user's own (GDL) records; co-instructor initials are left for the live sheet sync to fill in.
 // Run: node tests/build-seed.mjs
 import fs from 'fs';
@@ -29,3 +30,14 @@ const upd = { v: 1, kind: 'ace-import', label: 'Update · Nov 6, 2026 (weeks con
 fs.writeFileSync(new URL('../seed/gertc-2026-11-06b.json', import.meta.url), JSON.stringify(upd, null, 1));
 fs.writeFileSync(new URL('../seed/gertc-2026-11-06.json', import.meta.url), JSON.stringify(out, null, 1));
 console.log(`seed: ${sessions.length} classes, ${units.length} teaching weeks, ${review.length} review items`);
+
+// Week 4 topics, from the hub "My Schedule" page screenshot (Nov 6): Mon Online "Soil Properties a…", Tue/Thu "Buoyancy and S…".
+// Completed from the lead sheet's Week 4 column (same week, same truncated titles).
+const W4 = { A: 'Soil Properties and Soil Compaction', B: 'Buoyancy and Stability' };
+const wk4 = sessions.map(s => ({ ...s, subject: W4[s.group] || s.subject, autoTopic: false, topicSource: 'hub My Schedule screenshot (Nov 6)' }));
+const updC = { v: 1, kind: 'ace-import', label: 'Update · Nov 6, 2026 (Week 4 topics from your My Schedule screenshot)', createdAt: AT + 120e3, sessions: wk4,
+  resolve: ['wk4-no-topic'],
+  review: [{ id: 'wk4-section-name', title: 'Section name: X3 or EX?', source: 'Hub weekly grid vs My Schedule screenshots',
+    detail: 'The weekly grid lists your Tue Nov 3 classes under “X3 AM / X3 PM”, but your My Schedule page shows “EX AM / EX PM”. Ace keeps “X3” until you confirm which is right.' }] };
+fs.writeFileSync(new URL('../seed/gertc-2026-11-06c.json', import.meta.url), JSON.stringify(updC, null, 1));
+console.log('update c: Week 4 topics for', wk4.length, 'classes');

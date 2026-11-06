@@ -151,33 +151,61 @@ function home() {
   return header(`${hello}${first ? ', ' + first : ''}`, E.fmtDay(t)) + u.home.order.filter(k => !u.home.hidden[k] && sec[k]).map(k => `<section class="hsec">${sec[k]}</section>`).join('');
 }
 
-/* ================================================================ Schedule */
+/* ================================================================ Schedule (week view, modelled on the hub's My Schedule) */
+let schedWeek = 0, schedDay = null;
+const BLOCK_COLORS = ['#3e7c8c', '#c0582e', '#7a5cc2', '#b5803a', '#3f6fc4', '#b5476f'];
+function blockColor(s) {
+  if (s.format === 'online') return '#2f8f6a';
+  if (s.kind === 'consultation') return '#6b7a72';
+  const k = String(s.section || s.subject || '').replace(/\s*(AM|PM|EV)$/i, ''); let h = 0;
+  for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return BLOCK_COLORS[h % BLOCK_COLORS.length];
+}
+const fmtHrs = n => `${Math.round(n * 10) / 10}h`;
+const MON3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const md = ms => { const p = E.P(ms); return `${MON3[p.m - 1]} ${p.d}`; };
+const hourOf = ms => { const p = E.P(ms); return p.h + p.mi / 60; };
 function schedule() {
-  const t = now(), c = cfg(), mon0 = E.mondayOf(t);
-  let h = header('Schedule', 'Classes and teaching weeks') + `<div class="toolbar"><button class="btn sec sm" data-a="paste-sched">${ico('plus', 16)} Paste hub week</button><button class="btn sec sm" data-a="add-class">Add class</button></div>`;
-  const items = E.teachingItems(state).filter(s => s.start >= mon0 && s.start < E.addDays(mon0, 42));
-  const cf = new Set(E.conflicts(state, c).flatMap(x => [x.a.id, x.b.id]));
-  let any = false;
-  for (let w = 0; w < 6; w++) {
-    const mon = E.addDays(mon0, w * 7), wk = items.filter(s => s.start >= mon && s.start < E.addDays(mon, 7));
-    const unit = (state.units || []).find(u => E.dayKey(u.weekStart) === E.dayKey(mon));
-    if (!wk.length && !unit) continue;
-    any = true;
-    const label = w === 0 ? 'This week' : w === 1 ? 'Next week' : `Week of ${E.fmtDay(mon)}`;
-    const topic = unit ? `${unit.week} · ${unit.topic}` : wk.find(s => s.weekTitle)?.weekTitle || '';
-    const real = wk.filter(s => !s.approx);
-    h += `<section class="week"><div class="wk-h"><div class="grow"><div class="wk-t">${label}</div>${topic ? `<div class="l-s">${esc(topic)}</div>` : ''}</div>${unit ? roleTag(unit.role, unit.verified) : ''}</div><div class="card list">`;
-    for (const s of real) {
-      const r = E.readiness(s, state, c), arr = state.arrivals[s.id], past = s.end < t;
-      const right = arr ? `<span class="tag ${arr.status === 'late' ? 'bad' : 'ok'}">${esc(arr.status === 'on_time' ? 'On time' : arr.status === 'early' ? 'Early' : 'Late')}</span>` : past ? '<span class="tag">Not logged</span>' : `<span class="pct ${r.pct >= .99 ? 'ok' : ''}">${Math.round(r.pct * 100)}%</span>`;
-      h += `<button class="lrow ${past ? 'past' : ''}" data-a="class" data-id="${esc(s.id)}">${dateChip(s.start)}<div class="grow"><div class="l-t">${E.fmtTime(s.start)}–${E.fmtTime(s.end)}${cf.has(s.id) ? ' <span class="tag bad">Overlap</span>' : ''}</div>
-        <div class="l-s">${esc([s.kind === 'consultation' ? s.subject : s.section, s.format === 'online' ? 'Online' : '', s.group ? 'Group ' + s.group : ''].filter(Boolean).join(' · ') || s.subject)}</div></div>${right}</button>`;
-    }
-    if (!real.length && unit) h += `<div class="lrow"><div class="grow"><div class="l-t muted">Official schedule not released yet</div><div class="l-s">Prep counts back from Monday until the hub schedule is out</div></div><button class="btn sec sm" data-a="paste-sched" data-week="${E.dayKey(mon)}" aria-label="Paste the hub schedule for this week">Paste</button></div>`;
-    if (unit) h += `<button class="lrow sub" data-a="class" data-id="u:${esc(unit.key)}"><div class="grow l-s">Topic prep · ${E.readiness(E.unitItems(state).find(x => x.id === 'u:' + unit.key), state, c).done} of ${E.readiness(E.unitItems(state).find(x => x.id === 'u:' + unit.key), state, c).total} ready · shared by all classes this week</div>${ico('chev', 14)}</button>`;
-    h += `</div></section>`;
-  }
-  if (!any) h += emptyCard('No classes yet', 'Paste your week from the hub, or connect the lead sheet to see your teaching weeks.', `<button class="btn sm" data-a="paste-sched">Paste hub week</button><button class="btn sec sm" data-a="connections">Connections</button>`);
+  const t = now(), c = cfg(), mon = E.addDays(E.mondayOf(t), schedWeek * 7), end = E.addDays(mon, 7), todayKey = E.dayKey(t);
+  const all = E.teachingItems(state);
+  const wk = all.filter(s => !s.approx && s.start >= mon && s.start < end).sort((a, b) => a.start - b.start);
+  const unit = (state.units || []).find(u => E.dayKey(u.weekStart) === E.dayKey(mon));
+  const days = [...Array(7)].map((_, i) => E.addDays(mon, i));
+  if (!schedDay || schedDay < E.dayKey(mon) || schedDay >= E.dayKey(end)) schedDay = todayKey >= E.dayKey(mon) && todayKey < E.dayKey(end) ? todayKey : E.dayKey(mon);
+  const ofDay = k => wk.filter(s => E.dayKey(s.start) === k);
+  const hrs = k => ofDay(k).reduce((n, s) => n + (s.end - s.start) / 36e5, 0);
+  const total = wk.reduce((n, s) => n + (s.end - s.start) / 36e5, 0);
+  // 1 · next class + day strip
+  const next = all.find(s => !s.approx && s.end > t && s.kind !== 'consultation');
+  const nextWeek = !next && (state.units || []).find(u => u.weekStart + 7 * 864e5 > t);
+  let h = header('Schedule', schedWeek === 0 ? 'This week' : schedWeek === 1 ? 'Next week' : `Week of ${E.fmtDay(mon)}`);
+  h += `<div class="card sched-hero"><div class="eyebrow">Your next class</div><div class="h-title">${next ? esc(next.subject) : 'Nothing scheduled yet'}</div>
+    <div class="h-sub">${next ? `${E.fmtDayRel(next.start, t)} · ${E.fmtTime(next.start)}–${E.fmtTime(next.end)}${next.section ? ' · ' + esc(next.section) : ''}` : nextWeek ? `Next teaching week: ${esc(nextWeek.topic)} (${nextWeek.role === 'lead' ? 'Lead' : 'Support'}) · week of ${E.fmtDay(nextWeek.weekStart)} — official schedule not released yet.` : 'Your classes appear here once the official schedule is released.'}</div>
+    <div class="daystrip">${days.map(d => { const k = E.dayKey(d), n = hrs(k), p = E.P(d); return `<button class="dchip ${n ? 'has' : ''} ${k === todayKey ? 'today' : ''} ${k === schedDay ? 'sel' : ''}" data-a="sday" data-id="${k}" aria-label="${E.fmtDay(d)}: ${n ? fmtHrs(n) + ' of classes' : 'no classes'}"><b>${DOW3[p.dow].slice(0, 1) + DOW3[p.dow].slice(1, 3).toLowerCase()}</b><span>${md(d)}</span><i>${n ? fmtHrs(n) : 'off'}</i></button>`; }).join('')}</div></div>`;
+  // 2 · week at a glance
+  const H0 = Math.min(7, ...wk.map(s => Math.floor(hourOf(s.start)))), H1 = Math.max(21, ...wk.map(s => Math.ceil(hourOf(s.end) + (s.end - s.start > 0 && E.dayKey(s.end) !== E.dayKey(s.start) ? 24 : 0))));
+  const PX = 26, ticks = []; for (let x = H0; x < H1; x += 2) ticks.push(x);
+  const label = x => `${(x % 12) || 12}${x < 12 ? 'a' : 'p'}`;
+  const topic = unit ? `${unit.week} · ${unit.topic}` : wk.find(s => s.weekTitle)?.weekTitle || '';
+  h += `<div class="card"><div class="head"><div class="grow"><h3>The week at a glance</h3>${topic ? `<div class="l-s">${esc(topic)}</div>` : ''}</div>${unit ? roleTag(unit.role, unit.verified) : ''}</div>
+    ${!wk.length ? `<div class="warnbox soft">${unit ? 'Official schedule not released yet — your classes appear here once you paste the hub week.' : 'No classes this week.'}</div>` : ''}
+    <div class="wgrid" style="--hours:${H1 - H0}"><div><div class="wg-head"></div><div class="wg-times">${ticks.map(x => `<span style="top:${(x - H0) * PX}px">${label(x)}</span>`).join('')}</div></div>
+    ${days.map(d => { const k = E.dayKey(d), p = E.P(d), isToday = k === todayKey;
+      const blocks = ofDay(k).map(s => { const top = (hourOf(s.start) - H0) * PX, ht = Math.max(18, (s.end - s.start) / 36e5 * PX - 2);
+        return `<button class="wblock" style="top:${top}px;height:${ht}px;--c:${blockColor(s)}" data-a="class" data-id="${esc(s.id)}" aria-label="${esc(s.subject)}, ${E.fmtTime(s.start)}"><b>${esc(s.kind === 'consultation' ? 'Consult' : s.format === 'online' ? 'Online' : s.section || 'Class')}</b><span>${esc(s.subject)}</span></button>`; }).join('');
+      const nowLine = isToday && hourOf(t) >= H0 && hourOf(t) <= H1 ? `<i class="nowline" style="top:${(hourOf(t) - H0) * PX}px"></i>` : '';
+      return `<div class="wg-col ${isToday ? 'today' : ''} ${k === schedDay ? 'sel' : ''}" data-a="sday" data-id="${k}"><div class="wg-head"><b>${DOW3[p.dow].slice(0, 1) + DOW3[p.dow].slice(1, 3).toLowerCase()}</b>${md(d)}</div><div class="wg-body">${blocks}${nowLine}</div></div>`; }).join('')}</div>
+    <div class="l-s" style="margin-top:8px;text-align:right">Tap a day or a class for details.</div></div>`;
+  // 3 · selected day
+  const sel = E.parseLocal(schedDay), list = ofDay(schedDay);
+  h += `<div class="card"><div class="row" style="align-items:flex-start"><div class="grow"><h3>${E.fmtDay(sel)}</h3><div class="l-s">${E.fmtDay(mon)} to ${E.fmtDay(E.addDays(mon, 6))} · ${fmtHrs(total)} classes</div></div>${schedWeek ? '<button class="link" data-a="sweek" data-id="0">This week</button>' : ''}</div>
+    <div class="weeknav"><button class="btn sec sm" data-a="sweek" data-id="-1">← Previous week</button><button class="btn sec sm" data-a="sweek" data-id="+1">Next week →</button></div>
+    <div class="daylist">${list.length ? list.map(s => { const r = E.readiness(s, state, c), arr = state.arrivals[s.id], past = s.end < t;
+      const right = arr ? `<span class="tag ${arr.status === 'late' ? 'bad' : 'ok'}">${arr.status === 'on_time' ? 'On time' : arr.status === 'early' ? 'Early' : 'Late'}</span>` : past ? '<span class="tag">Not logged</span>' : `<span class="pct ${r.pct >= .99 ? 'ok' : ''}">${r.done}/${r.total}</span>`;
+      return `<button class="lrow ${past ? 'past' : ''}" data-a="class" data-id="${esc(s.id)}"><span class="cbar" style="--c:${blockColor(s)}"></span><div class="grow"><div class="l-t">${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.kind === 'consultation' ? s.subject : s.format === 'online' ? 'Online' : s.section)}</div><div class="l-s">${esc(s.kind === 'consultation' ? 'Consultation' : s.subject)}${s.group ? ' · Group ' + esc(s.group) : ''}</div></div>${right}</button>`; }).join('')
+      : `<div class="empty-line soft">No classes on ${E.fmtDay(sel)}.</div>`}</div>
+    ${unit ? `<button class="lrow sub" data-a="class" data-id="u:${esc(unit.key)}"><div class="grow l-s">Topic prep for ${esc(unit.topic)} · shared by all classes this week</div>${ico('chev', 14)}</button>` : ''}</div>
+    <div class="toolbar bottom"><button class="btn sec sm" data-a="paste-sched" data-week="${E.dayKey(mon)}">${ico('plus', 16)} Paste hub week</button><button class="btn sec sm" data-a="add-class">Add class</button></div>`;
   return h;
 }
 
@@ -237,7 +265,8 @@ function focusCard(f, ev, i) {
 function performance() {
   const t = now(), ev = E.analyzeEvals(state.evals);
   let h = header('Performance', 'Evaluations, habits and what to improve');
-  if (!ev) h += emptyCard('No evaluation yet', 'Import your evaluation results to see your scores and what to improve first.', `<button class="btn sm" data-a="merge">Import file</button><button class="btn sec sm" data-a="paste-eval">Paste from hub</button>`);
+  h += sealedCard();
+  if (!ev) { if (!pendingSealed().length) h += emptyCard('No evaluation yet', 'Import your evaluation results to see your scores and what to improve first.', `<button class="btn sm" data-a="merge">Import file</button><button class="btn sec sm" data-a="paste-eval">Paste from hub</button>`); }
   else {
     const last = state.evals.slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).at(-1);
     h += `<div class="card summary"><div class="perf-score big"><b>${scoreTxt(ev.latest?.v)}</b><span>of 5</span></div><div class="grow"><div class="l-t">${esc(last.period || 'Latest evaluation')}</div>
@@ -277,7 +306,7 @@ function connectionsHTML() {
     <button class="btn wide" style="margin-top:10px" data-a="paste-sched">Paste schedule</button>
     <button class="link" style="margin-top:10px" data-a="file-sched">Import a CSV or .ics file instead</button></div>
   <div class="card" style="margin-top:12px"><div class="head"><h3>Evaluations (hub)</h3>${state.evals.length ? '<span class="tag ok">Imported</span>' : '<span class="tag amb">None yet</span>'}</div>
-    <div class="muted small">Copy your results page and paste it, or import a file. Emails and ID numbers are masked.</div>
+    <div class="muted small">Copy your results page and paste it, or import a file. Emails and ID numbers are masked. Results sent to Claude are shipped encrypted and unlocked in Performance with your passcode.</div>
     <div class="row" style="margin-top:10px;gap:8px"><a class="btn sec sm" target="_blank" rel="noopener" href="${HUB.evals}">Open results</a><button class="btn sec sm" data-a="paste-eval">Paste</button><button class="btn sec sm" data-a="merge">Import file</button></div></div>
   ${Object.values(state.imports || {}).some(v => v.report) || open.length ? `<div class="card" style="margin-top:12px"><div class="head"><h3>Imported evidence</h3></div>
     ${Object.entries(state.imports || {}).filter(([, v]) => v.report).map(([k, v]) => `<div class="small" style="padding:4px 0"><b>${esc(v.label || k)}</b><div class="muted">${esc(importSummary(v.report))} · ${E.fmtAgo(v.at, t)}</div></div>`).join('')}
@@ -360,6 +389,7 @@ function alerts() {
     const f = E.freshness(state.sources[k], c, t);
     if (f.state === 'failed' || f.state === 'stale') add(`sy:${k}:${E.dayKey(t)}`, { tone: f.state === 'failed' ? 'bad' : 'amb', icon: 'sources', title: `${label}: ${f.state === 'failed' ? 'sync failed' : 'may be outdated'}`, sub: f.label, act: 'tab', actId: 'connections', label: 'Update' });
   }
+  for (const x of pendingSealed()) add(`sl:${x.id}`, { tone: 'lead', icon: 'lock', title: 'Your evaluation is ready to unlock', sub: 'Enter the passcode from your Claude chat in Performance', act: 'tab', actId: 'performance', label: 'Open' });
   for (const r of state.review || []) if (!r.resolvedAt) add(`rv:${r.id}`, { tone: 'amb', icon: 'alert', title: `Needs review · ${r.title}`, sub: r.detail || '', act: 'review', actId: r.id, label: 'Details', review: r });
   const order = { bad: 0, lead: 1, amb: 2, '': 3 };
   return out.sort((a, b) => order[a.tone] - order[b.tone]);
@@ -400,7 +430,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.4.1';
+const VERSION = '0.5.0';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -419,8 +449,16 @@ async function applyImport(data, id, label) {
   save(); render(); return m.report;
 }
 /* One-time imports shipped with the app (your screenshot data). Runs once per device; safe to re-run. */
+// Private data ships encrypted (public repo): unlocked once on the device with a passcode given in the Claude chat.
+const SEALED = [{ url: 'seed/sealed/evaluation-2026-11-06.json', id: 'sealed:evaluation-2026-11-06', label: 'Your evaluation results · Nov 6, 2026', evalId: 'e_hub_2026_11_06' }];
+const pendingSealed = () => SEALED.filter(x => !state.imports?.[x.id] && !(state.evals || []).some(e => e.id === x.evalId));
+function sealedCard() {
+  const p = pendingSealed()[0]; if (!p) return '';
+  return `<div class="card unlock"><div class="row"><span class="a-ico">${ico('lock', 18)}</span><div class="grow"><div class="l-t">${esc(p.label)}</div><div class="l-s">Stored encrypted. Enter the passcode from your Claude chat once to add it to Ace.</div></div></div>
+    <div class="row" style="margin-top:12px;gap:8px"><input type="password" id="sealpass" placeholder="Passcode" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"><button class="btn sm" data-a="unseal" data-id="${esc(p.id)}">Unlock</button></div></div>`;
+}
 // Each screenshot batch you send is shipped as a new file here; every device imports each one once.
-const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json'];
+const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json', 'seed/gertc-2026-11-06c.json'];
 async function runSeeds() {
   for (const url of SEEDS) {
     const id = url.split('/').pop();
@@ -480,7 +518,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.4.1', 'Nov 6, 2026', ['Lead & support weeks now come only from your screenshots (no Google sign-in or API key)', 'Weeks from Nov 9 show “official schedule not released yet”', 'App lock uses your PIN only'])
+    return ['What’s new', v('0.5', 'Nov 6, 2026', ['New Schedule: your next class, a Mon–Sun strip with teaching hours, the week at a glance as a time grid, and the selected day’s classes', 'Week 4 classes now show their topics (from your My Schedule screenshot)', 'Your evaluation ships encrypted: unlock it once in Performance with your passcode'])
+      + v('0.4.1', 'Nov 6, 2026', ['Lead & support weeks now come only from your screenshots (no Google sign-in or API key)', 'Weeks from Nov 9 show “official schedule not released yet”', 'App lock uses your PIN only'])
       + v('0.4', 'Nov 6, 2026', ['Cleaner app: 4 tabs — Today, Schedule, Tasks, Performance', 'Today shows only your next class, today’s focus and what’s coming up', 'All handouts, lead PowerPoints and exams in one Tasks list with steps', 'Schedule groups classes by teaching week with topic and role', 'Performance: your score, the top 3 things to improve, real habit stats', 'Connections moved into Settings', 'One design system across every screen'])
       + v('0.3', 'Nov 6, 2026', ['Settings with search, like Power', 'Alerts bell: changes, deadlines, sync problems', 'App lock with PIN', 'Themes: System, Light, Dark, AMOLED · app colors', 'Reorder or hide Home cards · hide scores · 24-hour time', 'Choose which reminders you get, plus a morning plan'])
       + v('0.2', 'Nov 6, 2026', ['Reads the hub schedule grid and evaluation page', 'Prep shared across all classes of a topic-week', 'Taglish/Bisaya comment analysis', 'Smoother tab switching']) + v('0.1', 'Nov 6, 2026', ['First release: lead sheet, handouts, exams, readiness, planner, growth'])];
@@ -623,6 +662,13 @@ document.addEventListener('click', async e => {
     case 'task': markTask(id, true); if (!id.endsWith(':submit')) { toast('Done ✓'); if (el.dataset.back) delivSheet(el.dataset.back); } break;
     case 'untask': markTask(id, false); if (el.dataset.back) delivSheet(el.dataset.back); break;
     case 'deliv': delivSheet(id); break;
+    case 'sday': schedDay = id; render(); break;
+    case 'sweek': if (id === '0') schedWeek = 0; else schedWeek += +id; schedDay = null; render(); break;
+    case 'unseal': { const p = SEALED.find(x => x.id === id), inp = $('#sealpass'); if (!p || !inp?.value.trim()) return toast('Enter the passcode');
+      el.disabled = true; el.textContent = 'Unlocking…';
+      try { const r = await fetch(p.url, { cache: 'no-store' }); if (!r.ok) throw new Error('fetch'); const data = await S.unseal(await r.json(), inp.value); const rep2 = await applyImport(data, p.id, p.label); toast(`Unlocked · ${importSummary(rep2)}`); }
+      catch (e) { el.disabled = false; el.textContent = 'Unlock'; inp.value = ''; inp.focus(); toast(/wrong/.test(e.message) ? 'Wrong passcode — check it and try again' : 'Couldn’t load the file — check your connection'); }
+      break; }
     case 'connections': openConnections(); break;
     case 'add-deliv': sheet(`<h2>Add a deliverable</h2><div class="muted small">Handouts, lead PowerPoints and lead exams are added automatically from your lead sheet. Add anything else here.</div>
       <label>Type</label><select name="kind" id="dk"><option>Exam</option><option>Quiz</option><option>Assessment</option><option>Problem set</option><option value="duty">Lead duty</option></select>
@@ -723,6 +769,7 @@ document.addEventListener('change', async e => {
   if (el.id === 'schedFile' && el.files[0]) { const txt = await el.files[0].text(); const r = S.parseSchedule(txt, { identity: { name: state.identity.name, email: state.identity.email } }); reviewSessions(r.sessions, { unparsed: (r.skipped || []).map(x => `Row ${x.row}: ${x.reason}`), method: r.format }); el.value = ''; return; }
   if (el.id === 'bk' && el.files[0]) { try { const d = JSON.parse(await el.files[0].text()); if (!d || d.v !== 1) throw 0; state = { ...blank(), ...d }; save(); render(); toast('Backup restored'); } catch { toast('Not an Ace backup file'); } el.value = ''; }
 });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'sealpass') { e.preventDefault(); document.querySelector('[data-a="unseal"]')?.click(); } });
 document.addEventListener('input', e => { if (e.target.id === 'setq') { setQ = e.target.value; filterSettings(); } });
 window.addEventListener('hashchange', () => { const h = location.hash.slice(1); const n = TAB_ALIAS[h] || h; if (n && n !== tab && (n === 'connections' || TABS.some(x => x[0] === n))) go(n); });
 

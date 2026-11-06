@@ -488,3 +488,14 @@ test('screenshot updates: newer import changes weeks in place, records role chan
   const c = E.importMerge(b.state, { createdAt: 2, units: later, unitsComplete: true }, { now: now + 2 });
   assert.equal(c.report.units.updated + c.report.units.added + c.report.units.removed, 0);
 });
+
+test('sealed imports: round-trip with the passcode, refuse a wrong one, no plaintext in the file', async () => {
+  const data = { kind: 'ace-import', evals: [{ id: 'e1', overall: 4.55, comments: ['Very clear but rushed at the end'] }] };
+  const sealed = await S.seal(data, 'kp7m-x4qh-9tvc-2wrn', { label: 'Evaluation', iterations: 1000 });
+  const raw = JSON.stringify(sealed);
+  assert.ok(!raw.includes('rushed') && !raw.includes('4.55'), 'nothing readable in the sealed file');
+  assert.deepEqual(await S.unseal(sealed, 'kp7m-x4qh-9tvc-2wrn'), data);
+  assert.deepEqual(await S.unseal(sealed, '  kp7m-x4qh-9tvc-2wrn '), data, 'surrounding spaces ignored');
+  await assert.rejects(S.unseal(sealed, 'kp7m-x4qh-9tvc-2wrm'), /wrong passcode/);
+  await assert.rejects(S.unseal({ ...sealed, ct: sealed.ct.slice(0, -4) + 'AAAA' }, 'kp7m-x4qh-9tvc-2wrn'), /wrong passcode/, 'tampering detected');
+});
