@@ -540,3 +540,16 @@ test('support-week draft work starts in its teaching week; “not assigned to me
   assert.ok(E.deliverables(s2, now).some(d => d.kind === 'handout' && d.subject === 'Kinetics 1'), 'other lead-week handouts stay');
   assert.equal(s2.excluded[hid].reason, 'The lead instructor submitted it');
 });
+
+test('correction import restores a deliverable excluded by an earlier import, but not one you excluded yourself', () => {
+  const now = mk(2026, 11, 6, 16), hid = 'ho:2026-11-11:fluid flow 1';
+  const { units } = S.parseTopicGrid(grid, { initials: 'GDL', now });
+  let st = E.importMerge({ units, sources: { sheet: {} } }, { label: 'E', exclude: { [hid]: 'x' } }, { now }).state;
+  st = E.importMerge(st, { label: 'F', unexclude: { [hid]: 'E' }, cfg: { handoutRoles: ['lead'], dailyMinutes: 1 } }, { now }).state;
+  assert.ok(E.deliverables(st, now).some(d => d.id === hid), 'Fluid Flow 1 handout back');
+  assert.deepEqual(st.cfg, { handoutRoles: ['lead'] }, 'only whitelisted rule keys applied');
+  const mine = { ...st, excluded: { [hid]: { source: 'you' } } };
+  assert.ok(E.importMerge(mine, { unexclude: { [hid]: 'E' } }, { now }).state.excluded[hid], 'your own choice is kept');
+  // support-week handouts never appear
+  assert.ok(!E.deliverables(st, mk(2026, 11, 2, 9)).some(d => d.kind === 'handout' && /Relative/.test(d.title)));
+});

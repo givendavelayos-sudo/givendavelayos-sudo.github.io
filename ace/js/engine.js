@@ -635,6 +635,10 @@ export function importMerge(state, data, { now }) {
   for (const e of data.evals || []) { if (st.evals.some(x => x.id === e.id)) rep.evals.unchanged++; else { st.evals.push({ ...e, importedAt: now }); rep.evals.added++; } }
   for (const r of data.review || []) if (!st.review.some(x => x.id === r.id)) { st.review.push({ ...r, at: now }); rep.review++; }
   for (const [id, reason] of Object.entries(data.exclude || {})) if (!st.excluded?.[id]) (st.excluded ||= {})[id] = { at: now, reason, source: data.label || 'import' };
+  // corrections: undo an exclusion made by an earlier import (never one you made yourself)
+  for (const [id, fromLabel] of Object.entries(data.unexclude || {})) if (st.excluded?.[id] && st.excluded[id].source === fromLabel) delete st.excluded[id];
+  // rule corrections confirmed by you (only these keys)
+  for (const [k, v] of Object.entries(data.cfg || {})) if (['handoutRoles', 'handoutRolesVerified'].includes(k)) (st.cfg ||= {})[k] = v;
   for (const id of data.resolve || []) { const r = st.review.find(x => x.id === id); if (r && !r.resolvedAt) r.resolvedAt = now; }
   rep.review += rep.sessions.conflicts;
   return { state: st, report: rep };

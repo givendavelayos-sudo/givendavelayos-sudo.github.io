@@ -55,3 +55,12 @@ const updE = { v: 1, kind: 'ace-import', label: 'Update · Nov 6, 2026 (Fluid Fl
   exclude: { 'ho:2026-11-11:fluid flow 1': 'Not assigned to you — the lead instructor already submitted it (you, Nov 6)' } };
 fs.writeFileSync(new URL('../seed/gertc-2026-11-06e.json', import.meta.url), JSON.stringify(updE, null, 1));
 console.log('update e: Fluid Flow 1 handout not assigned');
+
+// Update f — correction (user, Nov 6): the handout the lead already did was for NEXT week (Relative Equilibrium, support,
+// due Wed Nov 4). The Fluid Flow 1 handout (lead, week after) due Wed Nov 11 IS yours → undo update e.
+const updF = { v: 1, kind: 'ace-import', label: 'Correction · Nov 6, 2026 (Fluid Flow 1 handout is yours)', createdAt: AT + 300e3,
+  unexclude: { 'ho:2026-11-11:fluid flow 1': updE.label },
+  exclude: { 'ho:2026-11-04:relative equilibrium of fluids in moving vessels': 'Support week — the lead instructor submitted it (you, Nov 6)' },
+  cfg: { handoutRoles: ['lead'], handoutRolesVerified: true } };
+fs.writeFileSync(new URL('../seed/gertc-2026-11-06f.json', import.meta.url), JSON.stringify(updF, null, 1));
+console.log('update f: Fluid Flow 1 handout restored');
