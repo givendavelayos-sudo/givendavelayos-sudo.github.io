@@ -28,7 +28,9 @@ export const toLocalInput = ms => { const p = P(ms); return `${p.y}-${pad(p.m)}-
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-export const fmtTime = ms => { const p = P(ms); return `${(p.h % 12) || 12}:${pad(p.mi)} ${p.h < 12 ? 'AM' : 'PM'}`; };
+let clock24 = false;
+export const setClock24 = v => { clock24 = !!v; };
+export const fmtTime = ms => { const p = P(ms); return clock24 ? `${pad(p.h)}:${pad(p.mi)}` : `${(p.h % 12) || 12}:${pad(p.mi)} ${p.h < 12 ? 'AM' : 'PM'}`; };
 export const fmtDay = ms => { const p = P(ms); return `${DOW[p.dow]}, ${MON[p.m - 1]} ${p.d}`; };
 export function fmtDayRel(ms, now) {
   const d = Math.round((startOfDay(ms) - startOfDay(now)) / DAY);
@@ -566,4 +568,59 @@ export function focusAreas(ev) {
   for (const c of ev.criteria) { const k = themeForCriterion(c.name); if (k) (m[k] ||= { key: k, gap: 0, concerns: 0, criteria: [] }), m[k].gap = Math.max(m[k].gap, 5 - c.latest), m[k].criteria.push(c.name); }
   for (const t of ev.themes) if (t.neg) (m[t.key] ||= { key: t.key, gap: 0, concerns: 0, criteria: [] }).concerns = t.neg;
   return Object.values(m).filter(x => x.concerns || x.gap > .3).map(x => ({ ...x, score: x.gap * 10 + x.concerns })).sort((a, b) => b.score - a.score);
+}
+
+/**
+ * Merge an import file (e.g. data extracted from your screenshots) into the current data.
+ * - never creates duplicates (same class key / sheet week / evaluation id)
+ * - never overwrites what you edited or what a live source already confirmed
+ * - differing values from another source become review items, not silent changes
+ * Returns { state, report } — the input state is not mutated.
+ */
+export function importMerge(state, data, { now }) {
+  const st = JSON.parse(JSON.stringify(state));
+  st.sessions ||= []; st.units ||= []; st.evals ||= []; st.review ||= []; st.unitHistory ||= [];
+  const rep = { sessions: { added: 0, updated: 0, unchanged: 0, conflicts: 0 }, units: { added: 0, unchanged: 0, skipped: 0 }, evals: { added: 0, unchanged: 0 }, review: 0 };
+  const byKey = new Map(st.sessions.map(s => [sessionKey(s), s]));
+  for (const raw of data.sessions || []) {
+    const inc = { section: '', location: '', platform: '', format: 'in_person', status: 'scheduled', ...raw };
+    const k = sessionKey(inc), ex = byKey.get(k);
+    if (!ex) { const s = { ...inc, id: inc.id || `s_${hash(k)}`, source: { ...inc.source, at: now } }; st.sessions.push(s); byKey.set(k, s); rep.sessions.added++; continue; }
+    const diff = ['start', 'end', 'section', 'format'].filter(f => (ex[f] ?? '') !== (inc[f] ?? ''));
+    if (!diff.length) { rep.sessions.unchanged++; continue; }
+    if (ex.source?.id === inc.source?.id && ex.source?.method === inc.source?.method && !ex.edited) { Object.assign(ex, inc, { id: ex.id, source: { ...inc.source, at: now } }); rep.sessions.updated++; continue; }
+    rep.sessions.conflicts++;
+    st.review.push({ id: `cf:${k}`, at: now, kind: 'conflict', title: `Different details for ${ex.subject} on ${fmtDay(ex.start)}`, detail: `Kept: ${fmtTime(ex.start)}–${fmtTime(ex.end)} (${ex.source?.name || ex.source?.id || 'existing'}). Import says ${fmtTime(inc.start)}–${fmtTime(inc.end)} (${inc.source?.name || 'import'}).` });
+  }
+  const liveSheet = st.sources?.sheet?.lastOk && !String(st.sources.sheet.method || '').includes('screenshot');
+  if (data.units?.length) {
+    if (liveSheet) rep.units.skipped += data.units.length; // the live sheet wins over screenshot evidence
+    else {
+      const have = new Map(st.units.map(u => [u.key, u]));
+      for (const u of data.units) {
+        if (have.has(u.key)) { rep.units.unchanged++; continue; }
+        st.units.push({ ...u, source: { ...u.source, at: now }, since: now }); rep.units.added++;
+        st.unitHistory.push({ type: 'imported', key: u.key, topic: u.topic, role: u.role, weekStart: u.weekStart, at: now });
+      }
+      st.units.sort((a, b) => a.weekStart - b.weekStart);
+    }
+  }
+  if (data.identity?.name && !st.identity?.name) st.identity = { ...(st.identity || {}), name: data.identity.name };
+  for (const e of data.evals || []) { if (st.evals.some(x => x.id === e.id)) rep.evals.unchanged++; else { st.evals.push({ ...e, importedAt: now }); rep.evals.added++; } }
+  for (const r of data.review || []) if (!st.review.some(x => x.id === r.id)) { st.review.push({ ...r, at: now }); rep.review++; }
+  rep.review += rep.sessions.conflicts;
+  return { state: st, report: rep };
+}
+
+/** Calendar export (.ics) of your classes and official deadlines — import into Google/Apple Calendar. */
+export function toICS(state, now) {
+  const z = ms => new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const escI = x => String(x || '').replace(/[\\,;]/g, m => '\\' + m).replace(/\n/g, '\\n');
+  const ev = [];
+  for (const s of teachingItems(state)) if (!s.approx && s.end > now - 30 * DAY)
+    ev.push(['ace-' + hash(s.id) + '@ace', s.start, s.end, `${s.subject}${s.role ? (s.role === 'lead' ? ' (Lead)' : ' (Support)') : ''}`, s.section || s.location || s.platform || '', s.format === 'online' ? 'Online class' : '']);
+  for (const d of deadlines(state, now, 50)) ev.push(['ace-dl-' + hash(d.kind + d.ref + d.at) + '@ace', d.at - 30 * MIN, d.at, `Due: ${d.title}`, '', 'Official deadline (Ace)']);
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Ace//Instructor Excellence//EN', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Ace · Teaching', 'X-WR-TIMEZONE:Asia/Manila',
+    ...ev.flatMap(([uid, a, b, sum, loc, desc]) => ['BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${z(now)}`, `DTSTART:${z(a)}`, `DTEND:${z(b)}`, `SUMMARY:${escI(sum)}`, ...(loc ? [`LOCATION:${escI(loc)}`] : []), ...(desc ? [`DESCRIPTION:${escI(desc)}`] : []), 'END:VEVENT']),
+    'END:VCALENDAR'].join('\r\n');
 }

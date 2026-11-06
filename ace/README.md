@@ -21,6 +21,8 @@ language (deep-green palette, elevated cards, gradient hero card, glass tab bar,
 | **Punctuality** | ✅ Leave-by / be-online-by times, “I'm here” arrival logging (early / on time / late), conflict & tight-transition warnings. |
 | **Evaluations** | ✅ Paste from the hub (or enter manually) → review → save. Criterion trends, weakest areas, **confirmed scores separated from keyword “interpretation”**, development plan you can adopt and track. Emails/ID numbers masked. |
 | **Excellence Journey** | ✅ 8 dimensions; **leading** indicators from your own logs vs **outcome** evaluation scores; “no data yet” instead of assumptions. |
+| **Settings** | ✅ Power-style settings with search: appearance & colours, Home cards, privacy, teaching rules, app lock (PIN + Face ID), reminders per type, calendar export, merge import, backup. |
+| **Alerts (bell)** | ✅ Changes, deadlines due soon, open prep, sync problems and items that need your review. |
 | **Reminders** | ⚠️ While the app is open/recently opened. Reliable background push = Phase 2 (server). |
 | **Freshness** | ✅ Every synced source shows *Verified x ago*, *Cached — may be outdated* (> 24 h), or *Last sync failed*. |
 
@@ -28,7 +30,7 @@ language (deep-green palette, elevated cards, gradient hero card, glass tab bar,
 
 ```bash
 cd ace
-npm test                 # 25 unit tests; runs with TZ=America/New_York to prove Manila handling
+npm test                 # 31 unit tests; runs with TZ=America/New_York to prove Manila handling
 npm run serve            # http://localhost:5180
 ```
 

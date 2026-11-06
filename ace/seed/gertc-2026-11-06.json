@@ -1,0 +1,274 @@
+{
+ "v": 1,
+ "kind": "ace-import",
+ "identity": {
+  "name": "Given Dave Layos"
+ },
+ "label": "Screenshots · Nov 6, 2026 (schedule & lead sheet)",
+ "createdAt": 1793952000000,
+ "sessions": [
+  {
+   "externalId": "grid:2026-11-02|online|8:0",
+   "subject": "Review Week 4 · Group A",
+   "autoTopic": true,
+   "group": "A",
+   "kind": "class",
+   "section": "ONLINE",
+   "start": 1793577600000,
+   "end": 1793592000000,
+   "format": "online",
+   "location": "",
+   "platform": "Online",
+   "hybrid": false,
+   "status": "scheduled",
+   "weekTitle": "Review Week 4",
+   "uncertain": false,
+   "source": {
+    "id": "hub",
+    "name": "Hub schedule · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "grid:2026-11-05|l2 am|7:30",
+   "subject": "Review Week 4 · Group B",
+   "autoTopic": true,
+   "group": "B",
+   "kind": "class",
+   "section": "L2 AM",
+   "start": 1793835000000,
+   "end": 1793849400000,
+   "format": "in_person",
+   "location": "L2 AM",
+   "platform": "",
+   "hybrid": false,
+   "status": "scheduled",
+   "weekTitle": "Review Week 4",
+   "uncertain": false,
+   "source": {
+    "id": "hub",
+    "name": "Hub schedule · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "grid:2026-11-03|x3 am|7:30",
+   "subject": "Review Week 4 · Group B",
+   "autoTopic": true,
+   "group": "B",
+   "kind": "class",
+   "section": "X3 AM",
+   "start": 1793662200000,
+   "end": 1793676600000,
+   "format": "in_person",
+   "location": "X3 AM",
+   "platform": "",
+   "hybrid": false,
+   "status": "scheduled",
+   "weekTitle": "Review Week 4",
+   "uncertain": false,
+   "source": {
+    "id": "hub",
+    "name": "Hub schedule · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "grid:2026-11-05|l2 pm|12:30",
+   "subject": "Review Week 4 · Group B",
+   "autoTopic": true,
+   "group": "B",
+   "kind": "class",
+   "section": "L2 PM",
+   "start": 1793853000000,
+   "end": 1793867400000,
+   "format": "in_person",
+   "location": "L2 PM",
+   "platform": "",
+   "hybrid": false,
+   "status": "scheduled",
+   "weekTitle": "Review Week 4",
+   "uncertain": false,
+   "source": {
+    "id": "hub",
+    "name": "Hub schedule · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "grid:2026-11-03|x3 pm|12:30",
+   "subject": "Review Week 4 · Group B",
+   "autoTopic": true,
+   "group": "B",
+   "kind": "class",
+   "section": "X3 PM",
+   "start": 1793680200000,
+   "end": 1793694600000,
+   "format": "in_person",
+   "location": "X3 PM",
+   "platform": "",
+   "hybrid": false,
+   "status": "scheduled",
+   "weekTitle": "Review Week 4",
+   "uncertain": false,
+   "source": {
+    "id": "hub",
+    "name": "Hub schedule · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  }
+ ],
+ "units": [
+  {
+   "key": "2026-11-09|1",
+   "weekStart": 1794153600000,
+   "week": "Week 5",
+   "track": "1",
+   "topic": "Relative Equilibrium of Fluids in Moving Vessels",
+   "detail": "",
+   "instructors": [
+    "GDL"
+   ],
+   "coInstructors": [],
+   "role": "support",
+   "color": "#ff0000",
+   "colorClass": "other",
+   "verified": false,
+   "reasons": [
+    "from a screenshot of the lead sheet (Nov 6) — sync the sheet to verify and fill in co-instructors"
+   ],
+   "cell": "H3",
+   "source": {
+    "id": "sheet",
+    "name": "Lead sheet · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  },
+  {
+   "key": "2026-11-16|1",
+   "weekStart": 1794758400000,
+   "week": "Week 6",
+   "track": "1",
+   "topic": "Fluid Flow 1",
+   "detail": "",
+   "instructors": [
+    "GDL"
+   ],
+   "coInstructors": [],
+   "role": "lead",
+   "color": "#00ffff",
+   "colorClass": "neon_blue",
+   "verified": false,
+   "reasons": [
+    "from a screenshot of the lead sheet (Nov 6) — sync the sheet to verify and fill in co-instructors"
+   ],
+   "cell": "I3",
+   "source": {
+    "id": "sheet",
+    "name": "Lead sheet · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  },
+  {
+   "key": "2026-11-23|1",
+   "weekStart": 1795363200000,
+   "week": "Week 7",
+   "track": "1",
+   "topic": "Fluid Flow 2",
+   "detail": "",
+   "instructors": [
+    "GDL"
+   ],
+   "coInstructors": [],
+   "role": "support",
+   "color": "#ff0000",
+   "colorClass": "other",
+   "verified": false,
+   "reasons": [
+    "from a screenshot of the lead sheet (Nov 6) — sync the sheet to verify and fill in co-instructors"
+   ],
+   "cell": "J3",
+   "source": {
+    "id": "sheet",
+    "name": "Lead sheet · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  },
+  {
+   "key": "2026-12-07|2",
+   "weekStart": 1796572800000,
+   "week": "Week 9",
+   "track": "2",
+   "topic": "Kinetics 1",
+   "detail": "",
+   "instructors": [
+    "GDL"
+   ],
+   "coInstructors": [],
+   "role": "lead",
+   "color": "#00ffff",
+   "colorClass": "neon_blue",
+   "verified": false,
+   "reasons": [
+    "from a screenshot of the lead sheet (Nov 6) — sync the sheet to verify and fill in co-instructors"
+   ],
+   "cell": "L4",
+   "source": {
+    "id": "sheet",
+    "name": "Lead sheet · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  },
+  {
+   "key": "2026-12-14|2",
+   "weekStart": 1797177600000,
+   "week": "Week 10",
+   "track": "2",
+   "topic": "Kinetics 2",
+   "detail": "",
+   "instructors": [
+    "GDL"
+   ],
+   "coInstructors": [],
+   "role": "support",
+   "color": "#990000",
+   "colorClass": "other",
+   "verified": false,
+   "reasons": [
+    "from a screenshot of the lead sheet (Nov 6) — sync the sheet to verify and fill in co-instructors"
+   ],
+   "cell": "M4",
+   "source": {
+    "id": "sheet",
+    "name": "Lead sheet · screenshot Nov 6",
+    "method": "screenshot"
+   }
+  }
+ ],
+ "review": [
+  {
+   "id": "wk4-no-topic",
+   "title": "Week 4 classes have no topic",
+   "source": "Hub schedule + lead sheet screenshots",
+   "detail": "The hub lists your Review Week 4 classes (Mon Nov 2 ONLINE “GDL - A”; Tue Nov 3 X3 AM/PM and Thu Nov 5 L2 AM/PM “GDL - B”), but the lead sheet’s Week 4 column names no instructors. They are imported as “Review Week 4 · Group A/B” without a lead/support role."
+  },
+  {
+   "id": "wk4-online-role",
+   "title": "Were you lead for Mon Nov 2 (ONLINE)?",
+   "source": "Hub schedule screenshot",
+   "detail": "Online classes are taught by the lead instructor, and you taught the ONLINE class on Mon Nov 2 (Group A). The sheet doesn’t confirm a Week 4 lead, so Ace did not mark you as lead."
+  },
+  {
+   "id": "group-letters",
+   "title": "Meaning of hub groups A–E",
+   "source": "Hub schedule screenshot",
+   "detail": "Hub cells read “GDL - A” / “GDL - B”. Their link to sheet rows isn’t confirmed, so Ace links your classes to the week’s sheet topic (you appear in only one sheet cell per week) and keeps the letter as “Group”."
+  },
+  {
+   "id": "missing-nov9",
+   "title": "Hub schedule from Nov 9 not provided yet",
+   "source": "Missing source",
+   "detail": "Only Review Week 4 (Nov 2–7) was in the screenshots. Paste the hub page for the week of Nov 9 (Sources → Paste schedule) to get exact times for Relative Equilibrium (support)."
+  }
+ ]
+}

@@ -1,6 +1,6 @@
 # Progress & handoff
 
-_Last updated 2026-11-06 · branch `claude/instructor-performance-app-w9ewgk`_
+_Last updated 2026-11-06 · deployed from `givendavelayos-sudo/gdgertc` (main) on Vercel; mirror in the Power repo branch `claude/instructor-performance-app-w9ewgk` under `ace/`_
 
 ## Done (v0.1)
 - Engine, adapters and UI as described in the README. 25 unit tests (`npm test`), all passing.
@@ -9,6 +9,18 @@ _Last updated 2026-11-06 · branch `claude/instructor-performance-app-w9ewgk`_
   merge, handout submission confirmation, evaluation paste → review → save → adopt practice, stale-data
   banner after 30 h, no horizontal overflow.
 - Power untouched (no files outside `ace/` changed).
+
+## v0.3 (Nov 6)
+- Settings (Power pattern): search; Profile; Appearance (System/Light/Dark/AMOLED, app colour); Home screen cards
+  (reorder/hide); Preferences (hide scores, 24-hour); Teaching rules; Security (PIN app lock + Face ID via WebAuthn,
+  device-only in `localStorage['ace.lock']`); Notifications per type + morning plan; Calendar (.ics export);
+  Imports (merge); Backup & data; Help; About / What's new / Check for updates.
+- Bell / Alerts: schedule changes, sheet role changes, deadlines < 48 h, open prep for the next class, leave-by,
+  stale/failed syncs, unverified sheet weeks, "Needs review" items. Dismiss / Mark all read.
+- Screenshot data shipped as a one-time import: `seed/gertc-2026-11-06.json` (built by `tests/build-seed.mjs`),
+  merged on first launch via `E.importMerge` (idempotent, never overwrites edits or live data, conflicts → review).
+  Evaluation results are NOT in the public repo: the user imports them with *Import data file (merge)*.
+- Home "Improvement focus" card from real evaluation data (`E.focusAreas`).
 
 ## Not verified yet (needs the real thing)
 - Live call to the real sheet: needs your API key; the build container can reach `sheets.googleapis.com` but
@@ -21,6 +33,10 @@ _Last updated 2026-11-06 · branch `claude/instructor-performance-app-w9ewgk`_
 ## Answered (Nov 6)
 Cutoffs 8 PM · handouts lead-only · rows = partner slots · lead weeks online, support in person ·
 lead exam due Wednesday of the teaching week. All encoded as defaults in `DEFAULT_CFG` and tested.
+
+## Review items shipped with the screenshot import
+Week 4 classes have no sheet topic · whether GDL was lead for the Mon Nov 2 ONLINE class · meaning of hub groups A–E ·
+hub schedule from Nov 9 not yet provided.
 
 ## Open questions for the user
 1. Is the **handout** cutoff also 8 PM? (Assumed yes, from “Wednesday deadline … is 8 pm”.)

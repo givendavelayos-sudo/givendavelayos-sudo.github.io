@@ -412,3 +412,42 @@ test('hub evaluation page: label/score on separate lines, overall + count, numbe
   assert.equal(E.themeForCriterion('Keeps me engaged (energy, eye contact, delivery)'), 'engagement');
   assert.equal(a.weakest[0].name, 'Keeps me engaged (energy, eye contact, delivery)');
 });
+
+test('import merge: idempotent, keeps edits, flags conflicts, live sheet wins over screenshot', () => {
+  const now = mk(2026, 11, 6, 16);
+  const units = S.parseTopicGrid(grid, { initials: 'GDL', now }).units.map(u => ({ ...u, verified: false, source: { id: 'sheet', method: 'screenshot' } }));
+  const sessions = S.parseScheduleGrid(hubWeek4, { initials: 'GDL', weekStart: mk(2026, 11, 2) }).sessions.map(s => ({ ...s, source: { id: 'hub', method: 'screenshot' } }));
+  const data = { sessions, units, evals: [{ id: 'e1', date: '2026-11-06', overall: 4.5, criteria: {}, comments: [] }], review: [{ id: 'r1', title: 'Check week 4' }] };
+  const a = E.importMerge({ sources: { sheet: {} } }, data, { now });
+  assert.deepEqual(a.report.sessions, { added: 5, updated: 0, unchanged: 0, conflicts: 0 });
+  assert.equal(a.report.units.added, 5); assert.equal(a.report.evals.added, 1); assert.equal(a.report.review, 1);
+  // run again → nothing duplicated
+  const b = E.importMerge(a.state, data, { now: now + 1 });
+  assert.equal(b.state.sessions.length, 5); assert.equal(b.state.units.length, 5); assert.equal(b.state.evals.length, 1); assert.equal(b.state.review.length, 1);
+  assert.equal(b.report.sessions.unchanged, 5);
+  // a manually edited class from another source is kept; difference becomes a review item
+  const edited = JSON.parse(JSON.stringify(a.state));
+  Object.assign(edited.sessions[0], { start: edited.sessions[0].start + 36e5, source: { id: 'user' }, edited: true });
+  const c = E.importMerge(edited, data, { now });
+  assert.equal(c.report.sessions.conflicts, 1);
+  assert.equal(c.state.sessions[0].start, edited.sessions[0].start, 'user edit kept');
+  assert.ok(c.state.review.some(r => r.kind === 'conflict'));
+  // after a live sheet sync, screenshot units are not imported over it
+  const d = E.importMerge({ sources: { sheet: { lastOk: now, method: 'api' } }, units: [] }, data, { now });
+  assert.equal(d.report.units.skipped, 5); assert.equal(d.state.units.length, 0);
+  // input not mutated
+  assert.equal(edited.review.length, 1, 'input state not mutated by the merge');
+});
+
+test('calendar export: classes and deadlines as valid ICS with stable UIDs', () => {
+  const now = mk(2026, 11, 6, 9);
+  const { units } = S.parseTopicGrid(grid, { initials: 'GDL', now });
+  const state = { units, sessions: [sess('a', 'Fluid Flow 1', mk(2026, 11, 16, 8))] };
+  const ics = E.toICS(state, now);
+  assert.match(ics, /^BEGIN:VCALENDAR\r\n/); assert.match(ics, /END:VCALENDAR$/);
+  assert.match(ics, /SUMMARY:Fluid Flow 1 \(Lead\)/);
+  assert.match(ics, /DTSTART:20261116T000000Z/);
+  assert.match(ics, /SUMMARY:Due: Exam: Fluid Flow 1/);
+  assert.equal(ics, E.toICS(state, now), 'deterministic');
+  assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, (ics.match(/END:VEVENT/g) || []).length);
+});

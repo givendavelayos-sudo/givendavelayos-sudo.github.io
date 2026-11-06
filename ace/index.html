@@ -15,7 +15,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="style.css" />
   <title>Ace</title>
-  <script>try{var t=localStorage.getItem('ace.theme');if(t)document.documentElement.dataset.theme=t;else if(matchMedia('(prefers-color-scheme: light)').matches)document.documentElement.dataset.theme='light'}catch(e){}</script>
+  <script>try{var d=document.documentElement,t=localStorage.getItem('ace.theme'),a=localStorage.getItem('ace.accent');if(t)d.dataset.theme=t;else if(matchMedia('(prefers-color-scheme: light)').matches)d.dataset.theme='light';if(a&&/^#[0-9a-f]{6}$/i.test(a))d.style.setProperty('--green',a)}catch(e){}</script>
 </head>
 <body>
   <main id="app"></main>
