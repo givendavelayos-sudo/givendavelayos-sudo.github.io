@@ -1,0 +1,11 @@
+{
+  "name": "ace-instructor",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Ace — personal instructor excellence assistant (static PWA, no build step)",
+  "scripts": {
+    "test": "TZ=America/New_York node --test tests/*.test.mjs",
+    "serve": "python3 -m http.server 5180"
+  }
+}
