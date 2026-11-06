@@ -248,11 +248,20 @@ function tasks() {
   const groups = [['Overdue', d => !d.done && d.due && d.due < t], ['This week', d => !d.done && d.due >= t && d.due < E.addDays(m, 7)], ['Next week', d => !d.done && d.due >= E.addDays(m, 7) && d.due < E.addDays(m, 14)], ['Later', d => !d.done && (!d.due || d.due >= E.addDays(m, 14))], ['Done', d => d.done]];
   let any = false;
   for (const [name, f] of groups) { const l = all.filter(f); if (!l.length) continue; any = true; h += secH(name) + `<div class="card list">${l.map(d => delivRow(d, t)).join('')}</div>`; }
+  const ex = Object.entries(state.excluded || {});
+  if (ex.length) h += `<details class="card excl"><summary>${ex.length} not assigned to you ${ico('chev', 12)}</summary>${ex.map(([k, v]) => `<div class="lrow"><div class="grow"><div class="l-t small">${esc(exclTitle(k))}</div><div class="l-s">${esc(v.reason || 'Not assigned to you')} · ${E.fmtAgo(v.at, t)}</div></div><button class="btn sec sm" data-a="restore" data-id="${esc(k)}">Restore</button></div>`).join('')}</details>`;
   if (!any) h += emptyCard('No tasks yet', 'Handouts, lead PowerPoints and lead exams appear automatically from your lead sheet.');
   const c = cfg();
   h += `<button class="btn sec wide" data-a="add-deliv">${ico('plus', 16)} Add a deliverable</button>
     <button class="rules-note" data-a="panel" data-id="rules">Lead week: handout Wed before · PowerPoint Sat ${E.fmtTime(E.atTime(t, c.leadPptTime))} before · mastery Sun. Every teaching week: assessment draft that Wed ${E.fmtTime(E.atTime(t, c.examTime))} ${ico('chev', 12)}</button>`;
   return h;
+}
+function exclTitle(k) {
+  let m;
+  if ((m = k.match(/^ho:(\d{4}-\d\d-\d\d):(.+)$/))) return `${m[2].replace(/\b\w/g, c => c.toUpperCase())} handout · due ${E.fmtDay(E.parseLocal(m[1]))}`;
+  if ((m = k.match(/^lp:u:(\d{4}-\d\d-\d\d)/))) return `Lead PowerPoint · week of ${E.fmtDay(E.parseLocal(m[1]))}`;
+  if ((m = k.match(/^as:lx\|(\d{4}-\d\d-\d\d)/))) return `Assessment draft · week of ${E.fmtDay(E.parseLocal(m[1]))}`;
+  return k;
 }
 function delivSheet(id) {
   const t = now(), d = E.deliverables(state, t).find(x => x.id === id); if (!d) return;
@@ -264,6 +273,7 @@ function delivSheet(id) {
     <div class="muted small" style="margin-top:10px">Ace never marks something submitted on its own — tick “Submitted” only after you actually submit.</div>
     <div class="row" style="margin-top:14px;gap:8px;flex-wrap:wrap">${d.kind === 'leadppt' ? `<button class="btn sec sm" data-a="class" data-id="${esc(d.unitId)}">Full prep checklist</button>` : ''}
       ${(d.kind === 'exam' || d.kind === 'assessment') && d.done ? `<button class="btn sec sm" data-a="revision" data-id="${esc(d.ref)}">Revision requested</button>` : ''}
+      ${d.auto || d.kind === 'handout' || d.kind === 'leadppt' ? `<button class="btn sec sm" data-a="not-mine" data-id="${esc(id)}">Not assigned to me</button>` : ''}
       ${(d.kind === 'assessment' || d.kind === 'exam') && !d.auto ? `<button class="btn sec sm danger" data-a="del-as" data-id="${esc(d.ref)}">Delete</button>` : ''}${d.kind === 'duty' ? `<button class="btn sec sm danger" data-a="del-duty" data-id="${esc(d.ref)}">Delete</button>` : ''}</div>`);
 }
 
@@ -462,7 +472,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.6.1';
+const VERSION = '0.6.2';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -490,7 +500,7 @@ function sealedCard() {
     <div class="row" style="margin-top:12px;gap:8px"><input type="password" id="sealpass" placeholder="Passcode" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"><button class="btn sm" data-a="unseal" data-id="${esc(p.id)}">Unlock</button></div></div>`;
 }
 // Each screenshot batch you send is shipped as a new file here; every device imports each one once.
-const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json', 'seed/gertc-2026-11-06c.json', 'seed/gertc-2026-11-06d.json'];
+const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json', 'seed/gertc-2026-11-06c.json', 'seed/gertc-2026-11-06d.json', 'seed/gertc-2026-11-06e.json'];
 async function runSeeds() {
   for (const url of SEEDS) {
     const id = url.split('/').pop();
@@ -550,7 +560,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.6.1', 'Nov 6, 2026', ['Ace now tells you when a new version is available — tap the bar to update'])
+    return ['What’s new', v('0.6.2', 'Nov 6, 2026', ['Assessment drafts are planned inside their teaching week — nothing shows early', '“Not assigned to me” on any handout, PowerPoint or draft (e.g. when the lead instructor already did it); restore it from Tasks'])
+      + v('0.6.1', 'Nov 6, 2026', ['Ace now tells you when a new version is available — tap the bar to update'])
       + v('0.6', 'Nov 6, 2026', ['Calendar under your schedule: lead/support weeks, each day’s deadlines and steps, tick them off — past days too', 'Your rhythm: handout Wed before a lead week · PowerPoint Sat 11:59 PM · Sunday mastery · assessment draft every teaching week’s Wed', 'Reminders a day before and 3 hours before each deadline, plus a Sunday mastery nudge'])
       + v('0.5', 'Nov 6, 2026', ['New Schedule: your next class, a Mon–Sun strip with teaching hours, the week at a glance as a time grid, and the selected day’s classes', 'Week 4 classes now show their topics (from your My Schedule screenshot)', 'Your evaluation ships encrypted: unlock it once in Performance with your passcode'])
       + v('0.4.1', 'Nov 6, 2026', ['Lead & support weeks now come only from your screenshots (no Google sign-in or API key)', 'Weeks from Nov 9 show “official schedule not released yet”', 'App lock uses your PIN only'])
@@ -696,6 +707,12 @@ document.addEventListener('click', async e => {
     case 'task': markTask(id, true); if (!id.endsWith(':submit')) { toast('Done ✓'); if (el.dataset.back) delivSheet(el.dataset.back); } break;
     case 'untask': markTask(id, false); if (el.dataset.back) delivSheet(el.dataset.back); break;
     case 'deliv': delivSheet(id); break;
+    case 'not-mine': { const d = E.deliverables(state, t).find(x => x.id === id);
+      sheet(`<h2>Not assigned to you?</h2><div class="muted small">${esc(d?.title || '')} will be removed from Today, Tasks, the calendar and reminders. You can restore it in Tasks.</div>
+        <label>Why (optional)</label><input name="why" placeholder="e.g. The lead instructor already submitted it">
+        <div class="row" style="margin-top:16px"><button class="btn sec" data-a="close">Cancel</button><button class="btn" data-a="not-mine-ok" data-id="${esc(id)}">Remove from my tasks</button></div>`); break; }
+    case 'not-mine-ok': { const v = formVals(); (state.excluded ||= {})[id] = { at: t, reason: v.why || 'Not assigned to you', source: 'you' }; save(); closeSheet(); render(); toast('Removed from your tasks'); break; }
+    case 'restore': if (state.excluded) delete state.excluded[id]; save(); render(); toast('Restored to your tasks'); break;
     case 'sday': schedDay = id; render(); break;
     case 'cday': calDay = id; render(); break;
     case 'cmon': calMonth += +id; calDay = null; render(); break;

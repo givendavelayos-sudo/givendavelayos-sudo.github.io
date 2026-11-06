@@ -330,3 +330,7 @@ em.due{background:var(--amber)}em.missed{background:var(--red)}em.step{backgroun
 .cal-sel .empty-line.soft{margin:4px 0 0}
 .tick.missed .box{border-color:var(--red)}
 .update-bar{position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--safe-top) + 8px);z-index:95;display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:999px;background:var(--green);color:#fff;font-weight:800;font-size:13.5px;box-shadow:0 10px 30px #0006;max-width:92vw;animation:fade .2s}
+.excl{margin-top:18px;padding:12px 16px}
+.excl>summary{display:flex;align-items:center;gap:6px;color:var(--muted);font-weight:700;font-size:13.5px}
+.excl[open]>summary{margin-bottom:6px}
+.excl .lrow{padding:10px 0}

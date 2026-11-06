@@ -49,3 +49,9 @@ const updD = { v: 1, kind: 'ace-import', label: 'Lead sheet screenshot · Nov 6 
     detail: 'You have no assignment in rows 1–3 of Week 11. Rows 4–5 were cut off in the screenshot — send them if you might be in them.' }] };
 fs.writeFileSync(new URL('../seed/gertc-2026-11-06d.json', import.meta.url), JSON.stringify(updD, null, 1));
 console.log('update d: Week 11 note');
+
+// Update e — user (Nov 6): "I was not assigned to submit a handout this Wednesday; the lead instructor did it already."
+const updE = { v: 1, kind: 'ace-import', label: 'Update · Nov 6, 2026 (Fluid Flow 1 handout done by the lead instructor)', createdAt: AT + 240e3,
+  exclude: { 'ho:2026-11-11:fluid flow 1': 'Not assigned to you — the lead instructor already submitted it (you, Nov 6)' } };
+fs.writeFileSync(new URL('../seed/gertc-2026-11-06e.json', import.meta.url), JSON.stringify(updE, null, 1));
+console.log('update e: Fluid Flow 1 handout not assigned');

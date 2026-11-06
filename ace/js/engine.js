@@ -250,8 +250,9 @@ export function assessmentPlan(a, cfg) {
   const total = Math.max(30, (a.effortH || 6) * 60);
   const perDay = Math.max(30, cfg.dailyMinutes * 0.6);
   const days = Math.ceil(total / perDay);
-  const finish = addDays(startOfDay(a.due), -1) + cfg.milestoneHour * H; // keep a buffer day
-  const start = addDays(startOfDay(finish), -days) + 8 * H;
+  let finish = addDays(startOfDay(a.due), -1) + cfg.milestoneHour * H; // keep a buffer day
+  let start = addDays(startOfDay(finish), -days) + 8 * H;
+  if (a.notBefore) { start = Math.max(start, a.notBefore + 8 * H); if (finish <= start) finish = Math.max(start + 2 * H, a.due - 2 * H); } // e.g. a draft is worked on in its teaching week
   let cum = 0;
   const stages = ASSESS_STAGES.map(st => {
     cum += st.w;
@@ -268,9 +269,11 @@ export function leadExams(state) {
   return unitItems(state).filter(u => cfg.assessRoles.includes(u.role)).map(u => {
     const id = `lx|${u.unit.key}`, rec = state.exams?.[id] || {};
     return { id, auto: true, role: u.role, title: `Assessment draft: ${u.subject}`, kind: 'Assessment draft', subject: u.subject, due: atTime(addDays(u.start, (cfg.examDow + 6) % 7), cfg.examTime),
-      dueVerified: true, effortH: rec.effortH || cfg.examEffortH, stages: rec.stages || {}, revision: rec.revision || null, unit: u.unit };
+      dueVerified: true, notBefore: u.start, effortH: rec.effortH || cfg.examEffortH, stages: rec.stages || {}, revision: rec.revision || null, unit: u.unit };
   });
 }
+/** Deliverables you marked "not assigned to me" (e.g. the lead instructor already did it). id = deliverable id. */
+export const isExcluded = (state, id) => !!state.excluded?.[id];
 export const allAssessments = state => [...(state.assessments || []), ...leadExams(state)];
 
 /* ------------------------------------------------- unified planner */
@@ -290,8 +293,10 @@ export function allTasks(state, now) {
     if (s.start <= now || s.start > now + (s.approx ? cfg.unitHorizonDays : cfg.horizonDays) * DAY) continue;
     const r = readiness(s, state, cfg);
     const soon = s.start - now < 24 * H;
+    const pptOff = s.unit && isExcluded(state, `lp:u:${s.unit.key}`);
     const when = s.approx ? `week of ${fmtDay(s.start)}` : `${fmtDayRel(s.start, now)} ${fmtTime(s.start)}`;
     for (const row of r.rows) {
+      if (pptOff && (row.id === 'slides_draft' || row.id === 'slides_final')) continue;
       const id = `rd:${row.key}:${row.id}`;
       if (seen.has(id)) continue; // shared topic prep already listed for an earlier session of this week
       seen.add(id);
@@ -304,6 +309,7 @@ export function allTasks(state, now) {
   }
   // Wednesday handouts
   for (const h of handoutCycles(state, now)) {
+    if (isExcluded(state, h.id)) continue;
     let prev = null;
     for (const st of HANDOUT_STAGES) {
       const id = `${h.id}:${st.id}`;
@@ -314,6 +320,7 @@ export function allTasks(state, now) {
   }
   // assessments & exams
   for (const a of allAssessments(state)) {
+    if (isExcluded(state, `as:${a.id}`)) continue;
     if (a.due < now - 14 * DAY && !a.stages?.submit) continue;
     if (a.stages?.submit && !(a.revision && !a.revision.doneAt)) continue;
     const p = assessmentPlan(a, cfg); let prev = null;
@@ -352,10 +359,10 @@ export function plan(state, now) {
 /** Upcoming official deadlines (handouts, assessments, duties). */
 export function deadlines(state, now, limit = 6) {
   const out = [];
-  for (const h of handoutCycles(state, now)) if (!h.submittedAt) out.push({ kind: 'handout', title: `${h.subject} handout`, at: h.cutoff, verified: h.cutoffVerified, holiday: h.holiday, status: handoutStatus(h), ref: h.id });
-  for (const a of allAssessments(state)) if (!a.stages?.submit && a.due > now - 7 * DAY) out.push({ kind: a.auto ? 'exam' : a.kind || 'assessment', title: a.title, at: a.due, verified: !!a.dueVerified, ref: a.id });
+  for (const h of handoutCycles(state, now)) if (!h.submittedAt && !isExcluded(state, h.id)) out.push({ kind: 'handout', title: `${h.subject} handout`, at: h.cutoff, verified: h.cutoffVerified, holiday: h.holiday, status: handoutStatus(h), ref: h.id });
+  for (const a of allAssessments(state)) if (!a.stages?.submit && a.due > now - 7 * DAY && !isExcluded(state, `as:${a.id}`)) out.push({ kind: a.auto ? 'exam' : a.kind || 'assessment', title: a.title, at: a.due, verified: !!a.dueVerified, ref: a.id });
   const cfg = cfgOf(state);
-  for (const u of unitItems(state)) if (u.role === 'lead' && !state.readiness?.[u.id]?.slides_final) {
+  for (const u of unitItems(state)) if (u.role === 'lead' && !state.readiness?.[u.id]?.slides_final && !isExcluded(state, `lp:${u.id}`)) {
     const at = leadPptDue(u.unit, cfg);
     if (at > now - 7 * DAY) out.push({ kind: 'lead', title: `Lead PowerPoint: ${u.subject}`, at, verified: !!u.unit.verified, ref: u.id });
   }
@@ -627,6 +634,7 @@ export function importMerge(state, data, { now }) {
   if (data.identity?.name && !st.identity?.name) st.identity = { ...(st.identity || {}), name: data.identity.name };
   for (const e of data.evals || []) { if (st.evals.some(x => x.id === e.id)) rep.evals.unchanged++; else { st.evals.push({ ...e, importedAt: now }); rep.evals.added++; } }
   for (const r of data.review || []) if (!st.review.some(x => x.id === r.id)) { st.review.push({ ...r, at: now }); rep.review++; }
+  for (const [id, reason] of Object.entries(data.exclude || {})) if (!st.excluded?.[id]) (st.excluded ||= {})[id] = { at: now, reason, source: data.label || 'import' };
   for (const id of data.resolve || []) { const r = st.review.find(x => x.id === id); if (r && !r.resolvedAt) r.resolvedAt = now; }
   rep.review += rep.sessions.conflicts;
   return { state: st, report: rep };
@@ -653,13 +661,14 @@ export function toICS(state, now) {
 export function deliverables(state, now) {
   const cfg = cfgOf(state), out = [];
   for (const h of handoutCycles(state, now, { back: 2, ahead: 8 })) {
+    if (isExcluded(state, h.id)) continue;
     out.push({ id: h.id, kind: 'handout', title: `${h.subject} handout`, subject: h.subject, due: h.cutoff, verified: h.cutoffVerified,
       note: `For classes in the week of ${fmtDay(h.weekStart)}`, flags: h.holiday ? ['Holiday — confirm the cutoff'] : [],
       steps: HANDOUT_STAGES.map(st => ({ id: st.id, label: st.id === 'submit' ? 'Submitted' : st.label, task: `${h.id}:${st.id}`, target: handoutTarget(h, st, cfg), doneAt: (st.id === 'submit' ? h.submittedAt : h.stages[st.id]) || null, official: st.id === 'submit' })),
       done: !!h.submittedAt });
   }
   for (const u of unitItems(state)) {
-    if (u.role !== 'lead' || u.start + 7 * DAY <= now) continue;
+    if (u.role !== 'lead' || u.start + 7 * DAY <= now || isExcluded(state, `lp:${u.id}`)) continue;
     const due = leadPptDue(u.unit, cfg), r = state.readiness?.[u.id] || {};
     out.push({ id: `lp:${u.id}`, kind: 'leadppt', title: `${u.subject} PowerPoint`, subject: u.subject, due, verified: !!u.unit.verified, unitId: u.id,
       note: `Lead · teaching week of ${fmtDay(u.start)}`, flags: [],
@@ -668,7 +677,7 @@ export function deliverables(state, now) {
       done: !!r.slides_final });
   }
   for (const a of allAssessments(state)) {
-    if (a.due < now - 14 * DAY) continue;
+    if (a.due < now - 14 * DAY || isExcluded(state, `as:${a.id}`)) continue;
     const p = assessmentPlan(a, cfg), open = a.revision && !a.revision.doneAt;
     out.push({ id: `as:${a.id}`, kind: a.auto ? 'draft' : /exam/i.test(a.kind || '') ? 'exam' : 'assessment', title: a.title, subject: a.subject, due: a.due, verified: !!a.dueVerified, ref: a.id, auto: !!a.auto,
       note: a.auto ? `${a.role === 'lead' ? 'Lead' : 'Support'} · send the draft by this teaching week’s Wednesday` : (a.kind || 'Assessment'), flags: [], start: p.start,
@@ -696,7 +705,7 @@ export function calendarItems(state, from, to, now) {
   for (const u of unitItems(state)) {
     const r = readiness(u, state, cfg);
     for (const row of r.rows) {
-      if (SESSION_ITEMS.has(row.id) || (u.role === 'lead' && (row.id === 'slides_draft' || row.id === 'slides_final'))) continue;
+      if (SESSION_ITEMS.has(row.id) || (u.role === 'lead' && (row.id === 'slides_draft' || row.id === 'slides_final'))) continue; // (PowerPoint steps come from its deliverable)
       const at = u.start - row.lead * H;
       if (at >= from && at < to) out.push({ at, title: row.label, ctx: `${u.subject} · ${u.role === 'lead' ? 'Lead' : 'Support'} prep`, task: `rd:${row.key}:${row.id}`, doneAt: row.doneAt, official: false, kind: 'prep', unit: u.id });
     }

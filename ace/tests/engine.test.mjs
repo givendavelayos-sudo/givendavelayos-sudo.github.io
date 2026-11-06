@@ -519,3 +519,24 @@ test('calendar items: lead-week rhythm (handout Wed before, PPT Sat, mastery Sun
   const t = items.find(i => /PowerPoint finalized/.test(i.title));
   assert.match(t.task, /^rd:u:2026-11-16\|1:slides_final$/);
 });
+
+test('support-week draft work starts in its teaching week; “not assigned to me” removes a deliverable everywhere', () => {
+  const now = mk(2026, 11, 6, 16); // Friday before Week 5
+  const { units } = S.parseTopicGrid(grid, { initials: 'GDL', now });
+  const state = { units };
+  const re = E.deliverables(state, now).find(d => d.title.startsWith('Assessment draft: Relative'));
+  assert.equal(E.dayKey(re.due), '2026-11-11');
+  assert.ok(re.steps.every(s => s.target >= mk(2026, 11, 9, 8)), 'no draft step before Mon Nov 9');
+  assert.ok(!E.plan(state, now).today.some(t => /^as:lx\|2026-11-09/.test(t.id)), 'nothing from it in Today on Fri Nov 6');
+  // the lead instructor already submitted the Fluid Flow 1 handout → not yours
+  const hid = 'ho:2026-11-11:fluid flow 1';
+  assert.ok(E.deliverables(state, now).some(d => d.id === hid));
+  const m = E.importMerge({ ...state, sources: { sheet: {} } }, { exclude: { [hid]: 'The lead instructor submitted it' } }, { now });
+  const s2 = m.state;
+  assert.ok(!E.deliverables(s2, now).some(d => d.id === hid), 'gone from Tasks');
+  assert.ok(!E.plan(s2, now).open.some(t => t.id.startsWith(hid)), 'gone from the planner');
+  assert.ok(!E.deadlines(s2, now, 20).some(d => d.ref === hid), 'no reminders for it');
+  assert.ok(!E.calendarItems(s2, mk(2026, 11, 9), mk(2026, 11, 16), now).some(i => i.deliv === hid), 'gone from the calendar');
+  assert.ok(E.deliverables(s2, now).some(d => d.kind === 'handout' && d.subject === 'Kinetics 1'), 'other lead-week handouts stay');
+  assert.equal(s2.excluded[hid].reason, 'The lead instructor submitted it');
+});
