@@ -41,3 +41,11 @@ const updC = { v: 1, kind: 'ace-import', label: 'Update · Nov 6, 2026 (Week 4 t
     detail: 'The weekly grid lists your Tue Nov 3 classes under “X3 AM / X3 PM”, but your My Schedule page shows “EX AM / EX PM”. Ace keeps “X3” until you confirm which is right.' }] };
 fs.writeFileSync(new URL('../seed/gertc-2026-11-06c.json', import.meta.url), JSON.stringify(updC, null, 1));
 console.log('update c: Week 4 topics for', wk4.length, 'classes');
+
+// Update d — lead-sheet screenshot of Nov 6 (later): adds Week 11 (Dec 21). Weeks 5–10 unchanged; no GDL cell in
+// the visible rows of Week 11 (rows 4–5 are cut off in that screenshot).
+const updD = { v: 1, kind: 'ace-import', label: 'Lead sheet screenshot · Nov 6 (Week 11 added, your weeks unchanged)', createdAt: AT + 180e3, units,
+  review: [{ id: 'wk11-rows', title: 'Week 11 (Dec 21): rows 4–5 not visible', source: 'Lead sheet screenshot (Nov 6)',
+    detail: 'You have no assignment in rows 1–3 of Week 11. Rows 4–5 were cut off in the screenshot — send them if you might be in them.' }] };
+fs.writeFileSync(new URL('../seed/gertc-2026-11-06d.json', import.meta.url), JSON.stringify(updD, null, 1));
+console.log('update d: Week 11 note');

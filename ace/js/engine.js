@@ -51,7 +51,8 @@ export const DEFAULT_CFG = {
   // Confirmed by you (Nov 6): Wednesday deadlines are 8:00 PM.
   cutoffDow: 3, cutoffTime: '20:00', cutoffVerified: true,
   // Lead only: exam for the teaching week is due that week's Wednesday, 8:00 PM.
-  examDow: 3, examTime: '20:00', examEffortH: 5,
+  // Confirmed (Nov 6): every week you teach (lead or support) → assessment draft sent that week's Wednesday, 8 PM.
+  examDow: 3, examTime: '20:00', examEffortH: 5, assessRoles: ['lead', 'support'],
   // Which classes a Wednesday covers: the Mon–Sun week that starts N days after that Wednesday.
   handoutWeekStartOffset: 5,
   cutoffOverrides: {},            // { 'YYYY-MM-DD' (the normal Wednesday): 'skip' | 'YYYY-MM-DDTHH:MM' }
@@ -60,7 +61,9 @@ export const DEFAULT_CFG = {
   arriveEarlyMin: 30, onlineSetupMin: 30, travelMin: 20, minGapMin: 30,
   dailyMinutes: 150, horizonDays: 5, staleHours: 24,
   // Lead sheet (colour-coded grid). Your rule: lead = neon-blue cell → PowerPoint ready 1 week before the week starts.
-  initials: '', leadPptDaysBefore: 7, leadPptTime: '08:00', leadDraftDaysBefore: 9, leadFormat: 'online', supportFormat: 'in_person', unitHorizonDays: 21, unitTemplates: {},
+  initials: '',
+  // Confirmed (Nov 6): lead PowerPoint due Saturday midnight before the week (days before its Monday), so Sunday is for mastery.
+  leadPptDaysBefore: 2, leadPptTime: '23:59', leadDraftDaysBefore: 4, masteryDaysBefore: 1, masteryTime: '23:59', leadFormat: 'online', supportFormat: 'in_person', unitHorizonDays: 21, unitTemplates: {},
   handoutRoles: ['lead'], handoutRolesVerified: true, // confirmed: support instructors don't create handouts
   leadRoleValues: ['lead', 'lead instructor', 'li', 'yes', 'y', '✓', 'true'],
   templates: null,                // filled from DEFAULT_TEMPLATES
@@ -91,11 +94,14 @@ export const READINESS_ITEMS = {
 };
 export const CATS = { materials: 'Teaching materials', accuracy: 'Accuracy', mastery: 'Subject mastery', delivery: 'Delivery', logistics: 'Logistics' };
 const CORE = ['slides_draft', 'slides_final', 'examples', 'solutions', 'formulas', 'studied', 'concepts', 'questions', 'activities', 'rehearsed', 'practiced', 'timing', 'schedule_ok', 'buffer'];
+// Lead weeks: items pinned to a day before the week's Monday — [days-before key, time key].
+const LEAD_DAYS = { slides_draft: ['leadDraftDaysBefore', 'leadPptTime'], slides_final: ['leadPptDaysBefore', 'leadPptTime'],
+  studied: ['masteryDaysBefore', 'masteryTime'], concepts: ['masteryDaysBefore', 'masteryTime'], questions: ['masteryDaysBefore', 'masteryTime'] };
 export const DEFAULT_TEMPLATES = {
   in_person: { label: 'In-person class', items: [...CORE, 'venue'] },
   online: { label: 'Online class', items: [...CORE, 'platform', 'tech'] },
-  lead: { label: 'Lead instructor week (online)', items: [...CORE, 'platform', 'tech'], official: ['slides_final'], leadDays: { slides_draft: 'leadDraftDaysBefore', slides_final: 'leadPptDaysBefore' } },
-  lead_in_person: { label: 'Lead instructor · in-person class', items: [...CORE, 'venue'], official: ['slides_final'], leadDays: { slides_draft: 'leadDraftDaysBefore', slides_final: 'leadPptDaysBefore' } },
+  lead: { label: 'Lead instructor week (online)', items: [...CORE, 'platform', 'tech'], official: ['slides_final'], leadDays: LEAD_DAYS },
+  lead_in_person: { label: 'Lead instructor · in-person class', items: [...CORE, 'venue'], official: ['slides_final'], leadDays: LEAD_DAYS },
   consult: { label: 'Consultation', items: ['questions', 'schedule_ok', 'buffer'] },
   support: { label: 'Support instructor week (in person)', items: ['slides_received', 'solutions', 'formulas', 'studied', 'concepts', 'questions', 'activities', 'rehearsed', 'timing', 'schedule_ok', 'buffer', 'venue'] },
   review: { label: 'Review / problem session', items: ['solutions', 'formulas', 'studied', 'questions', 'timing', 'schedule_ok', 'buffer'] },
@@ -131,7 +137,7 @@ export function teachingItems(state) {
 export function leadPptDue(u, cfg) { return atTime(addDays(u.weekStart, -cfg.leadPptDaysBefore), cfg.leadPptTime); }
 export function itemLead(id, tpl, start, cfg) {
   const k = tpl.leadDays?.[id];
-  if (k) return (start - atTime(addDays(start, -cfg[k]), cfg.leadPptTime)) / H;
+  if (k) return (start - atTime(addDays(mondayOf(start), -cfg[k[0]]), cfg[k[1]])) / H;
   return READINESS_ITEMS[id].lead;
 }
 
@@ -256,12 +262,12 @@ export function assessmentPlan(a, cfg) {
   return { start, finish, days, total, stages };
 }
 
-/** Lead weeks automatically carry an exam due on that week's Wednesday (8 PM). Progress lives in state.exams[id]. */
+/** Every teaching week (lead or support) carries an assessment draft due that week's Wednesday, 8 PM. Progress in state.exams[id]. */
 export function leadExams(state) {
   const cfg = cfgOf(state);
-  return unitItems(state).filter(u => u.role === 'lead').map(u => {
+  return unitItems(state).filter(u => cfg.assessRoles.includes(u.role)).map(u => {
     const id = `lx|${u.unit.key}`, rec = state.exams?.[id] || {};
-    return { id, auto: true, title: `Exam: ${u.subject}`, kind: 'Exam', subject: u.subject, due: atTime(addDays(u.start, (cfg.examDow + 6) % 7), cfg.examTime),
+    return { id, auto: true, role: u.role, title: `Assessment draft: ${u.subject}`, kind: 'Assessment draft', subject: u.subject, due: atTime(addDays(u.start, (cfg.examDow + 6) % 7), cfg.examTime),
       dueVerified: true, effortH: rec.effortH || cfg.examEffortH, stages: rec.stages || {}, revision: rec.revision || null, unit: u.unit };
   });
 }
@@ -646,7 +652,7 @@ export function toICS(state, now) {
  */
 export function deliverables(state, now) {
   const cfg = cfgOf(state), out = [];
-  for (const h of handoutCycles(state, now, { back: 2, ahead: 4 })) {
+  for (const h of handoutCycles(state, now, { back: 2, ahead: 8 })) {
     out.push({ id: h.id, kind: 'handout', title: `${h.subject} handout`, subject: h.subject, due: h.cutoff, verified: h.cutoffVerified,
       note: `For classes in the week of ${fmtDay(h.weekStart)}`, flags: h.holiday ? ['Holiday — confirm the cutoff'] : [],
       steps: HANDOUT_STAGES.map(st => ({ id: st.id, label: st.id === 'submit' ? 'Submitted' : st.label, task: `${h.id}:${st.id}`, target: handoutTarget(h, st, cfg), doneAt: (st.id === 'submit' ? h.submittedAt : h.stages[st.id]) || null, official: st.id === 'submit' })),
@@ -664,9 +670,9 @@ export function deliverables(state, now) {
   for (const a of allAssessments(state)) {
     if (a.due < now - 14 * DAY) continue;
     const p = assessmentPlan(a, cfg), open = a.revision && !a.revision.doneAt;
-    out.push({ id: `as:${a.id}`, kind: a.auto || /exam/i.test(a.kind || '') ? 'exam' : 'assessment', title: a.title, subject: a.subject, due: a.due, verified: !!a.dueVerified, ref: a.id, auto: !!a.auto,
-      note: a.auto ? 'Lead · due that teaching week’s Wednesday' : (a.kind || 'Assessment'), flags: [], start: p.start,
-      steps: p.stages.map(st => ({ id: st.id, label: st.id === 'submit' ? 'Submitted' : st.label, task: `as:${a.id}:${st.id}`, target: st.target, doneAt: st.doneAt, official: st.id === 'submit' })),
+    out.push({ id: `as:${a.id}`, kind: a.auto ? 'draft' : /exam/i.test(a.kind || '') ? 'exam' : 'assessment', title: a.title, subject: a.subject, due: a.due, verified: !!a.dueVerified, ref: a.id, auto: !!a.auto,
+      note: a.auto ? `${a.role === 'lead' ? 'Lead' : 'Support'} · send the draft by this teaching week’s Wednesday` : (a.kind || 'Assessment'), flags: [], start: p.start,
+      steps: p.stages.map(st => ({ id: st.id, label: st.id === 'submit' ? (a.auto ? 'Draft sent' : 'Submitted') : st.label, task: `as:${a.id}:${st.id}`, target: st.target, doneAt: st.doneAt, official: st.id === 'submit' })),
       done: !!a.stages?.submit && !open });
   }
   for (const d of state.duties || []) out.push({ id: `du:${d.id}`, kind: 'duty', title: d.title, subject: d.subject, due: d.due || null, verified: !!d.verified, ref: d.id, note: 'Lead responsibility', flags: [],
@@ -678,3 +684,24 @@ export function deliverables(state, now) {
   }
   return out.sort((a, b) => (a.due ?? Infinity) - (b.due ?? Infinity));
 }
+
+/**
+ * Calendar: what is due or planned on each day — deliverable steps (official deadlines + suggested targets)
+ * and the topic prep of each teaching week (e.g. Sunday mastery before a lead week). Same task ids as everywhere.
+ */
+export function calendarItems(state, from, to, now) {
+  const cfg = cfgOf(state), out = [];
+  for (const d of deliverables(state, now)) for (const st of d.steps) if (st.target >= from && st.target < to)
+    out.push({ at: st.target, title: st.official ? `${st.label} · ${d.title}` : st.label, ctx: d.title, task: st.task, doneAt: st.doneAt, official: st.official, kind: d.kind, deliv: d.id });
+  for (const u of unitItems(state)) {
+    const r = readiness(u, state, cfg);
+    for (const row of r.rows) {
+      if (SESSION_ITEMS.has(row.id) || (u.role === 'lead' && (row.id === 'slides_draft' || row.id === 'slides_final'))) continue;
+      const at = u.start - row.lead * H;
+      if (at >= from && at < to) out.push({ at, title: row.label, ctx: `${u.subject} · ${u.role === 'lead' ? 'Lead' : 'Support'} prep`, task: `rd:${row.key}:${row.id}`, doneAt: row.doneAt, official: false, kind: 'prep', unit: u.id });
+    }
+  }
+  return out.sort((a, b) => a.at - b.at || (b.official - a.official));
+}
+/** Your role for the week starting on `monday` (from the sheet screenshots), or null. */
+export const weekRole = (state, monday) => (state.units || []).find(u => dayKey(u.weekStart) === dayKey(monday)) || null;

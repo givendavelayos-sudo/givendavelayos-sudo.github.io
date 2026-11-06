@@ -10,6 +10,18 @@ _Last updated 2026-11-06 · deployed from `givendavelayos-sudo/gdgertc` (main) o
   banner after 30 h, no horizontal overflow.
 - Power untouched (no files outside `ace/` changed).
 
+## v0.6 (Nov 6) — weekly rhythm + calendar
+Confirmed rules (user): **lead week W** → handout Wed before W (8 PM) · PowerPoint Sat 11:59 PM before W
+(`leadPptDaysBefore: 2`, `leadPptTime: '23:59'`, draft Thu) · Sunday before W = mastery (studied, concepts,
+questions; `masteryDaysBefore: 1`) — via `LEAD_DAYS` in the engine. **Every teaching week (lead or support)** →
+assessment draft sent that week's Wed 8 PM (`leadExams()` now covers `assessRoles`, kind `draft`).
+- Schedule: month calendar under the week view — week rows tinted Lead/Support with week number, dots per day
+  (deadline / step / done / missed), selected day lists items with checkboxes (same task ids as Tasks), past days too.
+  `E.calendarItems(state, from, to, now)`, `E.weekRole(state, monday)`.
+- Reminders: 1 day and 3 hours before every deadline; Sunday 8 AM mastery nudge before a lead week.
+- Tasks look 8 weeks ahead (Kinetics 1 handout Wed Dec 2 now listed).
+- `seed/gertc-2026-11-06d.json`: newer sheet screenshot (Week 11 added, no change to your weeks) + review item.
+
 ## v0.5 (Nov 6)
 - **Schedule redesigned** after the user's hub "My Schedule" screenshot: next-class card with a Mon–Sun strip
   (hours per day, today outlined), "The week at a glance" time grid (blocks coloured by section, red now-line,

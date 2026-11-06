@@ -264,12 +264,13 @@ test('sheet units feed lead PowerPoint deadlines, handouts and readiness', () =>
   const cfg = E.cfgOf(state);
   const ff1 = E.unitItems(state).find(u => u.subject === 'Fluid Flow 1');
   assert.equal(ff1.template, 'lead');
-  assert.equal(E.leadPptDue(ff1.unit, cfg), mk(2026, 11, 9, 8)); // one week before Nov 16
+  assert.equal(E.leadPptDue(ff1.unit, cfg), mk(2026, 11, 14, 23, 59)); // Saturday midnight before Nov 16
   const p = E.plan(state, now);
   const t = p.open.find(t => t.id === `rd:${ff1.id}:slides_final`);
-  assert.equal(t.official, mk(2026, 11, 9, 8));
+  assert.equal(t.official, mk(2026, 11, 14, 23, 59));
   const draft = p.open.find(t => t.id === `rd:${ff1.id}:slides_draft`);
-  assert.equal(draft.target, mk(2026, 11, 7, 8));
+  assert.equal(draft.target, mk(2026, 11, 12, 23, 59)); // Thursday before
+  assert.equal(p.open.find(t => t.id === `rd:${ff1.id}:studied`).target, mk(2026, 11, 15, 23, 59), 'Sunday = mastery');
   // support week has no slide-making duty
   const sup = E.unitItems(state).find(u => u.subject === 'Fluid Flow 2');
   assert.ok(!E.readiness(sup, state).rows.some(r => r.id === 'slides_final'));
@@ -327,11 +328,12 @@ test('confirmed rules: 8 PM cutoffs, handouts only for lead weeks, lead exam on 
   assert.deepEqual([...new Set(cyc.map(h => h.subject))].sort(), ['Fluid Flow 1', 'Kinetics 1']);
   const ff1 = cyc.find(h => h.subject === 'Fluid Flow 1');
   assert.equal(ff1.cutoff, mk(2026, 11, 11, 20)); // Wednesday before the teaching week, 8 PM
-  const ex = E.leadExams(state);
+  const ex = E.leadExams(state).filter(e => e.role === 'lead');
   assert.deepEqual(ex.map(e => [e.subject, E.dayKey(e.due), E.fmtTime(e.due)]), [['Fluid Flow 1', '2026-11-18', '8:00 PM'], ['Kinetics 1', '2026-12-09', '8:00 PM']]);
+  assert.deepEqual(E.leadExams(state).map(e => E.dayKey(e.due)), ['2026-11-11', '2026-11-18', '2026-11-25', '2026-12-09', '2026-12-16'], 'assessment draft every teaching week (lead and support)');
   const p = E.plan(state, now);
   assert.ok(p.open.some(t => t.id === `as:${ex[0].id}:questions`));
-  assert.ok(E.deadlines(state, now, 10).some(d => d.kind === 'exam' && d.title === 'Exam: Fluid Flow 1'));
+  assert.ok(E.deadlines(state, now, 10).some(d => d.title === 'Assessment draft: Fluid Flow 1'));
   const lead = E.unitItems(state).find(u => u.subject === 'Fluid Flow 1');
   assert.equal(lead.format, 'online');
   assert.ok(E.readiness(lead, state).rows.some(r => r.id === 'tech'));
@@ -447,7 +449,7 @@ test('calendar export: classes and deadlines as valid ICS with stable UIDs', () 
   assert.match(ics, /^BEGIN:VCALENDAR\r\n/); assert.match(ics, /END:VCALENDAR$/);
   assert.match(ics, /SUMMARY:Fluid Flow 1 \(Lead\)/);
   assert.match(ics, /DTSTART:20261116T000000Z/);
-  assert.match(ics, /SUMMARY:Due: Exam: Fluid Flow 1/);
+  assert.match(ics, /SUMMARY:Due: Assessment draft: Fluid Flow 1/);
   assert.equal(ics, E.toICS(state, now), 'deterministic');
   assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, (ics.match(/END:VEVENT/g) || []).length);
 });
@@ -458,12 +460,13 @@ test('deliverables: one list of handouts, lead PowerPoints and exams with steps 
   const state = { units, duties: [{ id: 'd1', title: 'Review co-instructor slides', due: mk(2026, 11, 12, 17) }] };
   const d = E.deliverables(state, now);
   const titles = d.map(x => `${x.kind}:${x.title}:${E.dayKey(x.due)}`);
-  assert.deepEqual(titles.slice(0, 4), ['leadppt:Fluid Flow 1 PowerPoint:2026-11-09', 'handout:Fluid Flow 1 handout:2026-11-11', 'duty:Review co-instructor slides:2026-11-12', 'exam:Exam: Fluid Flow 1:2026-11-18']);
-  const ppt = d[0];
-  assert.equal(ppt.steps.length, 2); assert.equal(ppt.next.id, 'slides_draft'); assert.equal(ppt.status, 'soon', 'due Mon 8 AM, under 3 days away');
+  assert.deepEqual(titles.slice(0, 5), ['handout:Fluid Flow 1 handout:2026-11-11', 'draft:Assessment draft: Relative Equilibrium of Fluids in Moving Vessels:2026-11-11', 'duty:Review co-instructor slides:2026-11-12', 'leadppt:Fluid Flow 1 PowerPoint:2026-11-14', 'draft:Assessment draft: Fluid Flow 1:2026-11-18']);
+  assert.ok(titles.includes('handout:Kinetics 1 handout:2026-12-02') && titles.includes('leadppt:Kinetics 1 PowerPoint:2026-12-05'));
+  const ppt = d.find(x => x.kind === 'leadppt');
+  assert.equal(ppt.steps.length, 2); assert.equal(ppt.next.id, 'slides_draft'); assert.equal(ppt.status, 'ok');
   // ticking the planner task updates the deliverable (same ids)
   state.readiness = { [ppt.unitId]: { slides_draft: now, slides_final: now } };
-  assert.equal(E.deliverables(state, now)[0].status, 'done');
+  assert.equal(E.deliverables(state, now).find(x => x.kind === 'leadppt').status, 'done');
   // a past-due unsubmitted handout is overdue; submission is never assumed
   const late = E.deliverables(state, mk(2026, 11, 12, 9)).find(x => x.kind === 'handout');
   assert.equal(late.status, 'overdue'); assert.equal(late.done, false);
@@ -498,4 +501,21 @@ test('sealed imports: round-trip with the passcode, refuse a wrong one, no plain
   assert.deepEqual(await S.unseal(sealed, '  kp7m-x4qh-9tvc-2wrn '), data, 'surrounding spaces ignored');
   await assert.rejects(S.unseal(sealed, 'kp7m-x4qh-9tvc-2wrm'), /wrong passcode/);
   await assert.rejects(S.unseal({ ...sealed, ct: sealed.ct.slice(0, -4) + 'AAAA' }, 'kp7m-x4qh-9tvc-2wrn'), /wrong passcode/, 'tampering detected');
+});
+
+test('calendar items: lead-week rhythm (handout Wed before, PPT Sat, mastery Sun, draft Wed) and support weeks', () => {
+  const now = mk(2026, 11, 6, 16);
+  const { units } = S.parseTopicGrid(grid, { initials: 'GDL', now });
+  const state = { units };
+  const items = E.calendarItems(state, mk(2026, 11, 9), mk(2026, 11, 23), now);
+  const on = k => items.filter(i => E.dayKey(i.at) === k).map(i => i.title);
+  assert.ok(on('2026-11-11').includes('Submitted · Fluid Flow 1 handout'), 'Wed before lead week: handout');
+  assert.ok(on('2026-11-11').includes('Draft sent · Assessment draft: Relative Equilibrium of Fluids in Moving Vessels'), 'support week: draft Wed');
+  assert.ok(on('2026-11-14').includes('PowerPoint finalized · Fluid Flow 1 PowerPoint'), 'Saturday: PowerPoint');
+  assert.deepEqual(on('2026-11-15').filter(x => /studied|concepts|questions/i.test(x)).length, 3, 'Sunday: mastery');
+  assert.ok(on('2026-11-18').includes('Draft sent · Assessment draft: Fluid Flow 1'), 'lead week: draft Wed');
+  assert.equal(E.weekRole(state, mk(2026, 11, 16)).role, 'lead'); assert.equal(E.weekRole(state, mk(2026, 11, 30)), null);
+  // ticking in the calendar is the same task as everywhere else
+  const t = items.find(i => /PowerPoint finalized/.test(i.title));
+  assert.match(t.task, /^rd:u:2026-11-16\|1:slides_final$/);
 });

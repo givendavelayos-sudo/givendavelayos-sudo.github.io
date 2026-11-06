@@ -101,7 +101,7 @@ const DOW3 = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const dateChip = (ms, cls = '') => { if (!ms) return '<div class="datechip">—</div>'; const p = E.P(ms); return `<div class="datechip ${cls}"><span>${DOW3[p.dow]}</span><b>${p.d}</b></div>`; };
 const roleTag = (r, verified = true) => r ? `<span class="tag ${r}">${r === 'lead' ? 'Lead' : 'Support'}${verified ? '' : ' ?'}</span>` : '';
 const bar = (v, max = 1, cls = '') => `<div class="prog ${cls}"><i style="width:${Math.max(0, Math.min(1, v / max)) * 100}%"></i></div>`;
-const KIND = { handout: 'Handout', leadppt: 'Lead PowerPoint', exam: 'Exam', assessment: 'Assessment', duty: 'Lead duty' };
+const KIND = { handout: 'Handout', leadppt: 'Lead PowerPoint', draft: 'Assessment draft', exam: 'Exam', assessment: 'Assessment', duty: 'Lead duty' };
 const STATUS = { overdue: ['bad', 'Overdue'], behind: ['amb', 'Behind plan'], soon: ['amb', 'Due soon'], ok: ['', 'On track'], done: ['ok', 'Done'] };
 const dueText = (ms, t) => !ms ? 'No due date' : ms < t ? `Was due ${E.fmtDayRel(ms, t)} · ${E.fmtTime(ms)}` : `Due ${E.fmtDayRel(ms, t)} · ${E.fmtTime(ms)}`;
 const scoreTxt = v => ui().hideScores ? '••••' : v == null ? '—' : (+v).toFixed(2);
@@ -205,8 +205,40 @@ function schedule() {
       return `<button class="lrow ${past ? 'past' : ''}" data-a="class" data-id="${esc(s.id)}"><span class="cbar" style="--c:${blockColor(s)}"></span><div class="grow"><div class="l-t">${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.kind === 'consultation' ? s.subject : s.format === 'online' ? 'Online' : s.section)}</div><div class="l-s">${esc(s.kind === 'consultation' ? 'Consultation' : s.subject)}${s.group ? ' · Group ' + esc(s.group) : ''}</div></div>${right}</button>`; }).join('')
       : `<div class="empty-line soft">No classes on ${E.fmtDay(sel)}.</div>`}</div>
     ${unit ? `<button class="lrow sub" data-a="class" data-id="u:${esc(unit.key)}"><div class="grow l-s">Topic prep for ${esc(unit.topic)} · shared by all classes this week</div>${ico('chev', 14)}</button>` : ''}</div>
+    ${calendarCard(t, c)}
     <div class="toolbar bottom"><button class="btn sec sm" data-a="paste-sched" data-week="${E.dayKey(mon)}">${ico('plus', 16)} Paste hub week</button><button class="btn sec sm" data-a="add-class">Add class</button></div>`;
   return h;
+}
+
+/* ---------- calendar: lead/support weeks + what to do each day (past days too) */
+let calMonth = 0, calDay = null;
+function calendarCard(t, c) {
+  const P0 = E.P(t); let y = P0.y, m = P0.m + calMonth; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; }
+  const first = E.mk(y, m, 1), next = m === 12 ? E.mk(y + 1, 1, 1) : E.mk(y, m + 1, 1);
+  const g0 = E.mondayOf(first), weeks = Math.ceil((next - g0) / (7 * 864e5)), g1 = E.addDays(g0, weeks * 7), todayKey = E.dayKey(t);
+  const items = E.calendarItems(state, g0, g1, t), byDay = {};
+  for (const it of items) (byDay[E.dayKey(it.at)] ||= []).push(it);
+  if (!calDay || calDay < E.dayKey(g0) || calDay >= E.dayKey(g1)) calDay = todayKey >= E.dayKey(first) && todayKey < E.dayKey(next) ? todayKey : E.dayKey(first);
+  const dot = it => it.doneAt ? 'done' : it.official ? (it.at < t ? 'missed' : 'due') : 'step';
+  let rows = '';
+  for (let w = 0; w < weeks; w++) {
+    const mon = E.addDays(g0, w * 7), role = E.weekRole(state, mon);
+    rows += `<div class="cal-row ${role ? role.role : ''}"><div class="cal-wk">${role ? `<b>${esc(role.week.replace('Week ', 'W'))}</b><span>${role.role === 'lead' ? 'Lead' : 'Sup'}</span>` : ''}</div>`;
+    for (let i = 0; i < 7; i++) {
+      const d = E.addDays(mon, i), k = E.dayKey(d), its = byDay[k] || [], inMonth = d >= first && d < next;
+      const dots = [...new Set(its.map(dot))].sort((a, b) => ['missed', 'due', 'step', 'done'].indexOf(a) - ['missed', 'due', 'step', 'done'].indexOf(b)).slice(0, 3);
+      rows += `<button class="cal-d ${inMonth ? '' : 'out'} ${k === todayKey ? 'today' : ''} ${k === calDay ? 'sel' : ''}" data-a="cday" data-id="${k}" aria-label="${E.fmtDay(d)}${its.length ? ', ' + its.length + ' items' : ''}"><span>${E.P(d).d}</span><i>${dots.map(x => `<em class="${x}"></em>`).join('')}</i></button>`;
+    }
+    rows += '</div>';
+  }
+  const sel = E.parseLocal(calDay), selRole = E.weekRole(state, E.mondayOf(sel)), list = byDay[calDay] || [];
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  return `<div class="card cal"><div class="head"><h3>${MONTHS[m - 1]} ${y}</h3><div class="row" style="gap:6px"><button class="circle sm" data-a="cmon" data-id="-1" aria-label="Previous month">${ico('back', 16)}</button><button class="circle sm" data-a="cmon" data-id="1" aria-label="Next month">${ico('chev', 16)}</button></div></div>
+    <div class="cal-row cal-h"><div class="cal-wk"></div>${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(x => `<div>${x}</div>`).join('')}</div>${rows}
+    <div class="cal-legend"><span class="lg lead">Lead week</span><span class="lg support">Support week</span><span><em class="due"></em>Deadline</span><span><em class="step"></em>Step</span><span><em class="done"></em>Done</span></div>
+    <div class="cal-sel"><div class="l-t">${E.fmtDay(sel)}</div><div class="l-s">${selRole ? `${esc(selRole.week)} · ${esc(selRole.topic)} · ${selRole.role === 'lead' ? 'you are lead' : 'support'}` : 'No teaching assignment this week'}</div>
+    ${list.length ? list.map(it => `<button class="tick ${it.doneAt ? 'on' : ''} ${dot(it) === 'missed' ? 'missed' : ''}" data-a="${it.doneAt ? 'untask' : 'task'}" data-id="${esc(it.task)}"><span class="box">${ico('check', 15)}</span><span class="lbl">${esc(it.title)}<span class="hint">${it.official ? 'Deadline' : 'Step'} · ${E.fmtTime(it.at)}${it.kind === 'prep' ? ' · ' + esc(it.ctx) : ''}${it.doneAt ? ' · done ' + E.fmtDayRel(it.doneAt, t) : dot(it) === 'missed' ? ' · not marked done' : ''}</span></span></button>`).join('')
+      : '<div class="empty-line soft">Nothing due this day.</div>'}</div></div>`;
 }
 
 /* ================================================================ Tasks */
@@ -219,7 +251,7 @@ function tasks() {
   if (!any) h += emptyCard('No tasks yet', 'Handouts, lead PowerPoints and lead exams appear automatically from your lead sheet.');
   const c = cfg();
   h += `<button class="btn sec wide" data-a="add-deliv">${ico('plus', 16)} Add a deliverable</button>
-    <button class="rules-note" data-a="panel" data-id="rules">Handouts: Wed ${E.fmtTime(E.atTime(t, c.cutoffTime))} before the teaching week · lead PPT ${c.leadPptDaysBefore} days ahead · lead exam: that week’s Wed ${E.fmtTime(E.atTime(t, c.examTime))} ${ico('chev', 12)}</button>`;
+    <button class="rules-note" data-a="panel" data-id="rules">Lead week: handout Wed before · PowerPoint Sat ${E.fmtTime(E.atTime(t, c.leadPptTime))} before · mastery Sun. Every teaching week: assessment draft that Wed ${E.fmtTime(E.atTime(t, c.examTime))} ${ico('chev', 12)}</button>`;
   return h;
 }
 function delivSheet(id) {
@@ -321,11 +353,11 @@ function rulesHTML() {
     <div class="two"><div><label>Handout cutoff (Wed before the week)</label><input type="time" data-f="cfg.cutoffTime" value="${esc(c.cutoffTime)}"></div><div><label>&nbsp;</label><label class="row" style="margin:12px 0 0;color:var(--text)"><input type="checkbox" style="width:auto" data-f="cfg.cutoffVerified" ${c.cutoffVerified ? 'checked' : ''}> Confirmed</label></div></div>
     <label>Handouts needed for my…</label><div class="seg"><button class="${c.handoutRoles.includes('lead') ? 'on' : ''}" data-a="hrole" data-id="lead">Lead weeks</button><button class="${c.handoutRoles.includes('support') ? 'on' : ''}" data-a="hrole" data-id="support">Support weeks</button></div>
     <label class="row" style="color:var(--text)"><input type="checkbox" style="width:auto" data-f="cfg.handoutRolesVerified" ${c.handoutRolesVerified ? 'checked' : ''}> Confirmed with coordinator</label>
-    <div class="two"><div><label>Lead PPT: days before week</label><input type="number" min="0" data-f="cfg.leadPptDaysBefore" value="${c.leadPptDaysBefore}"></div><div><label>…due at</label><input type="time" data-f="cfg.leadPptTime" value="${esc(c.leadPptTime)}"></div></div>
+    <div class="two"><div><label>Lead PowerPoint: days before Monday (2 = Sat)</label><input type="number" min="0" data-f="cfg.leadPptDaysBefore" value="${c.leadPptDaysBefore}"></div><div><label>…due at</label><input type="time" data-f="cfg.leadPptTime" value="${esc(c.leadPptTime)}"></div></div>
     <div class="two"><div><label>Arrive early (min)</label><input type="number" data-f="cfg.arriveEarlyMin" value="${c.arriveEarlyMin}"></div><div><label>Travel time (min)</label><input type="number" data-f="cfg.travelMin" value="${c.travelMin}"></div></div>
     <div class="two"><div><label>Online setup buffer (min)</label><input type="number" data-f="cfg.onlineSetupMin" value="${c.onlineSetupMin}"></div><div><label>Prep time per day (min)</label><input type="number" data-f="cfg.dailyMinutes" value="${c.dailyMinutes}"></div></div>
     <div class="two">${['lead', 'support'].map(r => `<div><label>${r === 'lead' ? 'Lead' : 'Support'} weeks are taught</label><select data-f="cfg.${r}Format"><option value="in_person" ${c[r + 'Format'] === 'in_person' ? 'selected' : ''}>In person</option><option value="online" ${c[r + 'Format'] === 'online' ? 'selected' : ''}>Online</option></select></div>`).join('')}</div>
-    <div class="two"><div><label>Lead exam due (that week’s Wed)</label><input type="time" data-f="cfg.examTime" value="${esc(c.examTime)}"></div><div><label>Exam effort (hours)</label><input type="number" step="0.5" data-f="cfg.examEffortH" value="${c.examEffortH}"></div></div>
+    <div class="two"><div><label>Assessment draft due (that week’s Wed)</label><input type="time" data-f="cfg.examTime" value="${esc(c.examTime)}"></div><div><label>Draft effort (hours)</label><input type="number" step="0.5" data-f="cfg.examEffortH" value="${c.examEffortH}"></div></div>
     <label>Holidays (YYYY-MM-DD, comma separated)</label><input data-f="cfg.holidays" value="${esc(c.holidays.join(', '))}">
     <label>Moved or skipped cutoff</label><div class="two"><input type="date" id="ovDate" placeholder="Normal Wednesday"><input type="datetime-local" id="ovTo"></div>
     <div class="row" style="margin-top:8px;gap:8px"><button class="btn ghost sm" data-a="ov-set">Move to new time</button><button class="btn ghost sm" data-a="ov-skip">No handout that week</button></div>
@@ -430,7 +462,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.5.0';
+const VERSION = '0.6.0';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -458,7 +490,7 @@ function sealedCard() {
     <div class="row" style="margin-top:12px;gap:8px"><input type="password" id="sealpass" placeholder="Passcode" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"><button class="btn sm" data-a="unseal" data-id="${esc(p.id)}">Unlock</button></div></div>`;
 }
 // Each screenshot batch you send is shipped as a new file here; every device imports each one once.
-const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json', 'seed/gertc-2026-11-06c.json'];
+const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json', 'seed/gertc-2026-11-06c.json', 'seed/gertc-2026-11-06d.json'];
 async function runSeeds() {
   for (const url of SEEDS) {
     const id = url.split('/').pop();
@@ -511,14 +543,15 @@ const PANELS = {
       step('1 · Keep your sources current', '<b>Lead & support weeks</b> come from screenshots of the lead-instructor sheet: send a new screenshot in your Claude chat when it changes. Neon-blue GDL cells are Lead weeks; other GDL cells are Support.<br><b>Class schedule</b>: when the official hub week is released, open it, Select All → Copy, then Settings → Connections → Paste schedule. Only your GDL classes are kept.'),
       step('2 · Prepare once per topic', 'Open a class to see its checklist. Slides, solutions and studying are shared by every class of that topic-week. Room, link and buffer are per class.'),
       step('3 · Follow “Most important next”', 'Today ranks everything — readiness, handouts, lead PowerPoints and exams — by official deadline, suggested targets and effort.'),
-      step('4 · Lead weeks', 'PowerPoint finalized 7 days before the week, handout due the Wednesday before (8 PM), exam due that week’s Wednesday (8 PM). Mark submitted only after you actually submit.'),
+      step('4 · Your weekly rhythm', '<b>Lead week:</b> handout due the Wednesday before (8 PM) · PowerPoint finalized by Saturday 11:59 PM before · Sunday is for mastery (study the slides, hard concepts, likely questions).<br><b>Every teaching week (lead or support):</b> assessment draft sent by that week’s Wednesday, 8 PM. Mark things done or sent only after you actually do them — the calendar in Schedule shows each day’s items.'),
       step('5 · Be early', 'Leave-by / be-online-by times are on the class card. Tap “I’m here” when you arrive to build your punctuality record.'),
       step('6 · Grow from feedback', 'Growth → Paste from hub. Confirmed scores are shown apart from Ace’s reading of comments. Adopt practices and tap +1 each class you apply them.'),
     ].join('')];
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.5', 'Nov 6, 2026', ['New Schedule: your next class, a Mon–Sun strip with teaching hours, the week at a glance as a time grid, and the selected day’s classes', 'Week 4 classes now show their topics (from your My Schedule screenshot)', 'Your evaluation ships encrypted: unlock it once in Performance with your passcode'])
+    return ['What’s new', v('0.6', 'Nov 6, 2026', ['Calendar under your schedule: lead/support weeks, each day’s deadlines and steps, tick them off — past days too', 'Your rhythm: handout Wed before a lead week · PowerPoint Sat 11:59 PM · Sunday mastery · assessment draft every teaching week’s Wed', 'Reminders a day before and 3 hours before each deadline, plus a Sunday mastery nudge'])
+      + v('0.5', 'Nov 6, 2026', ['New Schedule: your next class, a Mon–Sun strip with teaching hours, the week at a glance as a time grid, and the selected day’s classes', 'Week 4 classes now show their topics (from your My Schedule screenshot)', 'Your evaluation ships encrypted: unlock it once in Performance with your passcode'])
       + v('0.4.1', 'Nov 6, 2026', ['Lead & support weeks now come only from your screenshots (no Google sign-in or API key)', 'Weeks from Nov 9 show “official schedule not released yet”', 'App lock uses your PIN only'])
       + v('0.4', 'Nov 6, 2026', ['Cleaner app: 4 tabs — Today, Schedule, Tasks, Performance', 'Today shows only your next class, today’s focus and what’s coming up', 'All handouts, lead PowerPoints and exams in one Tasks list with steps', 'Schedule groups classes by teaching week with topic and role', 'Performance: your score, the top 3 things to improve, real habit stats', 'Connections moved into Settings', 'One design system across every screen'])
       + v('0.3', 'Nov 6, 2026', ['Settings with search, like Power', 'Alerts bell: changes, deadlines, sync problems', 'App lock with PIN', 'Themes: System, Light, Dark, AMOLED · app colors', 'Reorder or hide Home cards · hide scores · 24-hour time', 'Choose which reminders you get, plus a morning plan'])
@@ -663,6 +696,8 @@ document.addEventListener('click', async e => {
     case 'untask': markTask(id, false); if (el.dataset.back) delivSheet(el.dataset.back); break;
     case 'deliv': delivSheet(id); break;
     case 'sday': schedDay = id; render(); break;
+    case 'cday': calDay = id; render(); break;
+    case 'cmon': calMonth += +id; calDay = null; render(); break;
     case 'sweek': if (id === '0') schedWeek = 0; else schedWeek += +id; schedDay = null; render(); break;
     case 'unseal': { const p = SEALED.find(x => x.id === id), inp = $('#sealpass'); if (!p || !inp?.value.trim()) return toast('Enter the passcode');
       el.disabled = true; el.textContent = 'Unlocking…';
@@ -783,7 +818,11 @@ function tick() {
   const t = now(), c = cfg(), n = ui().notif;
   if (n.morning) { const at = E.atTime(t, n.morningTime || '06:30'); if (t >= at && t - at < 3 * 36e5) { const pl = E.plan(state, t); notify(`mp:${E.dayKey(t)}`, pl.next ? `Today: ${pl.next.title}` : 'Today: nothing pressing', `${pl.today.length} priorit${pl.today.length === 1 ? 'y' : 'ies'} · ${pl.minutes} min planned`); } }
   if (n.leave) for (const s of E.activeSessions(state)) { const lb = E.leaveBy(s, c); if (lb - t < 15 * 6e4 && lb - t > -5 * 6e4 && !state.arrivals[s.id]) notify(`lb:${s.id}`, `${s.format === 'online' ? 'Log in' : 'Leave'} by ${E.fmtTime(lb)}`, `${s.subject} starts at ${E.fmtTime(s.start)}`); }
-  if (n.deadlines) for (const d of E.deadlines(state, t, 10)) if (d.at - t < 3 * 36e5 && d.at > t) notify(`dl:${d.kind}:${d.ref}`, `Due ${E.fmtTime(d.at)}: ${d.title}`, 'Confirm in Ace once it is submitted.');
+  if (n.deadlines) for (const d of E.deadlines(state, t, 20)) { const left = d.at - t;
+    if (left > 3 * 36e5 && left < 24 * 36e5) notify(`dl24:${d.kind}:${d.ref}:${d.at}`, `Tomorrow ${E.fmtTime(d.at)}: ${d.title}`, 'Due in less than a day.');
+    if (left > 0 && left <= 3 * 36e5) notify(`dl:${d.kind}:${d.ref}:${d.at}`, `Due ${E.fmtTime(d.at)}: ${d.title}`, 'Confirm in Ace once it is done.'); }
+  if (n.leadppt) for (const u of E.unitItems(state)) if (u.role === 'lead') { const sun = E.addDays(u.start, -1), at = E.atTime(sun, '08:00'), r = E.readiness(u, state, c);
+    if (t >= at && t < at + 6 * 36e5 && r.rows.some(x => ['studied', 'concepts', 'questions'].includes(x.id) && !x.doneAt)) notify(`ms:${u.id}`, `Mastery day: ${u.subject}`, 'Study the slides, the hard concepts and likely questions before your lead week.'); }
   if (n.leadppt) for (const u of E.unitItems(state)) if (u.role === 'lead' && !state.readiness[u.id]?.slides_final) { const due = E.leadPptDue(u.unit, c); if (due - t < 30 * 36e5 && due > t) notify(`lp:${u.id}`, `Lead PowerPoint due ${E.fmtDayRel(due, t)}`, u.subject); }
   // prune notified keys older than 14 days
   for (const [k, v] of Object.entries(state.notified)) if (t - v > 14 * 864e5) delete state.notified[k];

@@ -304,3 +304,28 @@ html[data-theme=light] .tab-lens{background:linear-gradient(180deg,#fff,#fffc);b
 .cbar{width:4px;align-self:stretch;border-radius:4px;background:var(--c);flex-shrink:0}
 .warnbox.soft{background:var(--card-2);color:var(--muted);margin:4px 0 0}
 .toolbar.bottom{margin:14px 0 0;justify-content:center}
+
+/* ---------- calendar (in Schedule) */
+.cal .head{margin-bottom:10px}
+.cal-row{display:grid;grid-template-columns:30px repeat(7,minmax(0,1fr));gap:3px;padding:2px 3px;border-radius:12px;margin-top:2px}
+.cal-row.lead{background:var(--cyan-soft)}
+.cal-row.support{background:var(--card-2)}
+.cal-h{font-size:11px;font-weight:800;color:var(--muted);text-align:center;background:none}
+.cal-wk{display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:9.5px;line-height:1.15;color:var(--muted)}
+.cal-wk b{font-size:11px;color:var(--text)}
+.cal-row.lead .cal-wk,.cal-row.lead .cal-wk b{color:var(--cyan)}
+.cal-d{height:42px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-weight:700;font-size:14px}
+.cal-d.out{opacity:.35}
+.cal-d.today span{background:var(--text);color:var(--bg);border-radius:999px;padding:0 6px}
+.cal-d.sel{box-shadow:inset 0 0 0 2px var(--green)}
+.cal-d i{display:flex;gap:2px;height:6px}
+.cal-d em,.cal-legend em{width:6px;height:6px;border-radius:50%;display:inline-block}
+em.due{background:var(--amber)}em.missed{background:var(--red)}em.step{background:var(--faint)}em.done{background:var(--green-2)}
+.cal-legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;font-size:11.5px;color:var(--muted)}
+.cal-legend span{display:inline-flex;align-items:center;gap:5px}
+.cal-legend .lg::before{content:"";width:12px;height:10px;border-radius:3px;background:var(--card-2)}
+.cal-legend .lg.lead::before{background:var(--cyan-soft);box-shadow:inset 0 0 0 1px var(--cyan)}
+.cal-sel{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.cal-sel .l-s{margin-bottom:6px}
+.cal-sel .empty-line.soft{margin:4px 0 0}
+.tick.missed .box{border-color:var(--red)}
