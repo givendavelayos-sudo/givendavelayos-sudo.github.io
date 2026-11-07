@@ -1,6 +1,6 @@
 # Progress & handoff
 
-_Last updated 2026-11-06 · deployed from `givendavelayos-sudo/gdgertc` (main) on Vercel; mirror in the Power repo branch `claude/instructor-performance-app-w9ewgk` under `ace/`_
+_Last updated 2026-11-07 · deployed from `givendavelayos-sudo/gdgertc` (main) on Vercel; mirror in the Power repo branch `claude/instructor-performance-app-w9ewgk` under `ace/`_
 
 ## Done (v0.1)
 - Engine, adapters and UI as described in the README. 25 unit tests (`npm test`), all passing.
@@ -9,6 +9,13 @@ _Last updated 2026-11-06 · deployed from `givendavelayos-sudo/gdgertc` (main) o
   merge, handout submission confirmation, evaluation paste → review → save → adopt practice, stale-data
   banner after 30 h, no horizontal overflow.
 - Power untouched (no files outside `ace/` changed).
+
+## v0.8.1–0.8.2 (Nov 7) — iPhone alarms
+- Lecture sheet → **Alarms** (only for the first class of a day, `firstOfDay`): bath alarm `ui.alarms.bathMin` (90) and
+  leave alarm `ui.alarms.leaveMin` (30) before leave-by time. Offered within 24 h of the first alarm (Clock alarms have no date).
+- Hand-off: `shortcuts://run-shortcut?name=Ace%20Alarms&input=text&text=<lines>`, one `YYYY-MM-DD HH:MM|label` per line
+  (`window.__aceOpen` hook for tests). Settings → iPhone alarms has offsets and a 5-step guide, incl. a description
+  to paste when Shortcuts asks to describe the shortcut.
 
 ## v0.8 (Nov 7) — less to tick, after-class check
 - `cfg.checklist: 'essentials'` (default): ~5 key items per class (`E.ESSENTIALS`); 'full' keeps every item.
