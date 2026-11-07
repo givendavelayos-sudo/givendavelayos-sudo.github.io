@@ -519,7 +519,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.8.1';
+const VERSION = '0.8.2';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -601,7 +601,7 @@ const PANELS = {
   alarms() {
     const step = (n, t, d) => `<div class="card" style="margin-bottom:10px"><div class="row" style="align-items:flex-start"><span class="rank">${n}</span><div class="grow"><div class="l-t">${t}</div><div class="l-s" style="margin-top:4px">${d}</div></div></div></div>`;
     return ['Ace Alarms shortcut', `<div class="muted small" style="margin:0 4px 12px">iPhone only lets the Shortcuts app create Clock alarms. Build this once; after that, “Set iPhone alarms” in Ace does the rest.</div>
-      ${step(1, 'Create the shortcut', 'Open <b>Shortcuts</b> → tap <b>+</b> → name it exactly <b>Ace Alarms</b>.')}
+      ${step(1, 'Create the shortcut', 'Open <b>Shortcuts</b> → tap <b>+</b> → name it exactly <b>Ace Alarms</b>.<br>If Shortcuts asks you to <b>describe</b> the shortcut, paste: <i>“Make a shortcut named Ace Alarms that receives text. Split the text by new lines. For each line, split it by the | character, then create an alarm whose time is the first part and whose label is the second part.”</i> Then check that its actions match steps 2–4 below.')}
       ${step(2, 'Split the times', 'Add <b>Split Text</b>. Set the text to <b>Shortcut Input</b> and split by <b>New Lines</b>.')}
       ${step(3, 'Repeat for each alarm', 'Add <b>Repeat with Each</b> (item in <b>Split Text</b>). Inside it, add another <b>Split Text</b>: text = <b>Repeat Item</b>, split by <b>Custom</b> “<b>|</b>”.')}
       ${step(4, 'Create the alarm', 'Still inside the repeat, add <b>Get Item from List</b> → <b>First Item</b>, then <b>Create Alarm</b>: time = <b>Item from List</b>. Tap the label field, add another <b>Get Item from List</b> → <b>Last Item</b> and use it as the label.')}
@@ -622,7 +622,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.8.1', 'Nov 7, 2026', ['Set iPhone alarms for the first class of each day: take a bath (1 h 30 before leaving) and leave in 30 minutes — via the Shortcuts app'])
+    return ['What’s new', v('0.8.2', 'Nov 7, 2026', ['Alarm setup guide: a ready-to-paste description for the Shortcuts app'])
+      + v('0.8.1', 'Nov 7, 2026', ['Set iPhone alarms for the first class of each day: take a bath (1 h 30 before leaving) and leave in 30 minutes — via the Shortcuts app'])
       + v('0.8', 'Nov 7, 2026', ['Essentials checklist: about 5 key items per class (switch to Full in Settings)', 'Ace ticks “Schedule confirmed” and “Arrival buffer planned” itself', 'After each class: three quick questions on the Week screen, which build your habits in Performance'])
       + v('0.7.1', 'Nov 7, 2026', ['Back to the older colours, with AMOLED and app colours in Settings', 'Kept the three tabs: Week, Tasks, Performance', 'Performance highlights what students praise; “What to improve” is at the bottom'])
       + v('0.7', 'Nov 7, 2026', ['GERTC look: navy and yellow, Montserrat and Mulish', 'Three tabs: Week (home), Tasks, Performance', 'Week answers what you teach next, what’s due soon and whether you’re prepared', 'Week ⇄ Month switch instead of two stacked views', 'Prepare: a class shows that week’s handout, PowerPoint and draft, with a grouped checklist', 'The bell badge counts only urgent items; questions about your data wait under “For your review”'])
