@@ -10,6 +10,9 @@ _Last updated 2026-11-06 · deployed from `givendavelayos-sudo/gdgertc` (main) o
   banner after 30 h, no horizontal overflow.
 - Power untouched (no files outside `ace/` changed).
 
+## v0.7 (Nov 7) — UX, UI and workflow refinement
+See `docs/DESIGN.md` (audit, strategy, GERTC tokens verified from gertcrev.com, validation). Baseline tag `v0.6.6-baseline`.
+
 ## v0.6 (Nov 6) — weekly rhythm + calendar
 Confirmed rules (user): **lead week W** → handout Wed before W (8 PM) · PowerPoint Sat 11:59 PM before W
 (`leadPptDaysBefore: 2`, `leadPptTime: '23:59'`, draft Thu) · Sunday before W = mastery (studied, concepts,

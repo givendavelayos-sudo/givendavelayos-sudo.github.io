@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0d1210" />
+  <meta name="theme-color" content="#0d1a38" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -13,9 +13,11 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
   <link rel="icon" href="icon.svg" />
   <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Mulish:wght@400;600;700&display=swap" />
   <link rel="stylesheet" href="style.css" />
   <title>Ace</title>
-  <script>try{var d=document.documentElement,t=localStorage.getItem('ace.theme'),a=localStorage.getItem('ace.accent');if(t)d.dataset.theme=t;else if(matchMedia('(prefers-color-scheme: light)').matches)d.dataset.theme='light';if(a&&/^#[0-9a-f]{6}$/i.test(a))d.style.setProperty('--green',a)}catch(e){}</script>
+  <script>try{var d=document.documentElement,t=localStorage.getItem('ace.theme'),a=localStorage.getItem('ace.accent');if(t)d.dataset.theme=t;else if(matchMedia('(prefers-color-scheme: light)').matches)d.dataset.theme='light';if(t==='amoled')d.dataset.theme='dark'}catch(e){}</script>
 </head>
 <body>
   <main id="app"></main>

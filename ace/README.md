@@ -1,6 +1,6 @@
 # Ace — Instructor Excellence
 
-**Structure (v0.4):** Today · Schedule · Tasks · Performance, plus Settings (gear) and Alerts (bell).
+**Structure (v0.7):** Week (home) · Tasks · Performance, plus Settings (gear) and Alerts (bell). GERTC look — see [`docs/DESIGN.md`](docs/DESIGN.md).
 
 A personal, iPhone-first assistant that answers one question every morning:
 **“What is the most important thing I should work on next to be fully prepared and professionally reliable?”**
