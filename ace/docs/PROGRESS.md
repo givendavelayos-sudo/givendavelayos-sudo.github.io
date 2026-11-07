@@ -10,6 +10,12 @@ _Last updated 2026-11-06 · deployed from `givendavelayos-sudo/gdgertc` (main) o
   banner after 30 h, no horizontal overflow.
 - Power untouched (no files outside `ace/` changed).
 
+## v0.7.1 (Nov 7) — user's mix
+Older colours and system font (v0.6.6 stylesheet as base) with AMOLED and the app-colour picker; v0.7 structure kept
+(3 tabs, Week home, Prepare sheet, Week/Month, alerts urgency). Performance: score → **What students praise** (themes,
+highest scores, purely positive quotes via `E.praiseQuotes`) → scores → habits → practices → evaluations → **What to improve** (last).
+GERTC tokens remain documented in `docs/DESIGN.md` in case the brand look is wanted later.
+
 ## v0.7 (Nov 7) — UX, UI and workflow refinement
 See `docs/DESIGN.md` (audit, strategy, GERTC tokens verified from gertcrev.com, validation). Baseline tag `v0.6.6-baseline`.
 

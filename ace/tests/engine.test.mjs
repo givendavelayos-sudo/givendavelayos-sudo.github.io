@@ -553,3 +553,8 @@ test('correction import restores a deliverable excluded by an earlier import, bu
   // support-week handouts never appear
   assert.ok(!E.deliverables(st, mk(2026, 11, 2, 9)).some(d => d.kind === 'handout' && /Relative/.test(d.title)));
 });
+
+test('praise quotes: only purely positive comments, never mixed ones', () => {
+  const q = E.praiseQuotes([{ comments: ['Very clear but rushed at the end', 'Naantok ako, sana mas engaging. Thank you Sir', 'Inspiring instructor, very understandable ang kanyang pag discuss.', 'Thank you Sir, very inspiring and knowledgeable!', '👍'] }]);
+  assert.deepEqual(q, ['Inspiring instructor, very understandable ang kanyang pag discuss.', 'Thank you Sir, very inspiring and knowledgeable!']);
+});

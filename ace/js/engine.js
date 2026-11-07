@@ -718,3 +718,13 @@ export function calendarItems(state, from, to, now) {
 }
 /** Your role for the week starting on `monday` (from the sheet screenshots), or null. */
 export const weekRole = (state, monday) => (state.units || []).find(u => dayKey(u.weekStart) === dayKey(monday)) || null;
+
+/** Purely positive comments (no concern anywhere in them), fullest first — for the "What students praise" card. */
+export function praiseQuotes(evals, n = 3) {
+  const all = (evals || []).flatMap(e => e.comments || []);
+  const POSX = [...POS, 'dedicat', 'passion', 'diligen', 'highest', 'confiden', 'clarity', 'enjoy', 'best', 'inspiring'];
+  const soften = x => x.replace(/learn more|hope to learn/g, 'learn'); // "hope to learn more from you" is praise, not a request
+  const isPraise = c => { const cl = clauses(c).map(soften); return cl.some(x => POSX.some(w => x.includes(w))) && !cl.some(x => NEG.some(w => x.includes(w))); };
+  // the fullest comments that still read quickly (25–260 characters)
+  return all.filter(isPraise).filter((c, i, l) => l.indexOf(c) === i && c.length >= 25 && c.length <= 260).sort((a, b) => b.length - a.length).slice(0, n);
+}

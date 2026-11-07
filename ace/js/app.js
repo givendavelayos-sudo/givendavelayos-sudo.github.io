@@ -169,7 +169,7 @@ function schedule() {
     const lab = x => `${(x % 12) || 12}${x < 12 ? 'a' : 'p'}`;
     h += `<div class="wgrid" style="--hours:${H1 - H0}"><div><div class="wg-head"></div><div class="wg-times">${ticks.map(x => `<span style="top:${(x - H0) * PX}px">${lab(x)}</span>`).join('')}</div></div>
       ${days.map(d => { const k = E.dayKey(d), p = E.P(d), isToday = k === todayKey;
-        const blocks = ofDay(k).map(s => `<button class="wblock ${blockKind(s)} ${s.end < t ? 'past' : ''}" style="top:${(hourOf(s.start) - H0) * PX}px;height:${Math.max(18, (s.end - s.start) / 36e5 * PX - 2)}px" data-a="class" data-id="${esc(s.id)}" aria-label="${esc(s.subject)}, ${E.fmtTime(s.start)}"><b>${esc(s.kind === 'consultation' ? 'Consult' : s.format === 'online' ? 'Online' : s.section || 'Class')}</b><span>${esc(s.subject)}</span></button>`).join('');
+        const blocks = ofDay(k).map(s => `<button class="wblock ${blockKind(s)} ${s.end < t ? 'past' : ''}" style="--c:${blockColor(s)};top:${(hourOf(s.start) - H0) * PX}px;height:${Math.max(18, (s.end - s.start) / 36e5 * PX - 2)}px" data-a="class" data-id="${esc(s.id)}" aria-label="${esc(s.subject)}, ${E.fmtTime(s.start)}"><b>${esc(s.kind === 'consultation' ? 'Consult' : s.format === 'online' ? 'Online' : s.section || 'Class')}</b><span>${esc(s.subject)}</span></button>`).join('');
         const nowLine = isToday && hourOf(t) >= H0 && hourOf(t) <= H1 ? `<i class="nowline" style="top:${(hourOf(t) - H0) * PX}px"></i>` : '';
         return `<div class="wg-col ${isToday ? 'today' : ''} ${k === schedDay ? 'sel' : ''}" data-a="sday" data-id="${k}"><div class="wg-head"><b>${DOW3[p.dow].slice(0, 1)}</b></div><div class="wg-body">${blocks}${nowLine}</div></div>`; }).join('')}</div>`;
   }
@@ -179,9 +179,17 @@ function schedule() {
   h += `<div class="card"><div class="head"><h3>${E.fmtDay(sel)}</h3>${schedWeek ? '<button class="link" data-a="sweek" data-id="0">This week</button>' : ''}</div>
     <div class="daylist">${list.length ? list.map(s => { const arr = state.arrivals[s.id], past = s.end < t;
       const right = arr ? `<span class="tag ${arr.status === 'late' ? 'bad' : 'ok'}">${arr.status === 'on_time' ? 'On time' : arr.status === 'early' ? 'Early' : 'Late'}</span>` : past ? '<span class="tag">Not logged</span>' : ico('chev', 16);
-      return `<button class="lrow ${past ? 'past' : ''}" data-a="class" data-id="${esc(s.id)}"><span class="cbar ${blockKind(s)}"></span><div class="grow"><div class="l-t">${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.kind === 'consultation' ? s.subject : s.format === 'online' ? 'Online' : s.section)}</div><div class="l-s">${esc([s.location, s.kind === 'consultation' ? 'Consultation' : s.subject].filter(Boolean).join(' · '))}${s.group ? ' · Group ' + esc(s.group) : ''}</div></div>${right}</button>`; }).join('')
+      return `<button class="lrow ${past ? 'past' : ''}" data-a="class" data-id="${esc(s.id)}"><span class="cbar" style="--c:${blockColor(s)}"></span><div class="grow"><div class="l-t">${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.kind === 'consultation' ? s.subject : s.format === 'online' ? 'Online' : s.section)}</div><div class="l-s">${esc([s.location, s.kind === 'consultation' ? 'Consultation' : s.subject].filter(Boolean).join(' · '))}${s.group ? ' · Group ' + esc(s.group) : ''}</div></div>${right}</button>`; }).join('')
       : `<div class="empty-line soft">No classes on ${E.fmtDay(sel)}.</div>`}</div></div>`;
   return h + schedFooter(mon);
+}
+const BLOCK_COLORS = ['#3e7c8c', '#c0582e', '#7a5cc2', '#b5803a', '#3f6fc4', '#b5476f'];
+function blockColor(s) {
+  if (s.format === 'online') return '#2f8f6a';
+  if (s.kind === 'consultation') return '#6b7a72';
+  const k = String(s.section || s.subject || '').replace(/\s*(AM|PM|EV|EVE)$/i, ''); let h = 0;
+  for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return BLOCK_COLORS[h % BLOCK_COLORS.length];
 }
 const blockKind = s => s.kind === 'consultation' ? 'consult' : s.format === 'online' ? 'online' : '';
 const schedFooter = mon => `<div class="link-row"><button class="link" data-a="sched-menu" data-week="${E.dayKey(mon)}">${ico('plus', 14)} Update schedule</button></div>`;
@@ -290,6 +298,7 @@ function focusCard(f, ev, i) {
 }
 function performance() {
   const t = now(), ev = E.analyzeEvals(state.evals);
+  let improve = [];
   let h = header('Performance', 'Evaluations, habits and what to improve');
   h += sealedCard();
   if (!ev) { if (!pendingSealed().length) h += emptyCard('No evaluation yet', 'Import your evaluation results to see your scores and what to improve first.', `<button class="btn sm" data-a="merge">Import file</button><button class="btn sec sm" data-a="paste-eval">Paste from hub</button>`); }
@@ -298,11 +307,16 @@ function performance() {
     h += `<div class="card summary"><div class="perf-score big"><b>${scoreTxt(ev.latest?.v)}</b><span>of 5</span></div><div class="grow"><div class="l-t">${esc(last.period || 'Latest evaluation')}</div>
       <div class="l-s">${last.responses ? last.responses + ' responses · ' : ''}${ev.prev ? `${ev.latest.v >= ev.prev.v ? '▲' : '▼'} ${Math.abs(ev.latest.v - ev.prev.v).toFixed(2)} vs previous` : 'first evaluation in Ace'}</div>
       <div style="margin-top:8px">${bar(ev.latest?.v || 0, 5)}</div><div class="l-s">${ui().hideScores ? '' : `${(5 - (ev.latest?.v || 0)).toFixed(2)} to 5.00`}</div></div></div>`;
-    const fas = E.focusAreas(ev).slice(0, 3);
-    if (fas.length) h += secH('What to improve') + fas.map((f, i) => focusCard(f, ev, i)).join('');
+    // praise first: what students value (themes they praise + your strongest criteria)
+    const praised = ev.themes.filter(x => x.pos > 0 && x.pos >= x.neg).sort((a, b) => b.pos - a.pos);
+    const best = ev.criteria.slice().sort((a, b) => b.latest - a.latest).filter(c => c.latest >= 4.6).slice(0, 3);
+    const quotes = E.praiseQuotes(state.evals, 3);
+    if (praised.length || best.length) h += secH('What students praise') + `<div class="card praise"><div class="eyebrow">Your strengths</div>
+      ${praised.length ? `<div class="p-list">${praised.slice(0, 5).map(x => `<span>${esc(x.label)} · ${x.pos}</span>`).join('')}</div>` : ''}
+      ${best.length ? `<div class="l-s" style="margin-top:10px">Highest scores: ${best.map(c => `${esc(c.name)} <b>${scoreTxt(c.latest)}</b>`).join(' · ')}</div>` : ''}
+      ${quotes.map(q => `<div class="quote">“${esc(q)}”</div>`).join('')}</div>`;
     h += secH('Scores by criterion') + `<div class="card list">${ev.criteria.map(c => `<div class="lrow crit"><div class="grow"><div class="l-t">${esc(c.name)}</div>${bar(c.latest, 5, c.latest < 4.5 ? 'amb' : '')}</div><b class="score">${scoreTxt(c.latest)}</b></div>`).join('')}</div>`;
-    const st = ev.themes.filter(x => x.pos > x.neg).map(x => x.label);
-    if (st.length) h += `<div class="note-ok">${ico('star', 16)}<span>Students praise your <b>${esc(st.join(', ').toLowerCase())}</b>.</span></div>`;
+    improve = E.focusAreas(ev).slice(0, 3).map(f => ({ f, ev }));
   }
   const j = E.journey(state, t);
   const hab = [['On time', j.lead.punctual, `${j.logged} arrival${j.logged === 1 ? '' : 's'} logged`], ['Ready at class start', j.lead.readyAtStart, `${j.classes} class${j.classes === 1 ? '' : 'es'}`], ['Submitted on time', j.lead.responsibility, 'handouts & exams']].filter(x => x[1] != null);
@@ -311,6 +325,7 @@ function performance() {
   const pr = state.practices.filter(p => !p.archived);
   if (pr.length) h += secH('Practices you’re applying') + `<div class="card list">${pr.map(p => `<div class="lrow"><div class="grow"><div class="l-t small">${esc(p.text)}</div><div class="l-s">Applied ${p.applied.length}× ${p.applied.length ? '· last ' + E.fmtAgo(p.applied.at(-1), t) : ''}</div></div><button class="btn sec sm" data-a="apply" data-id="${esc(p.id)}">+1</button><button class="circle sm" data-a="unadopt" data-id="${esc(p.id)}" aria-label="Stop tracking">${ico('x', 14)}</button></div>`).join('')}</div>`;
   if (state.evals.length) h += secH('Evaluations', '<button class="link" data-a="paste-eval">Add</button>') + `<div class="card list">${state.evals.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(e => `<div class="lrow"><div class="grow"><div class="l-t">${esc(e.period || e.date)}</div><div class="l-s">${esc(e.date)} · ${Object.keys(e.criteria || {}).length} criteria · ${(e.comments || []).length} comments · ${esc(e.source || '')}</div></div><b class="score">${scoreTxt(e.overall)}</b><button class="circle sm" data-a="del-eval" data-id="${esc(e.id)}" aria-label="Delete">${ico('x', 14)}</button></div>`).join('')}</div>`;
+  if (improve.length) h += secH('What to improve') + `<div class="improve-note">From your scores and comments — pick one thing to work on next class.</div>` + improve.map(({ f, ev }, i) => focusCard(f, ev, i)).join('');
   return h;
 }
 
@@ -374,15 +389,14 @@ const ACCENTS = [['Green', ''], ['Teal', '#2f9e95'], ['Blue', '#4f8fe0'], ['Indi
 function mixHex(a, b, w) { const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); const x = p(a), y = p(b); return '#' + x.map((v, i) => Math.round(v * (1 - w) + y[i] * w).toString(16).padStart(2, '0')).join(''); }
 const mq = matchMedia('(prefers-color-scheme: light)');
 function applyTheme() {
-  const u = ui(), el = document.documentElement, th = u.theme === 'amoled' ? 'dark' : u.theme, t = th === 'system' ? (mq.matches ? 'light' : 'dark') : th;
-  u.accent = ''; // the palette is GERTC's; the old colour picker is retired
+  const u = ui(), el = document.documentElement, t = u.theme === 'system' ? (mq.matches ? 'light' : 'dark') : u.theme;
   el.dataset.theme = t;
   if (u.accent && /^#[0-9a-f]{6}$/i.test(u.accent)) {
     el.style.setProperty('--green', u.accent);
     el.style.setProperty('--green-2', t === 'light' ? mixHex(u.accent, '#000000', .12) : mixHex(u.accent, '#ffffff', .3));
     el.style.setProperty('--green-soft', `color-mix(in srgb, ${u.accent} 22%, var(--bg))`);
   } else ['--green', '--green-2', '--green-soft'].forEach(v => el.style.removeProperty(v));
-  document.querySelector('meta[name=theme-color]')?.setAttribute('content', t === 'light' ? '#0d1a38' : '#0a1428');
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', { light: '#f3f6f4', amoled: '#000000' }[t] || '#0d1210');
   E.setClock24(!!u.clock24);
   try { localStorage.setItem('ace.theme', t); localStorage.setItem('ace.accent', u.accent || ''); } catch {}
 }
@@ -461,7 +475,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.7.0';
+const VERSION = '0.7.1';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -514,7 +528,8 @@ const PANELS = {
     return ['Settings', `<label class="searchbox">${ico('search', 18)}<input id="setq" placeholder="Search settings" value="${esc(setQ)}" autocomplete="off"></label>
       ${grp('Profile', [rowBox('Name', `<input data-f="identity.name" value="${esc(state.identity.name)}" placeholder="e.g. Given Dave Layos">`), rowBox('Initials in schedules', `<input data-f="cfg.initials" value="${esc(c.initials)}" style="text-transform:uppercase" maxlength="4">`, 'Ace keeps only cells with these initials from the hub schedule and the lead sheet.')])}
       ${grp('Connections', [rowLink('Lead & support weeks', `${(state.units || []).length} weeks · from screenshots`, 'panel', 'connections'), rowLink('Class schedule (hub)', (() => { const hub = (state.sessions || []).filter(x => x.source?.id === 'hub'); const last = Math.max(0, ...hub.map(x => x.source?.at || 0)); return hub.length ? `${hub.length} classes · from screenshots${last ? ' · updated ' + E.fmtAgo(last, Date.now()) : ''}` : 'Nothing imported yet'; })(), 'panel', 'connections'), rowLink('Evaluations', state.evals.length ? `${state.evals.length} imported` : 'None imported yet', 'panel', 'connections')])}
-      ${grp('Appearance', [rowBox('Theme', `<div class="seg">${[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button class="${(u.theme === 'amoled' ? 'dark' : u.theme) === k ? 'on' : ''}" data-a="theme" data-id="${k}">${l}</button>`).join('')}</div>`, 'GERTC navy and yellow, in light or dark')])}
+      ${grp('Appearance', [rowBox('Theme', `<div class="seg">${[['system', 'System'], ['light', 'Light'], ['dark', 'Dark'], ['amoled', 'AMOLED']].map(([k, l]) => `<button class="${u.theme === k ? 'on' : ''}" data-a="theme" data-id="${k}">${l}</button>`).join('')}</div>`),
+        rowBox('App color', `<div class="swatches">${ACCENTS.map(([n, hx]) => `<button class="sw ${u.accent === hx ? 'on' : ''}" style="--c:${hx || '#5a9e5f'}" data-a="accent" data-id="${hx}" aria-label="${n}"></button>`).join('')}<label class="sw custom ${u.accent && !ACCENTS.some(x => x[1] === u.accent) ? 'on' : ''}" style="--c:${u.accent || '#5a9e5f'}" aria-label="Custom color"><input type="color" data-a="accent-custom" value="${u.accent || '#5a9e5f'}"></label></div>`)])}
       ${grp('Week screen', [rowToggle('Next deadline', 'Shows the most pressing deadline when it’s within 3 days', 'ui.showNextDeadline', u.showNextDeadline !== false), rowToggle('Preparation on the next-class card', 'Shows how many prep items are done', 'ui.todayPrep', !!u.todayPrep)])}
       ${grp('Preferences', [rowToggle('Hide evaluation scores', 'Shows •••• instead of your scores', 'ui.hideScores', u.hideScores), rowToggle('24-hour time', '13:00 instead of 1:00 PM', 'ui.clock24', u.clock24)])}
       ${grp('Teaching', [rowLink('Teaching rules', `Handouts & drafts Wed ${E.fmtTime(E.atTime(Date.now(), c.cutoffTime))} · PowerPoint Sat ${E.fmtTime(E.atTime(Date.now(), c.leadPptTime))} · buffers`, 'panel', 'rules')])}
@@ -548,7 +563,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.7', 'Nov 7, 2026', ['GERTC look: navy and yellow, Montserrat and Mulish', 'Three tabs: Week (home), Tasks, Performance', 'Week answers what you teach next, what’s due soon and whether you’re prepared', 'Week ⇄ Month switch instead of two stacked views', 'Prepare: a class shows that week’s handout, PowerPoint and draft, with a grouped checklist', 'The bell badge counts only urgent items; questions about your data wait under “For your review”'])
+    return ['What’s new', v('0.7.1', 'Nov 7, 2026', ['Back to the older colours, with AMOLED and app colours in Settings', 'Kept the three tabs: Week, Tasks, Performance', 'Performance highlights what students praise; “What to improve” is at the bottom'])
+      + v('0.7', 'Nov 7, 2026', ['GERTC look: navy and yellow, Montserrat and Mulish', 'Three tabs: Week (home), Tasks, Performance', 'Week answers what you teach next, what’s due soon and whether you’re prepared', 'Week ⇄ Month switch instead of two stacked views', 'Prepare: a class shows that week’s handout, PowerPoint and draft, with a grouped checklist', 'The bell badge counts only urgent items; questions about your data wait under “For your review”'])
       + v('0.6.6', 'Nov 7, 2026', ['Today shows no reminders for now: just your next class and your performance. Deadlines stay in Tasks and the calendar; turn reminders back on in Settings → Home screen'])
       + v('0.6.5', 'Nov 7, 2026', ['Schedule is the first tab and opens first', 'Today no longer shows the reminder list (turn it back on in Settings → Home screen)', 'Rooms for L3 (Labangon, 3rd Floor) and K4 (Kysey, 4th Floor)'])
       + v('0.6.4', 'Nov 7, 2026', ['Official hub schedule for Week 5 (Nov 9–15): 6 classes, 24 h'])
