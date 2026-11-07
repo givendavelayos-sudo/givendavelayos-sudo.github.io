@@ -377,3 +377,10 @@ details.cat .tick:first-of-type{border-top:0}
 .praise .p-list span{font-size:12.5px;font-weight:700;padding:5px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
 .praise .quote{background:var(--card);border-left:3px solid var(--green)}
 .improve-note{font-size:13px;color:var(--muted);margin:2px 4px 10px}
+/* v0.8 · after-class check, automatic checklist items */
+.debrief{margin-bottom:12px;border-color:color-mix(in srgb,var(--green) 40%,var(--line))}
+.debrief .eyebrow{color:var(--green-2)}
+.db-q{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-weight:600;font-size:14.5px}
+.seg.sm{gap:4px;flex-shrink:0}.seg.sm button{flex:0 0 auto;padding:7px 14px;font-size:13px}
+.tick.auto{cursor:default}.tick.auto .box{background:var(--card-2);border-color:var(--line);color:var(--green-2)}
+.habit{color:var(--green-2);font-weight:600}

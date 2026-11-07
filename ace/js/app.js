@@ -133,6 +133,14 @@ function schedule() {
   const total = wk.reduce((n, s) => n + (s.end - s.start) / 36e5, 0);
   const P = E.P(t), hello = P.h < 12 ? 'Good morning' : P.h < 18 ? 'Good afternoon' : 'Good evening', first = state.identity.name?.split(' ')[0];
   let h = header(`${hello}${first ? ', ' + first : ''}`, E.fmtDay(t));
+  // 0 · After-class check (only right after a class, for up to 24 h)
+  const db = E.pendingDebrief(state, t);
+  if (db) {
+    const a = state.debriefs?.[db.id] || {};
+    const q = (k, label) => `<div class="db-q"><span>${label}</span><div class="seg sm">${[[true, 'Yes'], [false, 'No']].map(([v, l]) => `<button class="${a[k] === v ? 'on' + (v ? '' : ' bad') : ''}" data-a="db" data-id="${esc(db.id)}" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div></div>`;
+    h += `<div class="card debrief"><div class="row" style="align-items:flex-start"><div class="grow"><div class="eyebrow">How did it go?</div><div class="l-t">${esc(db.section || db.subject)} · ${E.fmtDayRel(db.start, t)} ${E.fmtTime(db.start)}</div><div class="l-s">${esc(db.subject)}</div></div><button class="circle sm" data-a="db-skip" data-id="${esc(db.id)}" aria-label="Skip">${ico('x', 14)}</button></div>
+      ${q('onTime', 'Started on time?')}${q('hardTopic', 'Covered the hardest topic?')}${q('posted', 'Posted slides & handouts?')}</div>`;
+  }
   // 1 · What am I teaching next?  (+ Am I prepared? when enabled)
   const next = all.find(s => !s.approx && s.end > t && s.kind !== 'consultation');
   const nextWeek = !next && (state.units || []).find(x => x.weekStart + 7 * 864e5 > t);
@@ -271,7 +279,7 @@ function classSheet(id) {
   const firstOpen = Object.keys(E.CATS).find(k => r.rows.some(x => x.cat === k && !x.doneAt));
   const groups = Object.entries(E.CATS).map(([k, label]) => { const rows = r.rows.filter(x => x.cat === k); if (!rows.length) return ''; const dn = rows.filter(x => x.doneAt).length;
     return `<details class="cat" ${k === firstOpen ? 'open' : ''}><summary>${label}<span>${dn === rows.length ? '✓ ' : ''}${dn}/${rows.length}</span></summary>
-    ${rows.map(x => `<button class="tick ${x.doneAt ? 'on' : ''}" data-a="rd" data-id="${esc(s.id)}" data-item="${x.id}"><span class="box">${ico('check', 15)}</span><span class="lbl">${esc(x.official && s.role === 'lead' ? x.label + ' · lead deadline' : x.label)}<span class="hint">${x.doneAt ? 'Done ' + E.fmtDayRel(x.doneAt, t) : 'By ' + E.fmtDayRel(s.start - x.lead * 36e5, t) + ' ' + E.fmtTime(s.start - x.lead * 36e5)}${s.unit && !E.SESSION_ITEMS.has(x.id) && !s.approx ? ' · shared this week' : ''}</span></span></button>`).join('')}</details>`; }).join('');
+    ${rows.map(x => x.auto ? `<div class="tick on auto"><span class="box">${ico('check', 15)}</span><span class="lbl">${esc(x.label)}<span class="hint">Automatic · ${x.id === 'schedule_ok' ? 'from the official hub schedule' : 'Ace plans your leave-by time'}</span></span></div>` : `<button class="tick ${x.doneAt ? 'on' : ''}" data-a="rd" data-id="${esc(s.id)}" data-item="${x.id}"><span class="box">${ico('check', 15)}</span><span class="lbl">${esc(x.official && s.role === 'lead' ? x.label + ' · lead deadline' : x.label)}<span class="hint">${x.doneAt ? 'Done ' + E.fmtDayRel(x.doneAt, t) : 'By ' + E.fmtDayRel(s.start - x.lead * 36e5, t) + ' ' + E.fmtTime(s.start - x.lead * 36e5)}${s.unit && !E.SESSION_ITEMS.has(x.id) && !s.approx ? ' · shared this week' : ''}</span></span></button>`).join('')}</details>`; }).join('');
   const tpls = Object.entries(c.templates).map(([k, v]) => `<option value="${k}" ${E.templateFor(s, c) === v ? 'selected' : ''}>${esc(v.label)}</option>`).join('');
   sheet(`<div class="row"><div class="eyebrow grow">${s.approx ? 'Topic week' : 'Class'}${s.role ? ' · ' + (s.role === 'lead' ? 'Lead' : 'Support') : ''}</div>${roleTag(s.role)}</div>
     <h2>${esc(s.subject)}</h2><div class="muted small">${s.approx ? `Week of ${E.fmtDay(s.start)} · applies to every class of this topic` : `${E.fmtDay(s.start)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc([s.section, s.location || s.platform].filter(Boolean).join(' · '))}`}</div>
@@ -280,6 +288,7 @@ function classSheet(id) {
     ${groups}
     ${!s.approx && t > s.start - 3 * 36e5 ? `<div class="cat-h">Arrival</div>${arr ? `<div class="row"><span class="tag ${arr.status === 'late' ? 'bad' : 'ok'}">${esc(arr.status.replace('_', ' '))}${arr.at ? ' · ' + E.fmtTime(arr.at) : ''}</span><button class="link" data-a="unarrive" data-id="${esc(s.id)}">Undo</button></div>` :
       `<div class="seg"><button data-a="arrive" data-id="${esc(s.id)}">I’m here</button><button data-a="arrive-m" data-id="${esc(s.id)}" data-st="early">Early</button><button data-a="arrive-m" data-id="${esc(s.id)}" data-st="on_time">On time</button><button data-a="arrive-m" data-id="${esc(s.id)}" data-st="late">Late</button></div>`}` : ''}
+    <div class="link-row" style="margin-top:6px"><button class="link" data-a="checklist-toggle" data-id="${esc(s.id)}">${c.checklist === 'essentials' ? 'Show all items' : 'Show essentials only'}</button></div>
     <details class="more-opts"><summary>Notes & checklist type</summary><label>Notes</label><textarea data-a="note" data-id="${esc(s.id)}" placeholder="Hard parts, questions to expect, what to try…">${esc(state.notes[s.id] || '')}</textarea>
       <label>Checklist type</label><select data-a="tpl" data-id="${esc(s.id)}">${tpls}</select>
       ${s.source?.id === 'user' ? `<button class="btn sec sm danger" style="margin-top:12px" data-a="del-class" data-id="${esc(s.id)}">Delete class</button>` : ''}</details>`);
@@ -292,7 +301,8 @@ const openCats = new Set();
 function focusCard(f, ev, i) {
   const th = E.THEMES[f.key], crit = ev.criteria.find(x => E.themeForCriterion(x.name) === f.key), tm = ev.themes.find(x => x.key === f.key);
   return `<div class="card focus-card"><div class="row" style="align-items:flex-start"><span class="rank">${i + 1}</span><div class="grow"><div class="l-t">${esc(th.label)}</div>
-    <div class="l-s">${crit ? `${esc(crit.name)} · ${scoreTxt(crit.latest)}` : 'From comments'}${tm?.neg ? ` · ${tm.neg} comment${tm.neg > 1 ? 's' : ''} raise it` : ''}</div></div></div>
+    <div class="l-s">${crit ? `${esc(crit.name)} · ${scoreTxt(crit.latest)}` : 'From comments'}${tm?.neg ? ` · ${tm.neg} comment${tm.neg > 1 ? 's' : ''} raise it` : ''}</div>
+    ${(() => { const d = E.debriefStats(state, now()), m = { pacing: ['hardTopic', 'covered the hardest topic'], materials: ['posted', 'posted materials'], punctuality: ['onTime', 'started on time'] }[f.key]; const r = m && d[m[0]]; return r ? `<div class="l-s habit">Your recent classes: ${m[1]} in ${r.yes} of ${r.n}</div>` : ''; })()}</div></div>
     ${th.tips.slice(0, 2).map(tip => { const ad = state.practices.some(p => p.text === tip && !p.archived); return `<div class="action"><span>${esc(tip)}</span>${ad ? '<span class="tag ok">Adopted</span>' : `<button class="btn sec sm" data-a="adopt" data-k="${f.key}" data-tip="${esc(tip)}">Adopt</button>`}</div>`; }).join('')}
     ${tm?.quotes.length ? `<details><summary>What students said (${tm.quotes.length}) · Ace’s reading</summary>${tm.quotes.map(q => `<div class="quote">“${esc(q)}”</div>`).join('')}</details>` : ''}</div>`;
 }
@@ -319,9 +329,10 @@ function performance() {
     improve = E.focusAreas(ev).slice(0, 3).map(f => ({ f, ev }));
   }
   const j = E.journey(state, t);
-  const hab = [['On time', j.lead.punctual, `${j.logged} arrival${j.logged === 1 ? '' : 's'} logged`], ['Ready at class start', j.lead.readyAtStart, `${j.classes} class${j.classes === 1 ? '' : 'es'}`], ['Submitted on time', j.lead.responsibility, 'handouts & exams']].filter(x => x[1] != null);
+  const dbs = E.debriefStats(state, t);
+  const hab = [['Started on time', j.lead.punctual, `${j.logged} class${j.logged === 1 ? '' : 'es'}`], ['Covered the hard topic', dbs.hardTopic?.pct ?? null, dbs.hardTopic ? `${dbs.hardTopic.yes} of ${dbs.hardTopic.n}` : ''], ['Materials posted', dbs.posted?.pct ?? null, dbs.posted ? `${dbs.posted.yes} of ${dbs.posted.n}` : ''], ['Ready at class start', j.lead.readyAtStart, `${j.classes} class${j.classes === 1 ? '' : 'es'}`], ['Submitted on time', j.lead.responsibility, 'handouts & exams']].filter(x => x[1] != null);
   h += secH('Habits · last 30 days') + (hab.length ? `<div class="card stats">${hab.map(([l, v, n]) => `<div class="stat"><b>${pct(v)}</b><span>${l}</span><small>${n}</small></div>`).join('')}</div>`
-    : `<div class="card"><div class="empty-line">Tap “I’m here” when you arrive and tick off your prep — your on-time and readiness rates appear here.</div></div>`);
+    : `<div class="card"><div class="empty-line">After each class, Ace asks three quick questions on the Week screen. Your answers build these habits.</div></div>`);
   const pr = state.practices.filter(p => !p.archived);
   if (pr.length) h += secH('Practices you’re applying') + `<div class="card list">${pr.map(p => `<div class="lrow"><div class="grow"><div class="l-t small">${esc(p.text)}</div><div class="l-s">Applied ${p.applied.length}× ${p.applied.length ? '· last ' + E.fmtAgo(p.applied.at(-1), t) : ''}</div></div><button class="btn sec sm" data-a="apply" data-id="${esc(p.id)}">+1</button><button class="circle sm" data-a="unadopt" data-id="${esc(p.id)}" aria-label="Stop tracking">${ico('x', 14)}</button></div>`).join('')}</div>`;
   if (state.evals.length) h += secH('Evaluations', '<button class="link" data-a="paste-eval">Add</button>') + `<div class="card list">${state.evals.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(e => `<div class="lrow"><div class="grow"><div class="l-t">${esc(e.period || e.date)}</div><div class="l-s">${esc(e.date)} · ${Object.keys(e.criteria || {}).length} criteria · ${(e.comments || []).length} comments · ${esc(e.source || '')}</div></div><b class="score">${scoreTxt(e.overall)}</b><button class="circle sm" data-a="del-eval" data-id="${esc(e.id)}" aria-label="Delete">${ico('x', 14)}</button></div>`).join('')}</div>`;
@@ -475,7 +486,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.7.1';
+const VERSION = '0.8.0';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -531,13 +542,14 @@ const PANELS = {
       ${grp('Appearance', [rowBox('Theme', `<div class="seg">${[['system', 'System'], ['light', 'Light'], ['dark', 'Dark'], ['amoled', 'AMOLED']].map(([k, l]) => `<button class="${u.theme === k ? 'on' : ''}" data-a="theme" data-id="${k}">${l}</button>`).join('')}</div>`),
         rowBox('App color', `<div class="swatches">${ACCENTS.map(([n, hx]) => `<button class="sw ${u.accent === hx ? 'on' : ''}" style="--c:${hx || '#5a9e5f'}" data-a="accent" data-id="${hx}" aria-label="${n}"></button>`).join('')}<label class="sw custom ${u.accent && !ACCENTS.some(x => x[1] === u.accent) ? 'on' : ''}" style="--c:${u.accent || '#5a9e5f'}" aria-label="Custom color"><input type="color" data-a="accent-custom" value="${u.accent || '#5a9e5f'}"></label></div>`)])}
       ${grp('Week screen', [rowToggle('Next deadline', 'Shows the most pressing deadline when it’s within 3 days', 'ui.showNextDeadline', u.showNextDeadline !== false), rowToggle('Preparation on the next-class card', 'Shows how many prep items are done', 'ui.todayPrep', !!u.todayPrep)])}
-      ${grp('Preferences', [rowToggle('Hide evaluation scores', 'Shows •••• instead of your scores', 'ui.hideScores', u.hideScores), rowToggle('24-hour time', '13:00 instead of 1:00 PM', 'ui.clock24', u.clock24)])}
+      ${grp('Preferences', [rowBox('Preparation checklist', `<div class="seg">${[['essentials', 'Essentials'], ['full', 'Full']].map(([k, l]) => `<button class="${c.checklist === k ? 'on' : ''}" data-a="checklist" data-id="${k}">${l}</button>`).join('')}</div>`, 'Essentials: about 5 key items. Full: every item, including ones Ace confirms itself.'), rowToggle('Hide evaluation scores', 'Shows •••• instead of your scores', 'ui.hideScores', u.hideScores), rowToggle('24-hour time', '13:00 instead of 1:00 PM', 'ui.clock24', u.clock24)])}
       ${grp('Teaching', [rowLink('Teaching rules', `Handouts & drafts Wed ${E.fmtTime(E.atTime(Date.now(), c.cutoffTime))} · PowerPoint Sat ${E.fmtTime(E.atTime(Date.now(), c.leadPptTime))} · buffers`, 'panel', 'rules')])}
       ${grp('Security', [rowToggle('App lock', L?.hash ? 'PIN required when opening Ace' : 'Protect your evaluations with a PIN', 'lock', !!L?.hash),
         ...(L?.hash ? [rowLink('Change PIN', '', 'pin-change')] : [])])}
       ${grp('Notifications', [rowLink('Reminders', perm === 'granted' ? 'On for this device' : perm === 'denied' ? 'Blocked — allow in iPhone Settings → Ace' : 'Tap to allow (open Ace from the Home Screen first)', 'notif'),
         rowToggle('Leave-by / log-in time', '15 minutes before', 'ui.notif.leave', u.notif.leave), rowToggle('Deadlines', 'A day before and 3 hours before each deadline', 'ui.notif.deadlines', u.notif.deadlines),
         rowToggle('Mastery day', 'Sunday morning before each lead week', 'ui.notif.leadppt', u.notif.leadppt), rowToggle('Schedule & role changes', 'When new screenshots change your weeks', 'ui.notif.changes', u.notif.changes),
+        rowToggle('After-class check', 'A nudge a few minutes after each class ends', 'ui.notif.debrief', u.notif.debrief !== false),
         rowToggle('Morning plan', 'Your most important task and today’s priorities', 'ui.notif.morning', u.notif.morning), ...(u.notif.morning ? [rowBox('Morning plan time', `<input type="time" data-f="ui.notif.morningTime" value="${esc(u.notif.morningTime)}">`)] : []),
         `<div class="srow col"><div class="s-s">Reminders arrive while Ace is open or recently opened. Background push needs the server phase.</div></div>`])}
       ${grp('Calendar', [rowLink('Add classes & deadlines to your calendar', 'Download an .ics file for Google or Apple Calendar', 'ics'), `<div class="srow col"><div class="s-s">Google Calendar: Settings → Import & export → Import the file. Re-import after schedule changes (events update, not duplicate). A live Google Calendar sync needs Google sign-in and isn’t set up yet.</div></div>`])}
@@ -563,7 +575,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.7.1', 'Nov 7, 2026', ['Back to the older colours, with AMOLED and app colours in Settings', 'Kept the three tabs: Week, Tasks, Performance', 'Performance highlights what students praise; “What to improve” is at the bottom'])
+    return ['What’s new', v('0.8', 'Nov 7, 2026', ['Essentials checklist: about 5 key items per class (switch to Full in Settings)', 'Ace ticks “Schedule confirmed” and “Arrival buffer planned” itself', 'After each class: three quick questions on the Week screen, which build your habits in Performance'])
+      + v('0.7.1', 'Nov 7, 2026', ['Back to the older colours, with AMOLED and app colours in Settings', 'Kept the three tabs: Week, Tasks, Performance', 'Performance highlights what students praise; “What to improve” is at the bottom'])
       + v('0.7', 'Nov 7, 2026', ['GERTC look: navy and yellow, Montserrat and Mulish', 'Three tabs: Week (home), Tasks, Performance', 'Week answers what you teach next, what’s due soon and whether you’re prepared', 'Week ⇄ Month switch instead of two stacked views', 'Prepare: a class shows that week’s handout, PowerPoint and draft, with a grouped checklist', 'The bell badge counts only urgent items; questions about your data wait under “For your review”'])
       + v('0.6.6', 'Nov 7, 2026', ['Today shows no reminders for now: just your next class and your performance. Deadlines stay in Tasks and the calendar; turn reminders back on in Settings → Home screen'])
       + v('0.6.5', 'Nov 7, 2026', ['Schedule is the first tab and opens first', 'Today no longer shows the reminder list (turn it back on in Settings → Home screen)', 'Rooms for L3 (Labangon, 3rd Floor) and K4 (Kysey, 4th Floor)'])
@@ -724,6 +737,14 @@ document.addEventListener('click', async e => {
     case 'restore': if (state.excluded) delete state.excluded[id]; save(); render(); toast('Restored to your tasks'); break;
     case 'sday': schedDay = id; render(); break;
     case 'sview': ui().schedView = id; save(); render(); break;
+    case 'checklist': (state.cfg ||= {}).checklist = id; save(); render(); break;
+    case 'checklist-toggle': (state.cfg ||= {}).checklist = cfg().checklist === 'essentials' ? 'full' : 'essentials'; save(); render(); classSheet(id); break;
+    case 'db': { const d = ((state.debriefs ||= {})[id] ||= { at: t }); d[el.dataset.k] = el.dataset.v === 'true'; d.at = t;
+      if (el.dataset.k === 'onTime' && !state.arrivals[id]) state.arrivals[id] = { at: null, status: d.onTime ? 'on_time' : 'late', manual: true, via: 'after-class check' };
+      if (el.dataset.k === 'onTime' && state.arrivals[id]?.via) state.arrivals[id].status = d.onTime ? 'on_time' : 'late';
+      if (['onTime', 'hardTopic', 'posted'].every(k => typeof d[k] === 'boolean')) { d.complete = true; toast('Saved. Thank you!'); }
+      save(); render(); break; }
+    case 'db-skip': (state.debriefSkip ||= {})[id] = t; save(); render(); break;
     case 'sched-menu': sheet(`<h2>Update your schedule</h2><div class="muted small">Send new hub screenshots in your Claude chat, or update it here.</div>
       <button class="srow" data-a="paste-sched" data-week="${esc(el.dataset.week)}" style="margin-top:12px"><div class="grow"><div class="s-l">Paste a hub week</div><div class="s-s">Copy the hub's My Schedule page and paste it</div></div>${ico('chev', 16)}</button>
       <button class="srow" data-a="add-class"><div class="grow"><div class="s-l">Add a class</div><div class="s-s">For a class that isn’t on the hub</div></div>${ico('chev', 16)}</button>
@@ -849,6 +870,7 @@ async function notify(key, title, body) {
 }
 function tick() {
   const t = now(), c = cfg(), n = ui().notif;
+  if (n.debrief !== false) { const db = E.pendingDebrief(state, t); if (db && t - db.end >= 5 * 6e4 && t - db.end < 60 * 6e4) notify(`db:${db.id}`, `How did ${db.section || 'class'} go?`, 'Three quick questions in Ace.'); }
   if (n.morning) { const at = E.atTime(t, n.morningTime || '06:30'); if (t >= at && t - at < 3 * 36e5) { const pl = E.plan(state, t); notify(`mp:${E.dayKey(t)}`, pl.next ? `Today: ${pl.next.title}` : 'Today: nothing pressing', `${pl.today.length} priorit${pl.today.length === 1 ? 'y' : 'ies'} · ${pl.minutes} min planned`); } }
   if (n.leave) for (const s of E.activeSessions(state)) { const lb = E.leaveBy(s, c); if (lb - t < 15 * 6e4 && lb - t > -5 * 6e4 && !state.arrivals[s.id]) notify(`lb:${s.id}`, `${s.format === 'online' ? 'Log in' : 'Leave'} by ${E.fmtTime(lb)}`, `${s.subject} starts at ${E.fmtTime(s.start)}`); }
   if (n.deadlines) for (const d of E.deadlines(state, t, 20)) { const left = d.at - t;

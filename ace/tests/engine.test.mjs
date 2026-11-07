@@ -97,9 +97,10 @@ test('schedule merge: add, move, explicit cancel, missing ≠ cancelled, dedupe,
 
 test('readiness counts only confirmed items; dependencies gate the next step', () => {
   const s = sess('a', 'Calc', mk(2026, 11, 9, 8));
-  const state = { sessions: [s], readiness: { a: { slides_draft: mk(2026, 11, 5, 10) } } };
+  const state = { cfg: { checklist: 'full' }, sessions: [s], readiness: { a: { slides_draft: mk(2026, 11, 5, 10) } } };
   const r = E.readiness(s, state);
-  assert.equal(r.done, 1); assert.equal(r.total, 15); assert.equal(r.unconfirmed, 14);
+  assert.equal(r.done, 2, 'slides drafted + buffer (planned by Ace)'); assert.equal(r.total, 15); assert.equal(r.unconfirmed, 13);
+  assert.ok(r.rows.find(x => x.id === 'buffer').auto && !r.rows.find(x => x.id === 'schedule_ok').doneAt, 'non-hub class: schedule still yours to confirm');
   assert.ok(r.rows.find(x => x.id === 'studied') && !r.rows.find(x => x.id === 'studied').doneAt);
   assert.equal(r.next.id, 'slides_final');
   const online = E.readiness({ ...s, format: 'online' }, state);
@@ -260,7 +261,7 @@ test('evaluation paste: criteria, overall, comments, PII masked', () => {
 test('sheet units feed lead PowerPoint deadlines, handouts and readiness', () => {
   const now = mk(2026, 11, 6, 9);
   const { units } = S.parseTopicGrid(grid, { initials: 'GDL', now });
-  const state = { units: units.map(u => ({ ...u, source: { id: 'sheet' } })) };
+  const state = { cfg: { checklist: 'full' }, units: units.map(u => ({ ...u, source: { id: 'sheet' } })) };
   const cfg = E.cfgOf(state);
   const ff1 = E.unitItems(state).find(u => u.subject === 'Fluid Flow 1');
   assert.equal(ff1.template, 'lead');
@@ -315,9 +316,10 @@ test('readiness logged on a sheet week carries over to the imported class', () =
   const now = mk(2026, 11, 6, 9);
   const { units } = S.parseTopicGrid(grid, { initials: 'GDL', now });
   const ff1 = units.find(u => u.topic === 'Fluid Flow 1');
-  const state = { units, readiness: { [`u:${ff1.key}`]: { slides_draft: now } }, sessions: [sess('r', 'Fluid Flow 1', mk(2026, 11, 16, 8))] };
+  const state = { cfg: { checklist: 'full' }, units, readiness: { [`u:${ff1.key}`]: { slides_draft: now } }, sessions: [sess('r', 'Fluid Flow 1', mk(2026, 11, 16, 8))] };
   const item = E.teachingItems(state).find(i => i.id === 'r');
-  assert.equal(E.readiness(item, state).done, 1);
+  const r = E.readiness(item, state);
+  assert.ok(r.rows.find(x => x.id === 'slides_draft').doneAt, 'sheet-week progress carried over'); assert.equal(r.done, 2);
 });
 
 test('confirmed rules: 8 PM cutoffs, handouts only for lead weeks, lead exam on teaching-week Wednesday, lead weeks online', () => {
@@ -376,7 +378,7 @@ test('grid classes link to the week\'s sheet topic, share topic prep, keep logis
   // next week (Week 5, Nov 9): same layout, GDL support on Relative Equilibrium
   const wk5 = hubWeek4.replace('Review Week 4', 'Review Week 5').replace(/\(Nov (\d)\)/g, (m, d) => `(Nov ${+d + 7})`);
   const ss = S.parseScheduleGrid(wk5, { initials: 'GDL', weekStart: mk(2026, 11, 9) }).sessions.map((s, i) => ({ ...s, id: 's' + i, source: { id: 'hub' } }));
-  const state = { units, sessions: ss };
+  const state = { cfg: { checklist: 'full' }, units, sessions: ss };
   const items = E.teachingItems(state).filter(i => E.dayKey(E.mondayOf(i.start)) === '2026-11-09');
   assert.equal(items.length, 5, 'sheet week replaced by the 5 real classes');
   assert.ok(items.every(i => i.subject === 'Relative Equilibrium of Fluids in Moving Vessels' && i.role === 'support' && i.template === 'support'));
@@ -506,7 +508,7 @@ test('sealed imports: round-trip with the passcode, refuse a wrong one, no plain
 test('calendar items: lead-week rhythm (handout Wed before, PPT Sat, mastery Sun, draft Wed) and support weeks', () => {
   const now = mk(2026, 11, 6, 16);
   const { units } = S.parseTopicGrid(grid, { initials: 'GDL', now });
-  const state = { units };
+  const state = { cfg: { checklist: 'full' }, units };
   const items = E.calendarItems(state, mk(2026, 11, 9), mk(2026, 11, 23), now);
   const on = k => items.filter(i => E.dayKey(i.at) === k).map(i => i.title);
   assert.ok(on('2026-11-11').includes('Submitted · Fluid Flow 1 handout'), 'Wed before lead week: handout');
@@ -557,4 +559,38 @@ test('correction import restores a deliverable excluded by an earlier import, bu
 test('praise quotes: only purely positive comments, never mixed ones', () => {
   const q = E.praiseQuotes([{ comments: ['Very clear but rushed at the end', 'Naantok ako, sana mas engaging. Thank you Sir', 'Inspiring instructor, very understandable ang kanyang pag discuss.', 'Thank you Sir, very inspiring and knowledgeable!', '👍'] }]);
   assert.deepEqual(q, ['Inspiring instructor, very understandable ang kanyang pag discuss.', 'Thank you Sir, very inspiring and knowledgeable!']);
+});
+
+test('essentials checklist (5 items) and items Ace confirms itself', () => {
+  const now = mk(2026, 11, 7, 19);
+  const { units } = S.parseTopicGrid(grid, { initials: 'GDL', now });
+  const hub = { id: 'h1', subject: 'Relative Equilibrium of Fluids in Moving Vessels', section: 'L2 EVE', start: mk(2026, 11, 9, 17), end: mk(2026, 11, 9, 21), format: 'in_person', status: 'scheduled', source: { id: 'hub', at: now } };
+  const state = { units, sessions: [hub] };
+  const item = E.teachingItems(state).find(x => x.id === 'h1');
+  const r = E.readiness(item, state);
+  assert.deepEqual(r.rows.map(x => x.id), ['slides_received', 'solutions', 'studied', 'concepts', 'timing'], 'support essentials');
+  const lead = E.unitItems(state).find(u => u.subject === 'Fluid Flow 1');
+  assert.deepEqual(E.readiness({ ...lead, format: 'in_person', template: 'lead_in_person' }, state).rows.map(x => x.id), ['slides_final', 'solutions', 'studied', 'concepts', 'timing'], 'lead essentials');
+  const full = { ...state, cfg: { checklist: 'full' } };
+  const rf = E.readiness(item, full);
+  assert.ok(rf.total > 10);
+  const auto = rf.rows.filter(x => x.auto).map(x => x.id).sort();
+  assert.deepEqual(auto, ['buffer', 'schedule_ok'], 'schedule confirmed by the hub; buffer planned by Ace');
+  assert.ok(!rf.rows.find(x => x.id === 'venue').doneAt, 'room readiness stays manual');
+  // the planner no longer asks for things Ace confirmed
+  assert.ok(!E.plan(full, now).open.some(t => t.id === 'rd:h1:schedule_ok' || t.id === 'rd:h1:buffer'));
+});
+
+test('after-class check: offered once within 24 h of the end, then feeds habit rates', () => {
+  const s1 = { id: 'a', subject: 'X', start: mk(2026, 11, 9, 17), end: mk(2026, 11, 9, 21), format: 'in_person', status: 'scheduled' };
+  const s2 = { id: 'b', subject: 'X', start: mk(2026, 11, 10, 7, 30), end: mk(2026, 11, 10, 11, 30), format: 'in_person', status: 'scheduled' };
+  const state = { sessions: [s1, s2] };
+  assert.equal(E.pendingDebrief(state, mk(2026, 11, 9, 20)), null, 'not during class');
+  assert.equal(E.pendingDebrief(state, mk(2026, 11, 9, 21, 5)).id, 'a');
+  assert.equal(E.pendingDebrief(state, mk(2026, 11, 10, 22)).id, 'b', 'latest unanswered class');
+  assert.equal(E.pendingDebrief(state, mk(2026, 11, 12, 9)), null, 'expires after 24 h');
+  state.debriefs = { a: { at: mk(2026, 11, 9, 21, 5), onTime: true, hardTopic: false, posted: true, complete: true }, b: { at: mk(2026, 11, 10, 12), onTime: true, hardTopic: true, posted: null, complete: true } };
+  assert.equal(E.pendingDebrief(state, mk(2026, 11, 10, 12, 30)), null);
+  const st = E.debriefStats(state, mk(2026, 11, 11));
+  assert.deepEqual([st.onTime.pct, st.hardTopic.pct, st.posted.n], [1, .5, 1]);
 });

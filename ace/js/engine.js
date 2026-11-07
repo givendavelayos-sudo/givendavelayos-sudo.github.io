@@ -64,6 +64,8 @@ export const DEFAULT_CFG = {
   initials: '',
   // Confirmed (Nov 6): lead PowerPoint due Saturday midnight before the week (days before its Monday), so Sunday is for mastery.
   leadPptDaysBefore: 2, leadPptTime: '23:59', leadDraftDaysBefore: 4, masteryDaysBefore: 1, masteryTime: '23:59', leadFormat: 'online', supportFormat: 'in_person', unitHorizonDays: 21, unitTemplates: {},
+  // Checklist: 'essentials' (about 5 key items) or 'full'.
+  checklist: 'essentials',
   handoutRoles: ['lead'], handoutRolesVerified: true, // confirmed: support instructors don't create handouts
   leadRoleValues: ['lead', 'lead instructor', 'li', 'yes', 'y', '✓', 'true'],
   templates: null,                // filled from DEFAULT_TEMPLATES
@@ -147,11 +149,20 @@ export const SESSION_ITEMS = new Set(['schedule_ok', 'venue', 'platform', 'tech'
 export const readinessKey = (s, id) => s.unit && !SESSION_ITEMS.has(id) ? `u:${s.unit.key}` : s.id;
 
 /** Transparent readiness: share of the template's items you have confirmed done. Unconfirmed ≠ done. */
+// "Essentials" keeps the few items that matter most; the rest stay available in the full checklist.
+export const ESSENTIALS = new Set(['slides_final', 'slides_received', 'solutions', 'studied', 'concepts', 'timing', 'platform', 'tech']);
+/** Items Ace can confirm itself: an official hub class confirms the schedule; a known class time means the buffer is planned. */
+function autoDone(id, session) {
+  if (session.approx) return null;
+  if (id === 'schedule_ok' && session.source?.id === 'hub') return Math.min(session.source.at || session.start, session.start - 60 * MIN);
+  if (id === 'buffer') return session.start - DAY;
+  return null;
+}
 export function readiness(session, state, cfg = cfgOf(state), at = Infinity) {
   const tpl = templateFor(session, cfg);
-  const items = tpl.items.filter(id => READINESS_ITEMS[id]);
-  const done = id => state.readiness?.[readinessKey(session, id)]?.[id];
-  const rows = items.map(id => ({ id, ...READINESS_ITEMS[id], key: readinessKey(session, id), lead: itemLead(id, tpl, session.start, cfg), official: (tpl.official || []).includes(id), doneAt: done(id) && done(id) <= at ? done(id) : null }));
+  const items = tpl.items.filter(id => READINESS_ITEMS[id] && (cfg.checklist !== 'essentials' || ESSENTIALS.has(id)));
+  const done = id => state.readiness?.[readinessKey(session, id)]?.[id] || autoDone(id, session);
+  const rows = items.map(id => ({ id, ...READINESS_ITEMS[id], key: readinessKey(session, id), lead: itemLead(id, tpl, session.start, cfg), official: (tpl.official || []).includes(id), auto: !state.readiness?.[readinessKey(session, id)]?.[id] && !!autoDone(id, session), doneAt: done(id) && done(id) <= at ? done(id) : null }));
   const nDone = rows.filter(r => r.doneAt).length;
   const byCat = {};
   for (const r of rows) { (byCat[r.cat] ||= { done: 0, total: 0 }).total++; if (r.doneAt) byCat[r.cat].done++; }
@@ -727,4 +738,16 @@ export function praiseQuotes(evals, n = 3) {
   const isPraise = c => { const cl = clauses(c).map(soften); return cl.some(x => POSX.some(w => x.includes(w))) && !cl.some(x => NEG.some(w => x.includes(w))); };
   // the fullest comments that still read quickly (25–260 characters)
   return all.filter(isPraise).filter((c, i, l) => l.indexOf(c) === i && c.length >= 25 && c.length <= 260).sort((a, b) => b.length - a.length).slice(0, n);
+}
+
+/* ------------------------------------------------- after-class check */
+/** The most recent class that ended within the last 24 h and hasn't been checked (or skipped). */
+export function pendingDebrief(state, now) {
+  return teachingItems(state).filter(s => !s.approx && s.kind !== 'consultation' && s.end <= now && now - s.end < DAY && !state.debriefs?.[s.id]?.complete && !state.debriefSkip?.[s.id]).sort((a, b) => b.end - a.end)[0] || null;
+}
+/** Habit rates from after-class checks: started on time, covered the hardest topic, posted materials. */
+export function debriefStats(state, now, days = 30) {
+  const from = now - days * DAY, l = Object.values(state.debriefs || {}).filter(d => d.at >= from);
+  const rate = k => { const v = l.filter(d => typeof d[k] === 'boolean'); return v.length ? { pct: v.filter(d => d[k]).length / v.length, yes: v.filter(d => d[k]).length, n: v.length } : null; };
+  return { n: l.length, onTime: rate('onTime'), hardTopic: rate('hardTopic'), posted: rate('posted') };
 }

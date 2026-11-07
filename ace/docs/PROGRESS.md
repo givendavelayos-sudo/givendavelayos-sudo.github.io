@@ -10,6 +10,13 @@ _Last updated 2026-11-06 · deployed from `givendavelayos-sudo/gdgertc` (main) o
   banner after 30 h, no horizontal overflow.
 - Power untouched (no files outside `ace/` changed).
 
+## v0.8 (Nov 7) — less to tick, after-class check
+- `cfg.checklist: 'essentials'` (default): ~5 key items per class (`E.ESSENTIALS`); 'full' keeps every item.
+  Ace confirms `schedule_ok` (official hub class) and `buffer` (class time known) itself (`row.auto`); room stays manual.
+- After-class check: `E.pendingDebrief` (latest class ended < 24 h, not answered/skipped) → three Yes/No questions on Week;
+  stored in `state.debriefs[sessionId]` (onTime also logs the arrival); `E.debriefStats` feeds Performance › Habits and the
+  matching "What to improve" card; optional nudge 5–60 min after class (`ui.notif.debrief`).
+
 ## v0.7.1 (Nov 7) — user's mix
 Older colours and system font (v0.6.6 stylesheet as base) with AMOLED and the app-colour picker; v0.7 structure kept
 (3 tabs, Week home, Prepare sheet, Week/Month, alerts urgency). Performance: score → **What students praise** (themes,
