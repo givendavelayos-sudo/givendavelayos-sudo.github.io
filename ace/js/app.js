@@ -126,10 +126,10 @@ function nextCard(s, t, c) {
   const when = s.approx ? `Week of ${E.fmtDay(s.start)} · official schedule not released yet` : inClass ? `In class now · until ${E.fmtTime(s.end)}` : `${E.fmtDayRel(s.start, t)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)}${s.section ? ' · ' + s.section : ''}${s.location ? ' · ' + s.location : ''}`;
   return `<div class="card hero ${late ? 'late' : ''}"><div class="eyebrow">Next class${s.role ? ' · ' + (s.role === 'lead' ? 'Lead' : 'Support') : ''}</div>
     <div class="h-title">${esc(s.subject)}</div><div class="h-sub">${esc(when)}${arr ? ` · arrived ${esc(arr.status.replace('_', ' '))}` : ''}</div>
-    <div class="h-ready"><div class="row"><span>Preparation</span><b>${r.done} of ${r.total}</b></div>${bar(r.done, r.total, 'light')}</div>
+    ${ui().todayPrep ? `<div class="h-ready"><div class="row"><span>Preparation</span><b>${r.done} of ${r.total}</b></div>${bar(r.done, r.total, 'light')}</div>` : ''}
     ${soon ? `<div class="h-alert">${ico('clock', 16)} ${s.format === 'online' ? 'Be online by' : 'Leave by'} <b>${E.fmtTime(lb)}</b></div>` : ''}
-    <div class="h-actions">${soon ? `<button class="btn light" data-a="arrive" data-id="${esc(s.id)}">I’m here</button>` : r.next ? `<button class="btn light" data-a="task" data-id="rd:${esc(r.next.key)}:${r.next.id}">${ico('check', 16)} ${esc(r.next.label)}</button>` : `<span class="h-done">${ico('check', 16)} Fully prepared</span>`}
-      <button class="btn glass" data-a="class" data-id="${esc(s.id)}">Checklist</button></div></div>`;
+    <div class="h-actions">${soon ? `<button class="btn light" data-a="arrive" data-id="${esc(s.id)}">I’m here</button>` : !ui().todayPrep ? '' : r.next ? `<button class="btn light" data-a="task" data-id="rd:${esc(r.next.key)}:${r.next.id}">${ico('check', 16)} ${esc(r.next.label)}</button>` : `<span class="h-done">${ico('check', 16)} Fully prepared</span>`}
+      <button class="btn glass" data-a="class" data-id="${esc(s.id)}">${ui().todayPrep ? 'Checklist' : 'Class details'}</button></div></div>`;
 }
 function home() {
   const t = now(), c = cfg(), u = ui(), P = E.P(t), sec = {};
@@ -381,6 +381,7 @@ function ui() {
   for (const [k, v] of Object.entries(UI_DEF)) if (u[k] === undefined) u[k] = JSON.parse(JSON.stringify(v));
   u.home.hidden ||= {};
   if (!u.mig065) { u.home.hidden.today = true; u.mig065 = true; } // you asked to hide Today's reminders (turn back on in Settings → Home screen)
+  if (!u.mig066) { u.home.hidden.today = true; u.home.hidden.upcoming = true; u.todayPrep = false; u.mig066 = true; } // …all of them, for now
   u.home.order = [...new Set([...(u.home.order || []).filter(k => HOME_CARDS.some(x => x[0] === k)), ...UI_DEF.home.order])];
   u.notif = { ...UI_DEF.notif, ...u.notif };
   return u;
@@ -473,7 +474,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.6.5';
+const VERSION = '0.6.6';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -510,7 +511,8 @@ async function runSeeds() {
       const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) continue;
       const data = await r.json();
       const rep2 = await applyImport(data, id, data.label);
-      toast(`Imported from your screenshots: ${importSummary(rep2)}`);
+      const changed = (rep2.sessions?.added || 0) + (rep2.sessions?.updated || 0) + (rep2.units?.added || 0) + (rep2.units?.updated || 0) + (rep2.units?.removed || 0) + (rep2.evals?.added || 0);
+      if (changed) toast(`Updated from your screenshots: ${importSummary(rep2)}`); // stay quiet when nothing new
     } catch {}
   }
 }
@@ -542,7 +544,7 @@ const PANELS = {
   },
   home() {
     const u = ui();
-    return ['Home screen', `<div class="muted small" style="margin:0 4px 10px">Choose which cards appear on Today and in what order.</div><div class="glist">${u.home.order.map((k, i) => `<div class="srow"><div class="grow"><div class="s-l">${esc(HOME_CARDS.find(x => x[0] === k)[1])}</div></div>
+    return ['Home screen', `<div class="glist" style="margin-bottom:14px">${rowToggle('Prep reminders on the next-class card', 'Shows preparation progress and the next prep step', 'ui.todayPrep', !!u.todayPrep)}</div><div class="muted small" style="margin:0 4px 10px">Choose which cards appear on Today and in what order.</div><div class="glist">${u.home.order.map((k, i) => `<div class="srow"><div class="grow"><div class="s-l">${esc(HOME_CARDS.find(x => x[0] === k)[1])}</div></div>
       <button class="circle sm" data-a="hmove" data-id="${k}" data-d="-1" ${i ? '' : 'disabled'} aria-label="Move up">${ico('up', 16)}</button><button class="circle sm" data-a="hmove" data-id="${k}" data-d="1" ${i < u.home.order.length - 1 ? '' : 'disabled'} aria-label="Move down">${ico('down', 16)}</button>
       <input type="checkbox" class="switch" data-a="hshow" data-id="${k}" ${u.home.hidden[k] ? '' : 'checked'}></div>`).join('')}</div>`];
   },
@@ -561,7 +563,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.6.5', 'Nov 7, 2026', ['Schedule is the first tab and opens first', 'Today no longer shows the reminder list (turn it back on in Settings → Home screen)', 'Rooms for L3 (Labangon, 3rd Floor) and K4 (Kysey, 4th Floor)'])
+    return ['What’s new', v('0.6.6', 'Nov 7, 2026', ['Today shows no reminders for now: just your next class and your performance. Deadlines stay in Tasks and the calendar; turn reminders back on in Settings → Home screen'])
+      + v('0.6.5', 'Nov 7, 2026', ['Schedule is the first tab and opens first', 'Today no longer shows the reminder list (turn it back on in Settings → Home screen)', 'Rooms for L3 (Labangon, 3rd Floor) and K4 (Kysey, 4th Floor)'])
       + v('0.6.4', 'Nov 7, 2026', ['Official hub schedule for Week 5 (Nov 9–15): 6 classes, 24 h'])
       + v('0.6.3', 'Nov 6, 2026', ['Fix: the Fluid Flow 1 handout (your lead week, due Wed Nov 11) is back; support-week handouts never show'])
       + v('0.6.2', 'Nov 6, 2026', ['Assessment drafts are planned inside their teaching week — nothing shows early', '“Not assigned to me” on any handout, PowerPoint or draft (e.g. when the lead instructor already did it); restore it from Tasks'])
