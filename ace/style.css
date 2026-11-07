@@ -384,3 +384,5 @@ details.cat .tick:first-of-type{border-top:0}
 .seg.sm{gap:4px;flex-shrink:0}.seg.sm button{flex:0 0 auto;padding:7px 14px;font-size:13px}
 .tick.auto{cursor:default}.tick.auto .box{background:var(--card-2);border-color:var(--line);color:var(--green-2)}
 .habit{color:var(--green-2);font-weight:600}
+.alarm-row>svg{color:var(--green-2)}
+.panel code{font-size:12px;background:var(--card-2);padding:2px 5px;border-radius:6px;word-break:break-all}

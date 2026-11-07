@@ -202,6 +202,38 @@ function blockColor(s) {
 const blockKind = s => s.kind === 'consultation' ? 'consult' : s.format === 'online' ? 'online' : '';
 const schedFooter = mon => `<div class="link-row"><button class="link" data-a="sched-menu" data-week="${E.dayKey(mon)}">${ico('plus', 14)} Update schedule</button></div>`;
 
+/* ---------- iPhone alarms (via the Shortcuts app: web apps can't create Clock alarms themselves) */
+const alarmCfg = () => ({ bathMin: 90, leaveMin: 30, shortcut: 'Ace Alarms', ...(ui().alarms || {}) });
+function alarmPlan(s) {
+  const c = cfg(), a = alarmCfg(), leave = E.leaveBy(s, c), online = s.format === 'online';
+  const what = online ? 'log in' : 'leave';
+  return { leave, online, items: [
+    { at: leave - a.bathMin * 6e4, label: `Ace · Take a bath — ${what} by ${E.fmtTime(leave)}` },
+    { at: leave - a.leaveMin * 6e4, label: `Ace · ${online ? 'Log in' : 'Leave'} in ${a.leaveMin} min (${E.fmtTime(leave)}) — ${s.section || s.subject}` },
+  ].filter(x => a[x.label.includes('bath') ? 'bathMin' : 'leaveMin'] > 0) };
+}
+// Alarms are for leaving home, so only the first class of each day gets them.
+const firstOfDay = s => !E.teachingItems(state).some(x => !x.approx && x.id !== s.id && E.dayKey(x.start) === E.dayKey(s.start) && x.start < s.start);
+const firstClassToday = s => E.teachingItems(state).filter(x => !x.approx && E.dayKey(x.start) === E.dayKey(s.start)).sort((a, b) => a.start - b.start)[0];
+const nextClassForAlarms = t => E.teachingItems(state).find(s => !s.approx && s.kind !== 'consultation' && firstOfDay(s) && E.leaveBy(s, cfg()) > t);
+// Clock alarms have no date: they ring at the next occurrence of the time, so only hand them over within 24 h.
+const alarmsReady = (plan, t) => plan.items.length && plan.items.every(x => x.at > t && x.at - t < 24 * 36e5);
+const pad2 = n => String(n).padStart(2, '0');
+const alarmLine = x => { const p = E.P(x.at); return `${p.y}-${pad2(p.m)}-${pad2(p.d)} ${pad2(p.h)}:${pad2(p.mi)}|${x.label}`; };
+function setAlarms(s) {
+  if (!firstOfDay(s)) s = firstClassToday(s);
+  const t = now(), plan = alarmPlan(s);
+  if (!alarmsReady(plan, t)) {
+    const first = plan.items[0]?.at || plan.leave, from = first - 24 * 36e5;
+    return toast(first <= t ? 'Too late for these alarms' : `iPhone alarms can be set from ${E.fmtDayRel(from, t)} ${E.fmtTime(from)} (24 h before)`);
+  }
+  const url = `shortcuts://run-shortcut?name=${encodeURIComponent(alarmCfg().shortcut)}&input=text&text=${encodeURIComponent(plan.items.map(alarmLine).join('\n'))}`;
+  (window.__aceOpen || (u => { location.href = u; }))(url); // hook lets tests see the hand-off
+  toast('Opening Shortcuts to set your alarms…');
+}
+const alarmButton = s => { const plan = alarmPlan(s), ready = alarmsReady(plan, now());
+  return `<button class="srow alarm-row" data-a="alarms" data-id="${esc(s.id)}"><div class="grow"><div class="s-l">Set iPhone alarms</div><div class="s-s">${plan.items.map(x => `${E.fmtTime(x.at)} ${x.label.includes('bath') ? 'bath' : plan.online ? 'log in soon' : 'leave soon'}`).join(' · ')}${ready ? '' : ' · available 24 h before'}</div></div>${ico('clock', 18)}</button>`; };
+
 /* ---------- calendar: lead/support weeks + what to do each day (past days too) */
 let calMonth = 0, calDay = null;
 function calendarCard(t, c) {
@@ -288,6 +320,7 @@ function classSheet(id) {
     ${groups}
     ${!s.approx && t > s.start - 3 * 36e5 ? `<div class="cat-h">Arrival</div>${arr ? `<div class="row"><span class="tag ${arr.status === 'late' ? 'bad' : 'ok'}">${esc(arr.status.replace('_', ' '))}${arr.at ? ' · ' + E.fmtTime(arr.at) : ''}</span><button class="link" data-a="unarrive" data-id="${esc(s.id)}">Undo</button></div>` :
       `<div class="seg"><button data-a="arrive" data-id="${esc(s.id)}">I’m here</button><button data-a="arrive-m" data-id="${esc(s.id)}" data-st="early">Early</button><button data-a="arrive-m" data-id="${esc(s.id)}" data-st="on_time">On time</button><button data-a="arrive-m" data-id="${esc(s.id)}" data-st="late">Late</button></div>`}` : ''}
+    ${!s.approx && s.end > t ? `<div class="cat-h">Alarms</div>${firstOfDay(s) ? alarmButton(s) : `<div class="l-s" style="padding:6px 0">Alarms are set for your first class of the day: ${esc(firstClassToday(s).section || firstClassToday(s).subject)} at ${E.fmtTime(firstClassToday(s).start)}.</div>`}` : ''}
     <div class="link-row" style="margin-top:6px"><button class="link" data-a="checklist-toggle" data-id="${esc(s.id)}">${c.checklist === 'essentials' ? 'Show all items' : 'Show essentials only'}</button></div>
     <details class="more-opts"><summary>Notes & checklist type</summary><label>Notes</label><textarea data-a="note" data-id="${esc(s.id)}" placeholder="Hard parts, questions to expect, what to try…">${esc(state.notes[s.id] || '')}</textarea>
       <label>Checklist type</label><select data-a="tpl" data-id="${esc(s.id)}">${tpls}</select>
@@ -486,7 +519,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.8.0';
+const VERSION = '0.8.1';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -552,6 +585,10 @@ const PANELS = {
         rowToggle('After-class check', 'A nudge a few minutes after each class ends', 'ui.notif.debrief', u.notif.debrief !== false),
         rowToggle('Morning plan', 'Your most important task and today’s priorities', 'ui.notif.morning', u.notif.morning), ...(u.notif.morning ? [rowBox('Morning plan time', `<input type="time" data-f="ui.notif.morningTime" value="${esc(u.notif.morningTime)}">`)] : []),
         `<div class="srow col"><div class="s-s">Reminders arrive while Ace is open or recently opened. Background push needs the server phase.</div></div>`])}
+      ${(() => { const a = alarmCfg(), n = nextClassForAlarms(Date.now()); return grp('iPhone alarms', [
+        ...(n ? [alarmButton(n)] : [`<div class="srow col"><div class="s-s">No upcoming class to set alarms for.</div></div>`]),
+        `<div class="srow col"><div class="two"><div><label style="margin-top:0">Bath alarm · min before leaving</label><input type="number" min="0" step="5" data-f="ui.alarms.bathMin" value="${a.bathMin}"></div><div><label style="margin-top:0">Leave alarm · min before</label><input type="number" min="0" step="5" data-f="ui.alarms.leaveMin" value="${a.leaveMin}"></div></div><div class="s-s">0 turns an alarm off. “Leaving” uses your leave-by time (arrive early + travel, in Teaching rules).</div></div>`,
+        rowLink('Set up the “Ace Alarms” shortcut', 'One time, about 3 minutes, in the Shortcuts app', 'panel', 'alarms')]); })()}
       ${grp('Calendar', [rowLink('Add classes & deadlines to your calendar', 'Download an .ics file for Google or Apple Calendar', 'ics'), `<div class="srow col"><div class="s-s">Google Calendar: Settings → Import & export → Import the file. Re-import after schedule changes (events update, not duplicate). A live Google Calendar sync needs Google sign-in and isn’t set up yet.</div></div>`])}
       ${grp('Backup & data', [rowLink('Import data file (merge)', 'Adds new records only · never duplicates or overwrites', 'merge'), rowLink('Export backup', 'Save a copy of everything (not your API key or PIN)', 'export'), rowLink('Restore backup (replace all)', 'From an Ace JSON backup', 'import'), `<button class="srow danger" data-a="reset"><div class="grow"><div class="s-l">Erase all data on this device</div></div></button>`])}
       ${grp('Help', [rowLink('How to use Ace', 'Sources, readiness, handouts, growth', 'panel', 'help')])}
@@ -561,6 +598,16 @@ const PANELS = {
   },
 
   rules() { return ['Teaching rules', rulesHTML()]; },
+  alarms() {
+    const step = (n, t, d) => `<div class="card" style="margin-bottom:10px"><div class="row" style="align-items:flex-start"><span class="rank">${n}</span><div class="grow"><div class="l-t">${t}</div><div class="l-s" style="margin-top:4px">${d}</div></div></div></div>`;
+    return ['Ace Alarms shortcut', `<div class="muted small" style="margin:0 4px 12px">iPhone only lets the Shortcuts app create Clock alarms. Build this once; after that, “Set iPhone alarms” in Ace does the rest.</div>
+      ${step(1, 'Create the shortcut', 'Open <b>Shortcuts</b> → tap <b>+</b> → name it exactly <b>Ace Alarms</b>.')}
+      ${step(2, 'Split the times', 'Add <b>Split Text</b>. Set the text to <b>Shortcut Input</b> and split by <b>New Lines</b>.')}
+      ${step(3, 'Repeat for each alarm', 'Add <b>Repeat with Each</b> (item in <b>Split Text</b>). Inside it, add another <b>Split Text</b>: text = <b>Repeat Item</b>, split by <b>Custom</b> “<b>|</b>”.')}
+      ${step(4, 'Create the alarm', 'Still inside the repeat, add <b>Get Item from List</b> → <b>First Item</b>, then <b>Create Alarm</b>: time = <b>Item from List</b>. Tap the label field, add another <b>Get Item from List</b> → <b>Last Item</b> and use it as the label.')}
+      ${step(5, 'Try it', 'Back in Ace, open your next class → <b>Set iPhone alarms</b>. The first time, iPhone asks to allow Ace to open Shortcuts and to create alarms — allow both. Check the Clock app: the alarms are there.')}
+      <div class="muted small" style="margin:6px 4px 0">Each line Ace sends looks like <code>2026-11-09 14:40|Ace · Take a bath — leave by 4:10 PM</code>. iPhone asks once to allow Ace to open Shortcuts.</div>`];
+  },
   connections() { return ['Connections', connectionsHTML()]; },
   help() {
     const step = (t, d) => `<div class="card" style="margin-bottom:10px"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></div>`;
@@ -575,7 +622,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.8', 'Nov 7, 2026', ['Essentials checklist: about 5 key items per class (switch to Full in Settings)', 'Ace ticks “Schedule confirmed” and “Arrival buffer planned” itself', 'After each class: three quick questions on the Week screen, which build your habits in Performance'])
+    return ['What’s new', v('0.8.1', 'Nov 7, 2026', ['Set iPhone alarms for the first class of each day: take a bath (1 h 30 before leaving) and leave in 30 minutes — via the Shortcuts app'])
+      + v('0.8', 'Nov 7, 2026', ['Essentials checklist: about 5 key items per class (switch to Full in Settings)', 'Ace ticks “Schedule confirmed” and “Arrival buffer planned” itself', 'After each class: three quick questions on the Week screen, which build your habits in Performance'])
       + v('0.7.1', 'Nov 7, 2026', ['Back to the older colours, with AMOLED and app colours in Settings', 'Kept the three tabs: Week, Tasks, Performance', 'Performance highlights what students praise; “What to improve” is at the bottom'])
       + v('0.7', 'Nov 7, 2026', ['GERTC look: navy and yellow, Montserrat and Mulish', 'Three tabs: Week (home), Tasks, Performance', 'Week answers what you teach next, what’s due soon and whether you’re prepared', 'Week ⇄ Month switch instead of two stacked views', 'Prepare: a class shows that week’s handout, PowerPoint and draft, with a grouped checklist', 'The bell badge counts only urgent items; questions about your data wait under “For your review”'])
       + v('0.6.6', 'Nov 7, 2026', ['Today shows no reminders for now: just your next class and your performance. Deadlines stay in Tasks and the calendar; turn reminders back on in Settings → Home screen'])
@@ -738,6 +786,7 @@ document.addEventListener('click', async e => {
     case 'sday': schedDay = id; render(); break;
     case 'sview': ui().schedView = id; save(); render(); break;
     case 'checklist': (state.cfg ||= {}).checklist = id; save(); render(); break;
+    case 'alarms': { const s = E.teachingItems(state).find(x => x.id === id); if (s) setAlarms(s); break; }
     case 'checklist-toggle': (state.cfg ||= {}).checklist = cfg().checklist === 'essentials' ? 'full' : 'essentials'; save(); render(); classSheet(id); break;
     case 'db': { const d = ((state.debriefs ||= {})[id] ||= { at: t }); d[el.dataset.k] = el.dataset.v === 'true'; d.at = t;
       if (el.dataset.k === 'onTime' && !state.arrivals[id]) state.arrivals[id] = { at: null, status: d.onTime ? 'on_time' : 'late', manual: true, via: 'after-class check' };
