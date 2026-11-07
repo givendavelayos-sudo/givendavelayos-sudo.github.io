@@ -156,6 +156,8 @@ function schedule() {
       ${soon ? `<div class="h-alert">${ico('clock', 16)} ${next.format === 'online' ? 'Be online by' : 'Leave by'} <b>${E.fmtTime(lb)}</b></div>` : ''}
       <div class="h-actions">${soon ? `<button class="btn light" data-a="arrive" data-id="${esc(next.id)}">I’m here</button>` : ''}<button class="btn ${soon ? 'glass' : 'light'}" data-a="class" data-id="${esc(next.id)}">Prepare</button></div></div>`;
   } else h += `<div class="card hero nextcard"><div class="eyebrow">Next class</div><div class="h-title">Nothing scheduled yet</div><div class="h-meta"><span>${nextWeek ? `Next teaching week: ${esc(nextWeek.topic)} (${nextWeek.role === 'lead' ? 'Lead' : 'Support'}) · week of ${E.fmtDay(nextWeek.weekStart)}. Official schedule not released yet.` : 'Your classes appear here once the official schedule is released.'}</span></div>${nextWeek ? `<div class="h-actions"><button class="btn light" data-a="class" data-id="u:${esc(nextWeek.key)}">Prepare</button></div>` : ''}</div>`;
+  const ar = alarmReminder(t);
+  if (ar) h += `<button class="due-row" data-a="alarms" data-id="${esc(ar.s.id)}"><span class="due-ico">${ico('clock', 18)}</span><div class="grow"><div class="l-t">Set ${dayWord(ar.first, t)} iPhone alarms</div><div class="l-s">${ar.plan.items.map(x => E.fmtTime(x.at)).join(' · ')} · for ${esc(ar.s.section || ar.s.subject)} at ${E.fmtTime(ar.s.start)}</div></div>${ico('chev', 16)}</button>`;
   // 2 · What must I accomplish soon?  — one row, only when genuinely close (≤ 3 days)
   if (u.showNextDeadline !== false) {
     const d = E.deadlines(state, t, 8).find(x => x.at - t < 3 * 864e5 && x.at > t - 2 * 864e5);
@@ -203,7 +205,7 @@ const blockKind = s => s.kind === 'consultation' ? 'consult' : s.format === 'onl
 const schedFooter = mon => `<div class="link-row"><button class="link" data-a="sched-menu" data-week="${E.dayKey(mon)}">${ico('plus', 14)} Update schedule</button></div>`;
 
 /* ---------- iPhone alarms (via the Shortcuts app: web apps can't create Clock alarms themselves) */
-const alarmCfg = () => ({ bathMin: 90, leaveMin: 30, shortcut: 'Ace Alarms', ...(ui().alarms || {}) });
+const alarmCfg = () => ({ bathMin: 90, leaveMin: 30, shortcut: 'Ace Alarms', remindTime: '20:00', ...(ui().alarms || {}) });
 function alarmPlan(s) {
   const c = cfg(), a = alarmCfg(), leave = E.leaveBy(s, c), online = s.format === 'online';
   const what = online ? 'log in' : 'leave';
@@ -229,10 +231,19 @@ function setAlarms(s) {
   }
   const url = `shortcuts://run-shortcut?name=${encodeURIComponent(alarmCfg().shortcut)}&input=text&text=${encodeURIComponent(plan.items.map(alarmLine).join('\n'))}`;
   (window.__aceOpen || (u => { location.href = u; }))(url); // hook lets tests see the hand-off
+  state.alarmsSet = { ...(state.alarmsSet || {}), [s.id]: t }; save(); setTimeout(render, 400);
   toast('Opening Shortcuts to set your alarms…');
 }
+// Reminder to set them: the evening before (remindTime), but never before the 24 h window opens.
+function alarmReminder(t) {
+  const s = nextClassForAlarms(t); if (!s || (state.alarmsSet || {})[s.id]) return null;
+  const plan = alarmPlan(s), first = plan.items[0]?.at; if (!first || first <= t) return null;
+  const remindAt = Math.max(E.atTime(E.addDays(E.startOfDay(first), -1), alarmCfg().remindTime || '20:00'), first - 24 * 36e5);
+  return t >= remindAt ? { s, plan, first } : null;
+}
+const dayWord = (ms, t) => { const d = E.fmtDayRel(ms, t); return /^(today|tomorrow)$/i.test(d) ? d.toLowerCase() + '’s' : d + '’s'; };
 const alarmButton = s => { const plan = alarmPlan(s), ready = alarmsReady(plan, now());
-  return `<button class="srow alarm-row" data-a="alarms" data-id="${esc(s.id)}"><div class="grow"><div class="s-l">Set iPhone alarms</div><div class="s-s">${plan.items.map(x => `${E.fmtTime(x.at)} ${x.label.includes('bath') ? 'bath' : plan.online ? 'log in soon' : 'leave soon'}`).join(' · ')}${ready ? '' : ' · available 24 h before'}</div></div>${ico('clock', 18)}</button>`; };
+  return `<button class="srow alarm-row" data-a="alarms" data-id="${esc(s.id)}"><div class="grow"><div class="s-l">Set iPhone alarms${(state.alarmsSet || {})[s.id] ? ' again' : ''}</div><div class="s-s">${plan.items.map(x => `${E.fmtTime(x.at)} ${x.label.includes('bath') ? 'bath' : plan.online ? 'log in soon' : 'leave soon'}`).join(' · ')}${ready ? '' : ' · available 24 h before'}</div></div>${ico('clock', 18)}</button>`; };
 
 /* ---------- calendar: lead/support weeks + what to do each day (past days too) */
 let calMonth = 0, calDay = null;
@@ -519,7 +530,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.8.2';
+const VERSION = '0.8.3';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -582,12 +593,13 @@ const PANELS = {
       ${grp('Notifications', [rowLink('Reminders', perm === 'granted' ? 'On for this device' : perm === 'denied' ? 'Blocked — allow in iPhone Settings → Ace' : 'Tap to allow (open Ace from the Home Screen first)', 'notif'),
         rowToggle('Leave-by / log-in time', '15 minutes before', 'ui.notif.leave', u.notif.leave), rowToggle('Deadlines', 'A day before and 3 hours before each deadline', 'ui.notif.deadlines', u.notif.deadlines),
         rowToggle('Mastery day', 'Sunday morning before each lead week', 'ui.notif.leadppt', u.notif.leadppt), rowToggle('Schedule & role changes', 'When new screenshots change your weeks', 'ui.notif.changes', u.notif.changes),
+        rowToggle('Set iPhone alarms', `The evening before your first class of the day (${E.fmtTime(E.atTime(Date.now(), alarmCfg().remindTime || '20:00'))})`, 'ui.notif.alarms', u.notif.alarms !== false),
         rowToggle('After-class check', 'A nudge a few minutes after each class ends', 'ui.notif.debrief', u.notif.debrief !== false),
         rowToggle('Morning plan', 'Your most important task and today’s priorities', 'ui.notif.morning', u.notif.morning), ...(u.notif.morning ? [rowBox('Morning plan time', `<input type="time" data-f="ui.notif.morningTime" value="${esc(u.notif.morningTime)}">`)] : []),
         `<div class="srow col"><div class="s-s">Reminders arrive while Ace is open or recently opened. Background push needs the server phase.</div></div>`])}
       ${(() => { const a = alarmCfg(), n = nextClassForAlarms(Date.now()); return grp('iPhone alarms', [
         ...(n ? [alarmButton(n)] : [`<div class="srow col"><div class="s-s">No upcoming class to set alarms for.</div></div>`]),
-        `<div class="srow col"><div class="two"><div><label style="margin-top:0">Bath alarm · min before leaving</label><input type="number" min="0" step="5" data-f="ui.alarms.bathMin" value="${a.bathMin}"></div><div><label style="margin-top:0">Leave alarm · min before</label><input type="number" min="0" step="5" data-f="ui.alarms.leaveMin" value="${a.leaveMin}"></div></div><div class="s-s">0 turns an alarm off. “Leaving” uses your leave-by time (arrive early + travel, in Teaching rules).</div></div>`,
+        `<div class="srow col"><div class="two"><div><label style="margin-top:0">Bath alarm · min before leaving</label><input type="number" min="0" step="5" data-f="ui.alarms.bathMin" value="${a.bathMin}"></div><div><label style="margin-top:0">Leave alarm · min before</label><input type="number" min="0" step="5" data-f="ui.alarms.leaveMin" value="${a.leaveMin}"></div></div><label>Remind me to set them (the evening before)</label><input type="time" data-f="ui.alarms.remindTime" value="${esc(a.remindTime)}"><div class="s-s">0 turns an alarm off. “Leaving” uses your leave-by time (arrive early + travel, in Teaching rules).</div></div>`,
         rowLink('Set up the “Ace Alarms” shortcut', 'One time, about 3 minutes, in the Shortcuts app', 'panel', 'alarms')]); })()}
       ${grp('Calendar', [rowLink('Add classes & deadlines to your calendar', 'Download an .ics file for Google or Apple Calendar', 'ics'), `<div class="srow col"><div class="s-s">Google Calendar: Settings → Import & export → Import the file. Re-import after schedule changes (events update, not duplicate). A live Google Calendar sync needs Google sign-in and isn’t set up yet.</div></div>`])}
       ${grp('Backup & data', [rowLink('Import data file (merge)', 'Adds new records only · never duplicates or overwrites', 'merge'), rowLink('Export backup', 'Save a copy of everything (not your API key or PIN)', 'export'), rowLink('Restore backup (replace all)', 'From an Ace JSON backup', 'import'), `<button class="srow danger" data-a="reset"><div class="grow"><div class="s-l">Erase all data on this device</div></div></button>`])}
@@ -622,7 +634,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.8.2', 'Nov 7, 2026', ['Alarm setup guide: a ready-to-paste description for the Shortcuts app'])
+    return ['What’s new', v('0.8.3', 'Nov 7, 2026', ['Reminder to set your iPhone alarms: a notification the evening before (8 PM) and a one-tap row on Week until they are set'])
+      + v('0.8.2', 'Nov 7, 2026', ['Alarm setup guide: a ready-to-paste description for the Shortcuts app'])
       + v('0.8.1', 'Nov 7, 2026', ['Set iPhone alarms for the first class of each day: take a bath (1 h 30 before leaving) and leave in 30 minutes — via the Shortcuts app'])
       + v('0.8', 'Nov 7, 2026', ['Essentials checklist: about 5 key items per class (switch to Full in Settings)', 'Ace ticks “Schedule confirmed” and “Arrival buffer planned” itself', 'After each class: three quick questions on the Week screen, which build your habits in Performance'])
       + v('0.7.1', 'Nov 7, 2026', ['Back to the older colours, with AMOLED and app colours in Settings', 'Kept the three tabs: Week, Tasks, Performance', 'Performance highlights what students praise; “What to improve” is at the bottom'])
@@ -921,6 +934,7 @@ async function notify(key, title, body) {
 function tick() {
   const t = now(), c = cfg(), n = ui().notif;
   if (n.debrief !== false) { const db = E.pendingDebrief(state, t); if (db && t - db.end >= 5 * 6e4 && t - db.end < 60 * 6e4) notify(`db:${db.id}`, `How did ${db.section || 'class'} go?`, 'Three quick questions in Ace.'); }
+  if (n.alarms !== false) { const ar = alarmReminder(t); if (ar) notify(`al:${ar.s.id}`, `Set ${dayWord(ar.first, t)} alarms`, `${ar.plan.items.map(x => E.fmtTime(x.at)).join(' · ')} for ${ar.s.section || ar.s.subject} at ${E.fmtTime(ar.s.start)}. Open Ace and tap Set iPhone alarms.`); }
   if (n.morning) { const at = E.atTime(t, n.morningTime || '06:30'); if (t >= at && t - at < 3 * 36e5) { const pl = E.plan(state, t); notify(`mp:${E.dayKey(t)}`, pl.next ? `Today: ${pl.next.title}` : 'Today: nothing pressing', `${pl.today.length} priorit${pl.today.length === 1 ? 'y' : 'ies'} · ${pl.minutes} min planned`); } }
   if (n.leave) for (const s of E.activeSessions(state)) { const lb = E.leaveBy(s, c); if (lb - t < 15 * 6e4 && lb - t > -5 * 6e4 && !state.arrivals[s.id]) notify(`lb:${s.id}`, `${s.format === 'online' ? 'Log in' : 'Leave'} by ${E.fmtTime(lb)}`, `${s.subject} starts at ${E.fmtTime(s.start)}`); }
   if (n.deadlines) for (const d of E.deadlines(state, t, 20)) { const left = d.at - t;
