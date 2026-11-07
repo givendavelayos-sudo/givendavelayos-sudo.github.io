@@ -123,7 +123,7 @@ const HOME_CARDS = [['next', 'Next class'], ['today', 'Focus today'], ['upcoming
 function nextCard(s, t, c) {
   const r = E.readiness(s, state, c), arr = state.arrivals[s.id], lb = E.leaveBy(s, c), inClass = t >= s.start && t < s.end;
   const soon = !s.approx && !arr && s.start - t < 3 * 36e5 && t < s.end, late = soon && t > lb;
-  const when = s.approx ? `Week of ${E.fmtDay(s.start)} · official schedule not released yet` : inClass ? `In class now · until ${E.fmtTime(s.end)}` : `${E.fmtDayRel(s.start, t)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)}${s.section ? ' · ' + s.section : ''}`;
+  const when = s.approx ? `Week of ${E.fmtDay(s.start)} · official schedule not released yet` : inClass ? `In class now · until ${E.fmtTime(s.end)}` : `${E.fmtDayRel(s.start, t)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)}${s.section ? ' · ' + s.section : ''}${s.location ? ' · ' + s.location : ''}`;
   return `<div class="card hero ${late ? 'late' : ''}"><div class="eyebrow">Next class${s.role ? ' · ' + (s.role === 'lead' ? 'Lead' : 'Support') : ''}</div>
     <div class="h-title">${esc(s.subject)}</div><div class="h-sub">${esc(when)}${arr ? ` · arrived ${esc(arr.status.replace('_', ' '))}` : ''}</div>
     <div class="h-ready"><div class="row"><span>Preparation</span><b>${r.done} of ${r.total}</b></div>${bar(r.done, r.total, 'light')}</div>
@@ -202,7 +202,7 @@ function schedule() {
     <div class="weeknav"><button class="btn sec sm" data-a="sweek" data-id="-1">← Previous week</button><button class="btn sec sm" data-a="sweek" data-id="+1">Next week →</button></div>
     <div class="daylist">${list.length ? list.map(s => { const r = E.readiness(s, state, c), arr = state.arrivals[s.id], past = s.end < t;
       const right = arr ? `<span class="tag ${arr.status === 'late' ? 'bad' : 'ok'}">${arr.status === 'on_time' ? 'On time' : arr.status === 'early' ? 'Early' : 'Late'}</span>` : past ? '<span class="tag">Not logged</span>' : `<span class="pct ${r.pct >= .99 ? 'ok' : ''}">${r.done}/${r.total}</span>`;
-      return `<button class="lrow ${past ? 'past' : ''}" data-a="class" data-id="${esc(s.id)}"><span class="cbar" style="--c:${blockColor(s)}"></span><div class="grow"><div class="l-t">${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.kind === 'consultation' ? s.subject : s.format === 'online' ? 'Online' : s.section)}</div><div class="l-s">${esc(s.kind === 'consultation' ? 'Consultation' : s.subject)}${s.group ? ' · Group ' + esc(s.group) : ''}</div></div>${right}</button>`; }).join('')
+      return `<button class="lrow ${past ? 'past' : ''}" data-a="class" data-id="${esc(s.id)}"><span class="cbar" style="--c:${blockColor(s)}"></span><div class="grow"><div class="l-t">${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.kind === 'consultation' ? s.subject : s.format === 'online' ? 'Online' : s.section)}</div><div class="l-s">${esc([s.location, s.kind === 'consultation' ? 'Consultation' : s.subject].filter(Boolean).join(' · '))}${s.group ? ' · Group ' + esc(s.group) : ''}</div></div>${right}</button>`; }).join('')
       : `<div class="empty-line soft">No classes on ${E.fmtDay(sel)}.</div>`}</div>
     ${unit ? `<button class="lrow sub" data-a="class" data-id="u:${esc(unit.key)}"><div class="grow l-s">Topic prep for ${esc(unit.topic)} · shared by all classes this week</div>${ico('chev', 14)}</button>` : ''}</div>
     ${calendarCard(t, c)}
@@ -286,7 +286,7 @@ function classSheet(id) {
     ${rows.map(x => `<button class="tick ${x.doneAt ? 'on' : ''}" data-a="rd" data-id="${esc(s.id)}" data-item="${x.id}"><span class="box">${ico('check', 15)}</span><span class="lbl">${esc(x.official && s.role === 'lead' ? x.label + ' · lead deadline' : x.label)}<span class="hint">${x.doneAt ? 'Done ' + E.fmtDayRel(x.doneAt, t) : 'By ' + E.fmtDayRel(s.start - x.lead * 36e5, t) + ' ' + E.fmtTime(s.start - x.lead * 36e5)}${s.unit && !E.SESSION_ITEMS.has(x.id) && !s.approx ? ' · shared this week' : ''}</span></span></button>`).join('')}` : ''; }).join('');
   const tpls = Object.entries(c.templates).map(([k, v]) => `<option value="${k}" ${E.templateFor(s, c) === v ? 'selected' : ''}>${esc(v.label)}</option>`).join('');
   sheet(`<div class="row"><div class="eyebrow grow">${s.approx ? 'Topic prep' : 'Class'}${s.role ? ' · ' + (s.role === 'lead' ? 'Lead' : 'Support') : ''}</div>${s.unit && !s.unit.verified ? '<span class="tag amb">Unverified</span>' : ''}</div>
-    <h2>${esc(s.subject)}</h2><div class="muted small">${s.approx ? `Week of ${E.fmtDay(s.start)} · applies to every class of this topic` : `${E.fmtDay(s.start)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc(s.section || s.location || s.platform || '')}`}</div>
+    <h2>${esc(s.subject)}</h2><div class="muted small">${s.approx ? `Week of ${E.fmtDay(s.start)} · applies to every class of this topic` : `${E.fmtDay(s.start)} · ${E.fmtTime(s.start)}–${E.fmtTime(s.end)} · ${esc([s.section, s.location || s.platform].filter(Boolean).join(' · '))}`}</div>
     <div style="margin:14px 0 2px" class="row"><div class="grow">${bar(r.done, r.total)}</div><b class="small">${r.done} of ${r.total}</b></div>
     ${groups}
     ${!s.approx && t > s.start - 3 * 36e5 ? `<div class="cat-h">Arrival</div>${arr ? `<div class="row"><span class="tag ${arr.status === 'late' ? 'bad' : 'ok'}">${esc(arr.status.replace('_', ' '))}${arr.at ? ' · ' + E.fmtTime(arr.at) : ''}</span><button class="link" data-a="unarrive" data-id="${esc(s.id)}">Undo</button></div>` :
@@ -472,7 +472,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.6.3';
+const VERSION = '0.6.4';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -500,7 +500,7 @@ function sealedCard() {
     <div class="row" style="margin-top:12px;gap:8px"><input type="password" id="sealpass" placeholder="Passcode" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"><button class="btn sm" data-a="unseal" data-id="${esc(p.id)}">Unlock</button></div></div>`;
 }
 // Each screenshot batch you send is shipped as a new file here; every device imports each one once.
-const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json', 'seed/gertc-2026-11-06c.json', 'seed/gertc-2026-11-06d.json', 'seed/gertc-2026-11-06e.json', 'seed/gertc-2026-11-06f.json'];
+const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json', 'seed/gertc-2026-11-06c.json', 'seed/gertc-2026-11-06d.json', 'seed/gertc-2026-11-06e.json', 'seed/gertc-2026-11-06f.json', 'seed/gertc-2026-11-07g.json'];
 async function runSeeds() {
   for (const url of SEEDS) {
     const id = url.split('/').pop();
@@ -560,7 +560,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.6.3', 'Nov 6, 2026', ['Fix: the Fluid Flow 1 handout (your lead week, due Wed Nov 11) is back; support-week handouts never show'])
+    return ['What’s new', v('0.6.4', 'Nov 7, 2026', ['Official hub schedule for Week 5 (Nov 9–15): 6 classes, 24 h'])
+      + v('0.6.3', 'Nov 6, 2026', ['Fix: the Fluid Flow 1 handout (your lead week, due Wed Nov 11) is back; support-week handouts never show'])
       + v('0.6.2', 'Nov 6, 2026', ['Assessment drafts are planned inside their teaching week — nothing shows early', '“Not assigned to me” on any handout, PowerPoint or draft (e.g. when the lead instructor already did it); restore it from Tasks'])
       + v('0.6.1', 'Nov 6, 2026', ['Ace now tells you when a new version is available — tap the bar to update'])
       + v('0.6', 'Nov 6, 2026', ['Calendar under your schedule: lead/support weeks, each day’s deadlines and steps, tick them off — past days too', 'Your rhythm: handout Wed before a lead week · PowerPoint Sat 11:59 PM · Sunday mastery · assessment draft every teaching week’s Wed', 'Reminders a day before and 3 hours before each deadline, plus a Sunday mastery nudge'])

@@ -64,3 +64,19 @@ const updF = { v: 1, kind: 'ace-import', label: 'Correction · Nov 6, 2026 (Flui
   cfg: { handoutRoles: ['lead'], handoutRolesVerified: true } };
 fs.writeFileSync(new URL('../seed/gertc-2026-11-06f.json', import.meta.url), JSON.stringify(updF, null, 1));
 console.log('update f: Fluid Flow 1 handout restored');
+
+// Update g — hub "My Schedule" screenshot for Week 5 (Nov 9–15), received Nov 7. Official schedule; all classes are
+// "Review · Relative Equilibrium of Fluids in Moving Vessels" (support week). Tue/Wed times read from the grid
+// (standard 7:30–11:30 AM and 12:30–4:30 PM slots; day totals 8h match the screenshot). Rooms shown only for L2/K2.
+const W5 = 'Relative Equilibrium of Fluids in Moving Vessels';
+const cls = (d, h0, m0, h1, m1, section, location = '') => ({
+  externalId: `hub:2026-11-${String(d).padStart(2, '0')}|${section.toLowerCase()}|${h0}:${m0}`, subject: W5, section, kind: 'class',
+  start: E.mk(2026, 11, d, h0, m0), end: E.mk(2026, 11, d, h1, m1), format: 'in_person', location, platform: '', status: 'scheduled',
+  remarks: 'Review', weekTitle: 'Week 5', source: { id: 'hub', name: 'Hub My Schedule · screenshot Nov 7', method: 'screenshot' } });
+const wk5 = [cls(9, 17, 0, 21, 0, 'L2 EVE', 'Labangon Building, 2nd Floor'), cls(10, 7, 30, 11, 30, 'L3 AM'), cls(10, 12, 30, 16, 30, 'L3 PM'),
+  cls(11, 7, 30, 11, 30, 'K4 AM'), cls(11, 12, 30, 16, 30, 'K4 PM'), cls(13, 17, 0, 21, 0, 'K2 EVE', 'Kysey Building, 2nd Floor')];
+const updG = { v: 1, kind: 'ace-import', label: 'Hub schedule · Week 5 (Nov 9–15), screenshot Nov 7', createdAt: E.mk(2026, 11, 7, 12), sessions: wk5,
+  review: [{ id: 'wk5-rooms', title: 'Rooms for L3 and K4 (Nov 10–11)', source: 'Hub My Schedule screenshot (Nov 7)',
+    detail: 'Your screenshot shows the building only for L2 EVE (Labangon, 2nd Floor) and K2 EVE (Kysey, 2nd Floor). Tap a Tue/Wed class to see the room on the hub, or send a screenshot of those days.' }] };
+fs.writeFileSync(new URL('../seed/gertc-2026-11-07g.json', import.meta.url), JSON.stringify(updG, null, 1));
+console.log('update g: Week 5 hub schedule,', wk5.length, 'classes,', wk5.reduce((n, s) => n + (s.end - s.start) / 36e5, 0) + 'h');
