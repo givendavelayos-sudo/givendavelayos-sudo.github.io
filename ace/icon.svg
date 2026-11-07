@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Ace: a five-point star rising from an open book, in Power's green family -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6fb874"/><stop offset="1" stop-color="#1f4a28"/></linearGradient>
+    <linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6dc9a"/><stop offset="1" stop-color="#d9a94a"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="114" fill="url(#g)"/>
+  <path d="M256 92l30 61 67 10-48 47 11 67-60-32-60 32 11-67-48-47 67-10z" fill="url(#s)"/>
+  <path d="M96 318c56-22 112-22 160 10 48-32 104-32 160-10v104c-56-22-112-22-160 10-48-32-104-32-160-10z" fill="#fff8ef"/>
+  <path d="M256 328v104" stroke="#2f6a39" stroke-width="10" stroke-linecap="round"/>
+</svg>
