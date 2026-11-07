@@ -80,3 +80,11 @@ const updG = { v: 1, kind: 'ace-import', label: 'Hub schedule · Week 5 (Nov 9�
     detail: 'Your screenshot shows the building only for L2 EVE (Labangon, 2nd Floor) and K2 EVE (Kysey, 2nd Floor). Tap a Tue/Wed class to see the room on the hub, or send a screenshot of those days.' }] };
 fs.writeFileSync(new URL('../seed/gertc-2026-11-07g.json', import.meta.url), JSON.stringify(updG, null, 1));
 console.log('update g: Week 5 hub schedule,', wk5.length, 'classes,', wk5.reduce((n, s) => n + (s.end - s.start) / 36e5, 0) + 'h');
+
+// Update h — hub class details (screenshots, Nov 7): rooms for L3 and K4.
+const ROOMS = { 'L2 EVE': 'Labangon Building, 2nd Floor', 'L3 AM': 'Labangon Building, 3rd Floor', 'L3 PM': 'Labangon Building, 3rd Floor',
+  'K4 AM': 'Kysey Building, 4th Floor', 'K4 PM': 'Kysey Building, 4th Floor', 'K2 EVE': 'Kysey Building, 2nd Floor' };
+const updH = { v: 1, kind: 'ace-import', label: 'Hub schedule · Week 5 rooms (screenshots Nov 7)', createdAt: E.mk(2026, 11, 7, 18),
+  sessions: wk5.map(x => ({ ...x, location: ROOMS[x.section] })), resolve: ['wk5-rooms'] };
+fs.writeFileSync(new URL('../seed/gertc-2026-11-07h.json', import.meta.url), JSON.stringify(updH, null, 1));
+console.log('update h: Week 5 rooms');

@@ -599,7 +599,7 @@ export function importMerge(state, data, { now }) {
     const inc = { section: '', location: '', platform: '', format: 'in_person', status: 'scheduled', ...raw };
     const k = sessionKey(inc), ex = byKey.get(k);
     if (!ex) { const s = { ...inc, id: inc.id || `s_${hash(k)}`, source: { ...inc.source, at: now } }; st.sessions.push(s); byKey.set(k, s); rep.sessions.added++; continue; }
-    const diff = ['start', 'end', 'section', 'format', 'subject'].filter(f => (ex[f] ?? '') !== (inc[f] ?? ''));
+    const diff = ['start', 'end', 'section', 'format', 'subject', 'location'].filter(f => (ex[f] ?? '') !== (inc[f] ?? ''));
     if (!diff.length) { rep.sessions.unchanged++; continue; }
     if (ex.source?.id === inc.source?.id && ex.source?.method === inc.source?.method && !ex.edited) { Object.assign(ex, inc, { id: ex.id, source: { ...inc.source, at: now } }); rep.sessions.updated++; continue; }
     rep.sessions.conflicts++;

@@ -85,8 +85,8 @@ const formVals = () => Object.fromEntries([...document.querySelectorAll('.sheet 
 
 /* ================================================================ screens */
 const TAB_ALIAS = { week: 'schedule', work: 'tasks', growth: 'performance', sources: 'connections' };
-let tab = (location.hash || '#home').slice(1); tab = TAB_ALIAS[tab] || tab;
-if (!['home', 'schedule', 'tasks', 'performance'].includes(tab)) tab = 'home';
+let tab = (location.hash || '#schedule').slice(1); tab = TAB_ALIAS[tab] || tab;
+if (!['home', 'schedule', 'tasks', 'performance'].includes(tab)) tab = 'schedule'; // Ace opens on your schedule
 
 /* ================================================================ shared UI pieces (design system) */
 function header(title, sub) {
@@ -380,6 +380,7 @@ function ui() {
   const u = (state.ui ||= {});
   for (const [k, v] of Object.entries(UI_DEF)) if (u[k] === undefined) u[k] = JSON.parse(JSON.stringify(v));
   u.home.hidden ||= {};
+  if (!u.mig065) { u.home.hidden.today = true; u.mig065 = true; } // you asked to hide Today's reminders (turn back on in Settings → Home screen)
   u.home.order = [...new Set([...(u.home.order || []).filter(k => HOME_CARDS.some(x => x[0] === k)), ...UI_DEF.home.order])];
   u.notif = { ...UI_DEF.notif, ...u.notif };
   return u;
@@ -472,7 +473,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.6.4';
+const VERSION = '0.6.5';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -500,7 +501,7 @@ function sealedCard() {
     <div class="row" style="margin-top:12px;gap:8px"><input type="password" id="sealpass" placeholder="Passcode" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"><button class="btn sm" data-a="unseal" data-id="${esc(p.id)}">Unlock</button></div></div>`;
 }
 // Each screenshot batch you send is shipped as a new file here; every device imports each one once.
-const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json', 'seed/gertc-2026-11-06c.json', 'seed/gertc-2026-11-06d.json', 'seed/gertc-2026-11-06e.json', 'seed/gertc-2026-11-06f.json', 'seed/gertc-2026-11-07g.json'];
+const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json', 'seed/gertc-2026-11-06c.json', 'seed/gertc-2026-11-06d.json', 'seed/gertc-2026-11-06e.json', 'seed/gertc-2026-11-06f.json', 'seed/gertc-2026-11-07g.json', 'seed/gertc-2026-11-07h.json'];
 async function runSeeds() {
   for (const url of SEEDS) {
     const id = url.split('/').pop();
@@ -560,7 +561,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.6.4', 'Nov 7, 2026', ['Official hub schedule for Week 5 (Nov 9–15): 6 classes, 24 h'])
+    return ['What’s new', v('0.6.5', 'Nov 7, 2026', ['Schedule is the first tab and opens first', 'Today no longer shows the reminder list (turn it back on in Settings → Home screen)', 'Rooms for L3 (Labangon, 3rd Floor) and K4 (Kysey, 4th Floor)'])
+      + v('0.6.4', 'Nov 7, 2026', ['Official hub schedule for Week 5 (Nov 9–15): 6 classes, 24 h'])
       + v('0.6.3', 'Nov 6, 2026', ['Fix: the Fluid Flow 1 handout (your lead week, due Wed Nov 11) is back; support-week handouts never show'])
       + v('0.6.2', 'Nov 6, 2026', ['Assessment drafts are planned inside their teaching week — nothing shows early', '“Not assigned to me” on any handout, PowerPoint or draft (e.g. when the lead instructor already did it); restore it from Tasks'])
       + v('0.6.1', 'Nov 6, 2026', ['Ace now tells you when a new version is available — tap the bar to update'])
@@ -631,7 +633,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ================================================================ render */
-const TABS = [['home', 'Today', 'home'], ['schedule', 'Schedule', 'week'], ['tasks', 'Tasks', 'work'], ['performance', 'Performance', 'growth']];
+const TABS = [['schedule', 'Schedule', 'week'], ['home', 'Today', 'home'], ['tasks', 'Tasks', 'work'], ['performance', 'Performance', 'growth']];
 const scrollMem = {};
 /** Tab bar is built once; switching only moves the lens and recolours labels (no rebuild, no flicker). */
 function renderTabs() {
