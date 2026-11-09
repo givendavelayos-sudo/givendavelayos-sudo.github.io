@@ -221,7 +221,18 @@ function matHTML(m) {
   return `<span class="mat"><table>${m.map((r) => `<tr>${r.map((x) => `<td>${short(x)}</td>`).join('')}</tr>`).join('')}</table></span>`;
 }
 const textLen = (h) => h.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').length;
+function pfactHTML(n) {
+  const out = [];
+  for (let p = 2; p * p <= n; p += p === 2 ? 1 : 2) {
+    let e = 0;
+    while (n % p === 0) { n /= p; e++; }
+    if (e) out.push(e > 1 ? `${p}<span class="sp">${e}</span>` : `${p}`);
+  }
+  if (n > 1) out.push(String(n));
+  return out.join('×');
+}
 function valueHTML(v, res) {
+  if (res.pfact && typeof v === 'number') return pfactHTML(v);
   if (typeof v === 'number') {
     if (S.mode === 'CPLX' && S.setup.cplx === 'polar') return cplxHTML({ re: v, im: 0 }, res);
     return realHTML(v, res);
@@ -280,7 +291,7 @@ const calc = {
         return this.hist(a === 'UP' ? -1 : 1);
       case 'SD':
         if (R && !R.msg) {
-          if (R.dms || R.eng !== null) { R.dms = false; R.eng = null; }
+          if (R.dms || R.eng !== null || R.pfact) { R.dms = false; R.eng = null; R.pfact = false; }
           else { R.exact = !R.exact; R.forceFrac = R.exact && !isMath(); }
         }
         return;
@@ -294,6 +305,10 @@ const calc = {
           R.dms = false;
         }
         return;
+      case 'PFACT':
+        if (!R) return;
+        if (typeof R.v === 'number' && Number.isInteger(R.v) && R.v > 1 && R.v < 1e10) { R.pfact = !R.pfact; return; }
+        return this.fail(new E.CalcError('Math ERROR'));
       case 'M+': case 'M-': return this.mplus(a === 'M-');
       case 'CALC': return this.startCalc();
       case 'SOLVE': return this.startSolve();
@@ -839,52 +854,56 @@ function enterMode(fresh) {
 }
 
 // ---------------- keypad ----------------
+// Layout and labels follow the real F-789SGA: gold = SHIFT, blue = ALPHA, green = BASE-N mode.
 const sup = (s) => `<span class="sup">${s}</span>`;
-const FRAC_ICON = '<span class="fr" style="font-size:.62em;margin:0"><span class="nu">▯</span><span class="de">▯</span></span>';
+const X = '<i class="x">x</i>';
+const FRAC_ICON = '<span class="fr kfr"><span class="nu">□</span><span class="de">□</span></span>';
 const K = {
-  shift: { lbl: 'SHIFT', cls: 'shift', main: 'SHIFT' },
-  alpha: { lbl: 'ALPHA', cls: 'alpha', main: 'ALPHA' },
-  apps: { lbl: 'Apps', main: 'APPS', s: 'tm:sum', sl: 'Σ▫' },
-  calc: { lbl: 'CALC', main: 'CALC', s: 'SOLVE', sl: 'SOLVE', a: 'tok:=', al: '=' },
-  mode: { lbl: 'MODE', main: 'MODE', s: 'SETUP', sl: 'SETUP' },
-  on: { lbl: 'ON', main: 'ON' },
-  integ: { lbl: '∫▫', main: 'tm:integ', s: 'tm:diff', sl: 'd/dx' },
-  inv: { lbl: 'x' + sup('−1'), main: 'tok:⁻¹', s: 'tok:!', sl: 'x!' },
-  frac: { lbl: FRAC_ICON, main: 'tm:frac', s: 'tm:mixed', sl: '▫▫⁄▫' },
-  sqrt: { lbl: '√▫', main: 'tm:sqrt', s: 'tm:cbrt', sl: '∛▫' },
-  sq: { lbl: 'x' + sup('2'), main: 'tok:²', s: 'tok:³', sl: 'x³', b: 'base:10', bl: 'DEC' },
-  pow: { lbl: 'x' + sup('▪'), main: 'tm:pow', s: 'tm:nroot', sl: 'ˣ√▫', b: 'base:16', bl: 'HEX' },
-  log: { lbl: 'log', main: 'tok:log(', s: 'tm:ten', sl: '10▪', b: 'base:2', bl: 'BIN' },
-  ln: { lbl: 'ln', main: 'tok:ln(', s: 'tm:exp', sl: 'e▪', b: 'base:8', bl: 'OCT' },
-  neg: { lbl: '(−)', main: 'tok:(−)', s: 'tok:∠', sl: '∠', a: 'var:A', al: 'A', b: 'tok:hA', bl: 'A' },
-  dms: { lbl: '°′″', main: 'DMS', s: 'DMS2', sl: '←', a: 'var:B', al: 'B', b: 'tok:hB', bl: 'B' },
-  hyp: { lbl: 'hyp', main: 'HYP', s: 'tm:abs', sl: 'Abs', a: 'var:C', al: 'C', b: 'tok:hC', bl: 'C' },
-  sin: { lbl: 'sin', main: 'tok:sin(', s: 'tok:asin(', sl: 'sin⁻¹', a: 'var:D', al: 'D', b: 'tok:hD', bl: 'D' },
-  cos: { lbl: 'cos', main: 'tok:cos(', s: 'tok:acos(', sl: 'cos⁻¹', a: 'var:E', al: 'E', b: 'tok:hE', bl: 'E' },
-  tan: { lbl: 'tan', main: 'tok:tan(', s: 'tok:atan(', sl: 'tan⁻¹', a: 'var:F', al: 'F', b: 'tok:hF', bl: 'F' },
+  shift: { lbl: '', cls: 'dk', main: 'SHIFT', sl: 'Shift', lc: 'c' },
+  alpha: { lbl: '', cls: 'dk', main: 'ALPHA', al: 'Alpha', lc: 'c' },
+  mode: { lbl: 'MODE', cls: 'dk', main: 'MODE', s: 'SETUP', sl: 'SET-UP', lc: 'c' },
+  on: { lbl: 'ON', cls: 'dk', main: 'ON' },
+  apps: { lbl: '', cls: 'lt', main: 'APPS', wrap: 'appsk', sl: 'Apps', lc: 'c' },
+  conv: { lbl: 'CONVT', cls: 'lt sm', main: 'CONV', s: 'CONST', sl: 'C-VALUE', lc: 'c' },
+  calc: { lbl: 'CALC', main: 'CALC', s: 'SOLVE', sl: 'Solve', a: 'tok:=', al: '=' },
+  inv: { lbl: X + sup('-1'), main: 'tok:⁻¹', s: 'tok:!', sl: '<i>x</i>!' },
+  integ: { lbl: '∫<span class="sup">▫</span>▪', main: 'tm:integ', s: 'tm:diff', sl: 'd/dx' },
+  eng: { lbl: 'ENG', main: 'ENG', s: '<ENG', sl: '◂ENG', a: 'tok:i', al: '<i>i</i>' },
+  frac: { lbl: FRAC_ICON, main: 'tm:frac', s: 'tm:mixed', sl: '▪▫⁄▫', b: 'base:10', bl: 'DEC' },
+  sqrt: { lbl: '√▫', main: 'tm:sqrt', s: 'tm:cbrt', sl: '∛▫', b: 'base:16', bl: 'HEX' },
+  pow: { lbl: X + sup('▫'), main: 'tm:pow', s: 'tm:nroot', sl: 'ˣ√▫', b: 'base:2', bl: 'BIN' },
+  sq: { lbl: X + sup('2'), main: 'tok:²', s: 'tok:³', sl: '<i>x</i>³', b: 'base:8', bl: 'OCT' },
+  log: { lbl: 'log', main: 'tok:log(', s: 'tm:ten', sl: '10▫', a: 'tm:logab', al: 'log▪▫' },
+  ln: { lbl: 'ln', main: 'tok:ln(', s: 'tm:exp', sl: '<i>e</i>▫' },
+  neg: { lbl: '(−)', main: 'tok:(−)', a: 'var:A', al: 'A', b: 'tok:hA' },
+  dms: { lbl: '°′″', main: 'DMS', s: 'PFACT', sl: 'PFact', a: 'var:B', al: 'B', b: 'tok:hB' },
+  hyp: { lbl: 'hyp', main: 'HYP', a: 'var:C', al: 'C', b: 'tok:hC' },
+  sin: { lbl: 'sin', main: 'tok:sin(', s: 'tok:asin(', sl: 'sin⁻¹', a: 'var:D', al: 'D', b: 'tok:hD' },
+  cos: { lbl: 'cos', main: 'tok:cos(', s: 'tok:acos(', sl: 'cos⁻¹', a: 'var:E', al: 'E', b: 'tok:hE' },
+  tan: { lbl: 'tan', main: 'tok:tan(', s: 'tok:atan(', sl: 'tan⁻¹', a: 'var:F', al: 'F', b: 'tok:hF' },
   rcl: { lbl: 'RCL', main: 'RCL', s: 'STO', sl: 'STO' },
-  eng: { lbl: 'ENG', main: 'ENG', s: '<ENG', sl: '←ENG', c: 'tok:i', cl: '<i>i</i>' },
+  abs: { lbl: 'Abs', main: 'tm:abs' },
   lp: { lbl: '(', main: 'tok:(', s: 'tok:%', sl: '%' },
   rp: { lbl: ')', main: 'tok:)', s: 'tok:,', sl: ',', a: 'var:X', al: 'X' },
-  sd: { lbl: 'S⇔D', main: 'SD', s: 'ABC', sl: 'a<small>b/c</small>⇔<small>d/c</small>', a: 'var:Y', al: 'Y' },
-  mplus: { lbl: 'M+', main: 'M+', s: 'M-', sl: 'M−', a: 'var:M', al: 'M' },
-  del: { lbl: 'DEL', main: 'DEL', s: 'INS', sl: 'INS', cls: 'or' },
-  ac: { lbl: 'AC', main: 'AC', s: 'OFF', sl: 'OFF', cls: 'or' },
-  mul: { lbl: '×', main: 'tok:×', s: 'tok:nPr', sl: 'nPr', cls: 'op' },
-  div: { lbl: '÷', main: 'tok:÷', s: 'tok:nCr', sl: 'nCr', cls: 'op' },
-  add: { lbl: '+', main: 'tok:+', s: 'tok:Pol(', sl: 'Pol', cls: 'op' },
-  sub: { lbl: '−', main: 'tok:-', s: 'tok:Rec(', sl: 'Rec', cls: 'op' },
-  dot: { lbl: '.', main: 'tok:.', s: 'tok:Ran#', sl: 'Ran#', a: 'tok:RanInt#(', al: 'RanInt' },
-  exp: { lbl: '×10' + sup('x'), main: 'tok:EE', s: 'tok:π', sl: 'π', a: 'tok:e', al: '<i>e</i>', cls: 'sm' },
-  ans: { lbl: 'Ans', main: 'tok:Ans', s: 'DRG', sl: 'DRG▶', cls: 'sm' },
-  eq: { lbl: '=', main: '=', s: '≈', sl: '≈', cls: 'op' },
+  sd: { lbl: 'F↔D', main: 'SD', s: 'ABC', sl: '<i>a</i><small>b/c</small>↔<i>d</i>/<i>c</i>', a: 'var:Y', al: 'Y' },
+  mplus: { lbl: 'M+', main: 'M+', s: 'M-', sl: 'M-', a: 'var:M', al: 'M' },
+  del: { lbl: 'DEL', main: 'DEL', s: 'INS', sl: 'Insert', cls: 'sm' },
+  ac: { lbl: 'CA', main: 'AC', s: 'OFF', sl: 'OFF', cls: 'sm ca' },
+  mul: { lbl: '×', main: 'tok:×', s: 'tok:nPr', sl: 'nPr' },
+  div: { lbl: '÷', main: 'tok:÷', s: 'tok:nCr', sl: 'nCr' },
+  add: { lbl: '+', main: 'tok:+', s: 'tok:Pol(', sl: 'Pol(' },
+  sub: { lbl: '−', main: 'tok:-', s: 'tok:Rec(', sl: 'Rec(' },
+  dot: { lbl: '·', main: 'tok:.', s: 'tok:Ran#', sl: 'Rand', a: 'tok:RanInt#(', al: 'i-Rand' },
+  exp: { lbl: 'EXP', main: 'tok:EE', s: 'tok:π', sl: 'π', a: 'tok:e', al: '<i>e</i>', cls: 'sm' },
+  ans: { lbl: 'Ans', main: 'tok:Ans', s: 'DRG', sl: 'DRG▸', cls: 'sm' },
+  eq: { lbl: '=', main: '=' },
 };
-const SHIFT_DIGIT = { 7: ['CONST', 'CONST'], 8: ['CONV', 'CONV'], 9: ['CLR', 'CLR'], 4: ['APPS', 'MATRIX'], 5: ['APPS', 'VECTOR'], 1: ['APPS', 'STAT'], 2: ['APPS', 'CMPLX'], 3: ['APPS', 'BASE'], 0: ['tok:Rnd(', 'Rnd'] };
+const SHIFT_DIGIT = { 9: ['CLR', 'CLR'], 0: ['tok:Rnd(', 'ROUND'] };
 for (let d = 0; d <= 9; d++) K[d] = { lbl: String(d), main: `tok:${d}`, s: SHIFT_DIGIT[d]?.[0], sl: SHIFT_DIGIT[d]?.[1] };
 
 const LAYOUT = {
-  top: ['shift', 'alpha', 'PAD', 'mode', 'on', 'apps', 'calc', 'integ', 'inv'],
-  fn: ['frac', 'sqrt', 'sq', 'pow', 'log', 'ln', 'neg', 'dms', 'hyp', 'sin', 'cos', 'tan', 'rcl', 'eng', 'lp', 'rp', 'sd', 'mplus'],
+  top: ['shift', 'alpha', 'PAD', 'mode', 'on', 'apps', '', '', 'conv', 'calc', 'inv', 'integ', 'eng'],
+  fn: ['frac', 'sqrt', 'pow', 'sq', 'log', 'ln', 'neg', 'dms', 'hyp', 'sin', 'cos', 'tan', 'rcl', 'abs', 'lp', 'rp', 'sd', 'mplus'],
   main: ['7', '8', '9', 'del', 'ac', '4', '5', '6', 'mul', 'div', '1', '2', '3', 'add', 'sub', '0', 'dot', 'exp', 'ans', 'eq'],
 };
 function buildKeys() {
@@ -892,16 +911,14 @@ function buildKeys() {
   for (const [sec, ids] of Object.entries(LAYOUT)) {
     h += `<div class="sec ${sec}">`;
     for (const id of ids) {
+      if (id === '') { h += '<div class="k gap"></div>'; continue; }
       if (id === 'PAD') {
-        h += `<div class="pad"><button class="u" data-id="UP">▲</button><button class="l" data-id="LEFT">◀</button><span class="mid">REPLAY</span><button class="r" data-id="RIGHT">▶</button><button class="d" data-id="DOWN">▼</button></div>`;
+        h += `<div class="pad"><button class="u" data-id="UP"><span>︿</span></button><button class="l" data-id="LEFT"><span>〈</span></button><button class="r" data-id="RIGHT"><span>〉</span></button><button class="d" data-id="DOWN"><span>﹀</span></button></div>`;
         continue;
       }
       const k = K[id];
-      let lbl = k.lbl;
-      if (S.mode === 'BASE' && k.bl) lbl = k.bl;
-      if (S.mode === 'CPLX' && k.cl) lbl = k.cl;
-      const center = sec === 'main' || sec === 'top';
-      h += `<div class="k"><div class="lb ${center && !k.al ? 'c' : ''}"><span class="s">${k.sl || ''}</span><span class="a">${k.al || ''}</span></div><button class="kb ${k.cls || ''}" data-id="${id}"><span>${lbl}</span></button></div>`;
+      const lab = `<span class="s">${k.sl || ''}</span>${k.bl ? `<span class="g">${k.bl}</span>` : ''}<span class="a">${k.al || ''}</span>`;
+      h += `<div class="k ${k.wrap || ''}"><div class="lb ${k.lc || ''}">${lab}</div><button class="kb ${k.cls || ''}" data-id="${id}"><span>${k.lbl}</span></button></div>`;
     }
     h += '</div>';
   }
@@ -914,7 +931,6 @@ function resolve(id) {
   if (ui.shift) { ui.shift = false; return k.s || null; }
   if (ui.alpha) { ui.alpha = false; return k.a || null; }
   if (S.mode === 'BASE' && k.b) return k.b;
-  if (S.mode === 'CPLX' && k.c) return k.c;
   return k.main;
 }
 const HYP = { 'tok:sin(': 'tok:sinh(', 'tok:cos(': 'tok:cosh(', 'tok:tan(': 'tok:tanh(', 'tok:asin(': 'tok:asinh(', 'tok:acos(': 'tok:acosh(', 'tok:atan(': 'tok:atanh(' };
