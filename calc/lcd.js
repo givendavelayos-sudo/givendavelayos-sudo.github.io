@@ -1,7 +1,7 @@
 // Dot-matrix LCD: a 105×32 grid of dots plus a strip of status icons, drawn like the real F-789SGA.
 // Fonts and fixed screens come from lcddata.js (copied dot-for-dot from the official emulator).
 import { F9, F6, F5, X10, X10N, SCREENS, ICONS, KPAGES, KTITLE, UPAGES } from './lcddata.js';
-export { FXL, EQH, FXH, NAMES, FQH } from './lcddata.js';
+export { FXL, EQH, FXH, NAMES, FQH, BLK, TERR, TEN } from './lcddata.js';
 import { F4 } from './lcddata.js';
 if (!F4['1']) F4['1'] = [24, 8, 8, 28]; // "1" of the matrix-size title (not in the captures)
 
@@ -72,7 +72,7 @@ const F6X = {
   '⌟': p('', '', '#', '#', '#', '####', '', ''),
   '▪': p('', '', '.##', '.##', '', '', '', ''),
   '×': F6['×'] || p('', '#...#', '.#.#', '..#', '.#.#', '#...#', '', ''),
-  '−': p('', '', '', '####', '', '', '', ''),
+  '−': p('', '', '', '.###', '', '', '', ''),
   '=': p('', '', '#####', '', '#####', '', '', ''),
 };
 const ALIAS6 = { 'ⅈ': 'i', 'ℯ': 'e', '−': '-', 'ᴇ': 'E', 'ℙ': 'P', 'ℂ': 'C', 'x̄': 'x' };
@@ -83,7 +83,7 @@ export const F3 = {
   0: q('###', '#.#', '#.#', '#.#', '###'), 1: q('.#', '.#', '.#', '.#', '.#'), 2: q('###', '..#', '###', '#', '###'),
   3: q('###', '..#', '###', '..#', '###'), 4: q('#.#', '#.#', '#.#', '###', '..#'), 5: q('###', '#', '###', '..#', '###'),
   6: q('###', '#', '###', '#.#', '###'), 7: q('###', '..#', '..#', '..#', '..#'), 8: q('###', '#.#', '###', '#.#', '###'),
-  9: q('###', '#.#', '###', '..#', '###'), '.': q('', '', '', '', '.#'), '-': q('', '', '###', '', ''),
+  9: q('###', '#.#', '###', '..#', '###'), '.': q('', '', '', '##', '##'), '-': q('', '', '###', '', ''),
   E: q('###', '#', '###', '#', '###'), X: q('#.#', '#.#', '.#', '#.#', '#.#'), Y: q('#.#', '#.#', '.#', '.#', '.#'),
   F: q('###', '#', '###', '#', '#'), R: q('##', '#.#', '##', '#.#', '#.#'), Q: q('###', '#.#', '#.#', '##', '.##'),
   '(': q('.#', '#', '#', '#', '.#'), ')': q('#', '.#', '.#', '.#', '#'), a: q('', '##', '.##', '#.#', '###'),
@@ -99,7 +99,7 @@ const BIG = {
 };
 const BOLD = (g) => g && g.map((r) => r | (r >> 1));
 // BASE-N hex digits are bold; they use the full-width letters Ａ–Ｆ as their character codes
-const HEXB = Object.fromEntries('ABCDEF'.split('').map((c, i) => [String.fromCharCode(0xff21 + i), c === 'C' ? F9['ℂ'] : BOLD(F9[c])]));
+const HEXB = Object.fromEntries('ABCDEF'.split('').map((c, i) => { const fw = String.fromCharCode(0xff21 + i); return [fw, F9[fw] || BOLD(F9[c])]; }));
 export const hexBold = (s) => s.replace(/[A-F]/g, (c) => String.fromCharCode(0xff21 + c.charCodeAt(0) - 65));
 const glyph9 = (c) => HEXB[c] || F9[c] || F9X[c] || F9[ALIAS9[c]];
 const glyph6 = (c) => F6[c] || F6X[c] || F6[ALIAS6[c]] || F6X[ALIAS6[c]];
@@ -181,10 +181,11 @@ export const box = {
     };
   },
   sqrt(c, index = null) {
-    const iw = index ? Math.max(0, index.w - 3) : 0;
+    const iw = index ? Math.max(0, index.w - 2) : 0;
     const cw = c.w - 1;
+    const ih = index ? index.up + index.dn + 1 : 0;
     return {
-      w: iw + 5 + cw + 3, up: c.up + 2, dn: c.dn,
+      w: iw + 5 + cw + 3, up: c.up + 2 + Math.max(0, ih - 4), dn: c.dn,
       draw(b, x, ay) {
         x += iw;
         const top = ay - c.up - 2, bot = ay + c.dn, h = bot - top + 1, half = Math.floor(h / 2);
@@ -192,12 +193,12 @@ export const box = {
         b.vline(x + 3, top, top + half - 1); b.vline(x + 2, top + half, bot);
         b.set(x, bot - 2); b.set(x + 1, bot - 1);
         c.draw(b, x + 5, ay);
-        if (index) index.draw(b, x - iw, bot - 4 - index.dn);
+        if (index) index.draw(b, x - iw + 1, top + 3 - index.dn);
       },
     };
   },
   abs(c) {
-    return { w: c.w + 4, up: c.up + 1, dn: c.dn, draw(b, x, ay) { b.vline(x + 1, ay - c.up - 1, ay + c.dn); c.draw(b, x + 3, ay); b.vline(x + 3 + c.w, ay - c.up - 1, ay + c.dn); } };
+    return { w: c.w + 10, up: c.up + 1, dn: c.dn, draw(b, x, ay) { b.vline(x + 2, ay - c.up - 1, ay + c.dn); c.draw(b, x + 6, ay); b.vline(x + c.w + 8, ay - c.up - 1, ay + c.dn); } };
   },
   sub(c) { return box.shift(c, 1 + c.up); }, // subscript: top one row below the axis
   bigop(sym, upper, lower, f) { // Σ / ∏ (8 dots wide) with limits above and below

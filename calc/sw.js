@@ -1,6 +1,6 @@
 // Offline cache for the calculator. Bump VERSION when files change.
-const VERSION = 'scicalc-v9';
-const FILES = ['./', './index.html', './style.css?v=9', './app.js?v=9', './engine.js', './lcd.js', './lcddata.js', './manifest.webmanifest',
+const VERSION = 'scicalc-v10';
+const FILES = ['./', './index.html', './style.css?v=10', './app.js?v=10', './engine.js', './lcd.js', './lcddata.js', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

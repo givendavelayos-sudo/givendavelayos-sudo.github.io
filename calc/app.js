@@ -60,7 +60,7 @@ function edInsert(ed, a) {
     const parts = E.TEMPLATES[a.slice(3)].parts;
     // the fraction key takes the number just typed as its numerator (2 ▭ 3 → 2/3)
     let k = ed.cur;
-    if (a === 'tm:frac') while (k > 0 && /^[0-9.]$/.test(ed.toks[k - 1])) k--;
+    if (a === 'tm:frac' || a === 'tm:nroot') while (k > 0 && /^[0-9.]$/.test(ed.toks[k - 1])) k--; // number typed just before becomes numerator / root index
     if (k < ed.cur) {
       const num = ed.toks.splice(k, ed.cur - k);
       ed.toks.splice(k, 0, parts[0], ...num, parts[1], parts[2]);
@@ -122,9 +122,9 @@ function editKey(ed, a) {
 // ---------------- token -> LCD boxes ----------------
 const SUPS = { '²': '2', '³': '3', '⁻¹': '-1', ur: 'r', ug: 'g' };
 const SHOW = {
-  'f(X)=': 'f(X)=', '(−)': '−', '-': '-', EE: 'ᴇ', e: 'ℯ', i: 'ⅈ', nPr: 'ℙ', nCr: 'ℂ', 'u°': '°', Rand: 'Rand', 'Ran#': 'Rand',
+  'f(X)=': 'f(X)=', '(−)': '−', '-': '-', EE: 'ᴇ', e: 'ℯ', i: 'ⅈ', nPr: 'ℙ', nCr: 'ℂ', 'u°': 'º', Rand: 'Rand', 'Ran#': 'Rand',
   and: 'and', or: 'or', xor: 'xor', xnor: 'xnor', '>pol': '▶r∠θ', '>rect': '▶a+bⅈ', ':': ':',
-  hA: 'Ａ', hB: 'Ｂ', hC: 'Ｃ', hD: 'Ｄ', hE: 'Ｅ', hF: 'Ｆ', xh: 'x̂', yh: 'ŷ', xh1: 'x̂1', xh2: 'x̂2',
+  hA: 'Ａ', hB: 'Ｂ', hC: 'Ｃ', hD: 'Ｄ', hE: 'Ｅ', hF: 'Ｆ', pd: 'd', ph: 'h', pb: 'b', po: 'o', xh: 'x̂', yh: 'ŷ', xh1: 'x̂1', xh2: 'x̂2',
 };
 const FXL_ROWS = L.FXL.map((r) => Array.from({ length: 29 }, (_, i) => (r >> (29 - i)) & 1)); // last column was the cursor
 const MEMG = (d) => String.fromCharCode(0xe010 + +d); // underlined memory digit glyphs
@@ -173,7 +173,8 @@ function lay(toks, s, e, f, cur, out, math, slot = true) {
 function template(toks, name, P, f, cur, out, math) {
   const sl = (k, ff = f) => lay(toks, P[k] + 1, P[k + 1], ff, cur, out, math);
   if (!math) {
-    const lin = E.TEMPLATES[name].lin, items = [];
+    const lin = E.TEMPLATES[name].lin.slice(), items = [];
+    if (['abs', 'sqrt', 'cbrt', 'nroot', 'ten', 'exp', 'pow'].includes(name)) lin[lin.length - 1] = '';
     L.textBoxes(lin[0], f, items);
     for (let k = 0; k < P.length - 1; k++) { items.push(sl(k)); L.textBoxes(lin[k + 1], f, items); }
     return items;
@@ -181,12 +182,12 @@ function template(toks, name, P, f, cur, out, math) {
   const S_ = 'S';
   switch (name) {
     case 'frac': return [box.frac(sl(0, S_), sl(1, S_))];
-    case 'mixed': return [sl(0), box.frac(sl(1, S_), sl(2, S_))];
+    case 'mixed': return [box.shift(sl(0, S_), -1), box.frac(sl(1, S_), sl(2, S_))];
     case 'sqrt': return [box.sqrt(sl(0))];
     case 'cbrt': return [box.sqrt(sl(0), box.text('3', S_))];
     case 'nroot': return [box.sqrt(sl(1), sl(0, S_))];
     case 'pow': return [box.sup(sl(0, S_), f)];
-    case 'ten': return [box.text('10', f), box.sup(sl(0, S_), f)];
+    case 'ten': return [f === 'L' ? { w: 6, up: 4, dn: 4, draw(b, x, ay) { b.bits(L.TEN, 5, x, ay - 2); } } : box.text('10', f), box.sup(sl(0, S_), f)];
     case 'exp': return [box.text('ℯ', f), box.sup(sl(0, S_), f)];
     case 'logab': return [box.text('log', f), box.sub(sl(0, S_)), box.paren('(', f), sl(1), box.paren(')', f)];
     case 'abs': return [box.abs(sl(0))];
@@ -265,7 +266,7 @@ function exactBox2(ef, math) {
     const { n, d } = ef;
     if (S.setup.frac === 'ab' && Math.abs(n) > d) {
       const w = Math.trunc(Math.abs(n) / d), r = Math.abs(n) % d;
-      return box.row([...neg(n), box.text(String(w)), box.frac(box.text(String(r), 'S'), box.text(String(d), 'S'))]);
+      return box.row([...neg(n), box.shift(box.text(String(w), 'S'), -1), box.frac(box.text(String(r), 'S'), box.text(String(d), 'S'))]);
     }
     return box.row([...neg(n), box.frac(box.text(String(Math.abs(n)), 'S'), box.text(String(d), 'S'))]);
   }
@@ -281,9 +282,9 @@ function exactBox2(ef, math) {
 }
 function baseStr(x) {
   x |= 0;
-  if (S.base === 10) return String(x);
+  if (S.base === 10) return String(x).replace('-', '−');
   const s = (x >>> 0).toString(S.base).toUpperCase();
-  return S.base === 16 ? L.hexBold(s.padStart(8, '0')) : S.base === 8 ? s.padStart(11, '0') : s.padStart(16, '0').slice(-16);
+  return S.base === 16 ? L.hexBold(s.padStart(8, '0')) : s.padStart(11, '0');
 }
 const DMS = (s) => s.replace('−', '-').replace('°', 'º').replace('′', "'").replace('″', '"');
 let mathOut = false; // EQN results use textbook form even though EQN input is Line
@@ -339,12 +340,23 @@ function valueBox(v, res) {
   return box.text('');
 }
 // result on the bottom line, right-aligned; multi-results on one line with ▶ when cut off
+// BIN results: 8 digits at a time ("1111 1101") with ◀Blk n/m when the number needs more blocks
+function drawBin(b, x, blk = 0) {
+  const s = ((x | 0) >>> 0).toString(2).padStart(32, '0');
+  const need = Math.max(1, Math.ceil(((x | 0) < 0 ? 32 : ((x | 0) >>> 0).toString(2).length) / 8));
+  const k = blk % need, bits = s.slice(32 - 8 * (k + 1), 32 - 8 * k);
+  if (need > 1) { b.bits(L.BLK, 25, 5, 10); L.text(b, `${k + 1}/${need}`, 32, 11); }
+  L.textR(b, 'BIN', 100, 11);
+  L.textR(b, bits.slice(0, 4) + ' ' + bits.slice(4), 100, 21);
+  return need;
+}
 function drawResult(b, res) {
   if (res.multi) {
     const s = res.multi.map(([k, v]) => `${k}=${shortNum(v)}`).join(',');
     if (L.textW(s) <= 96) L.textR(b, s, 100, 21); else { L.text(b, s.slice(0, 15), 6, 21); L.text(b, '▶', 96, 21); }
     return;
   }
+  if (S.mode === 'BASE' && S.base === 2 && typeof res.v === 'number') { res.blocks = drawBin(b, res.v, res.blk || 0); return; }
   if (S.mode === 'BASE') L.textR(b, { 10: 'DEC', 16: 'HEX', 2: 'BIN', 8: 'OCT' }[S.base], 100, 11);
   mixedNow = !!res.abc; mathOut = S.mode === 'EQN';
   const bx = valueBox(res.v, res);
@@ -353,6 +365,7 @@ function drawResult(b, res) {
   const ay = 29 - bx.dn;
   bx.draw(b, Math.max(L.LEFT, 102 - bx.w), ay);
 }
+const realOrZero = (v) => (typeof v === 'number' ? v : 0);
 const mkRes = (v, o = {}) => ({ v, exact: !o.force, eng: null, dms: !!o.dms, multi: o.multi || null, more: !!o.more });
 function modeTies() {
   const cnt = new Map();
@@ -367,6 +380,8 @@ function errScreen(kind, onGoto) {
     menu: true, icons: () => modeIcons(),
     draw(b) {
       if (kind === 'Syntax ERROR') b.screen('synErr');
+      else if (kind === "Can't Solve") b.screen('cantSolve');
+      else if (kind === 'Insufficient MEM') b.screen('insMem');
       else if (kind === 'Math ERROR') b.screen('mathErr');
       else { const tmp = new L.Buf(); tmp.screen('synErr'); for (let y = 16; y < 32; y++) for (let x = 0; x < L.W; x++) if (tmp.get(x, y)) b.set(x, y); L.text(b, kind, 6, 0, 'S'); }
     },
@@ -384,7 +399,7 @@ const calc = {
   draw(b) {
     const c = drawInput(b, this.ed.toks, this.res ? -1 : this.ed.cur);
     if (this.res) drawResult(b, this.res);
-    else if (S.mode === 'BASE') { L.textR(b, { 10: 'DEC', 16: 'HEX', 2: 'BIN', 8: 'OCT' }[S.base], 100, 11); L.textR(b, baseStr(S.ans), 100, 21); }
+    else if (S.mode === 'BASE') { if (S.base === 2) drawBin(b, realOrZero(S.ans)); else { L.textR(b, { 10: 'DEC', 16: 'HEX', 2: 'BIN', 8: 'OCT' }[S.base], 100, 11); L.textR(b, baseStr(S.ans), 100, 21); } }
     else if (LINE_MODES.includes(S.mode) && S.mode !== 'EQN') L.textR(b, '0', 100, 21);
     drawCaret(b, c);
   },
@@ -424,6 +439,7 @@ const calc = {
         if (typeof R.v === 'number' && Number.isInteger(R.v) && R.v > 0 && R.v < 1e10) { R.pfact = !R.pfact; return; }
         return this.fail(new E.CalcError('Math ERROR'));
       case 'M+': case 'M-': return this.mplus(a === 'M-');
+      case 'BLK': if (R && R.blocks > 1) R.blk = ((R.blk || 0) + 1) % R.blocks; return;
       case 'CALC': return this.startCalc();
       case 'SOLVE': return this.startSolve();
     }
@@ -544,7 +560,7 @@ const calc = {
             push(solveView(toks, sv, r.x, Math.abs(r.lr) < 1e-13 ? 0 : +r.lr.toPrecision(10)));
           } catch (e) { this.fail(e); }
         },
-        onAC: toCalc,
+        onAC: () => { toCalc(); calc.ed = newEd(); },
       }));
     });
   },
@@ -558,11 +574,20 @@ function pushHist(toks) {
 function solveView(toks, sv, x, lr) {
   return {
     draw(b) {
-      drawInput(b, toks, -1);
-      L.text(b, `${sv}=`, 6, 12); L.textR(b, shortNum(x), 100, 12);
-      L.text(b, 'L-R=', 6, 22); L.textR(b, shortNum(lr), 100, 22);
+      const { bx } = layExpr(toks, -1);
+      drawInput(b, toks, -1, Math.min(0, 10 - (bx.up + bx.dn + 1))); // the equation must end above the X= line
+      L.text(b, `${sv}=`, 6, 11); L.textR(b, shortNum(x), 100, 11);
+      L.text(b, 'L-R=', 6, 21); L.textR(b, shortNum(lr), 100, 21);
     },
-    key(a) { toCalc(); if (a === '=') calc.startSolve(); else if (a !== 'AC') calc.key(a); },
+    key(a) {
+      toCalc();
+      if (a === '=') return calc.startSolve();
+      if (a === 'AC') { calc.ed = newEd(); return; }
+      // ◀ / ▶ go back to the equation with the cursor at its end / start
+      if (a === 'LEFT') { calc.ed.cur = calc.ed.toks.length; return; }
+      if (a === 'RIGHT') { calc.ed.cur = 0; return; }
+      calc.key(a);
+    },
   };
 }
 
@@ -675,7 +700,7 @@ function appsMenu() {
     case 'CPLX': return menu([{ scr: 'apps_CPLX', items: { 1: ins('tok:>pol'), 2: ins('tok:>rect'), 3: ins('tok:Arg('), 4: ins('tok:Conjg('), 5: ins('tok:Real('), 6: ins('tok:Imag(') } }], { id: 'apps' });
     case 'BASE': return menu([
       { scr: 'apps_BASE1', items: { 1: ins('tok:and'), 2: ins('tok:or'), 3: ins('tok:xor'), 4: ins('tok:xnor'), 5: ins('tok:Not('), 6: ins('tok:Neg(') } },
-      { scr: 'apps_BASE2', items: { 1: done(() => (S.base = 10)), 2: done(() => (S.base = 16)), 3: done(() => (S.base = 2)), 4: done(() => (S.base = 8)) } },
+      { scr: 'apps_BASE2', items: { 1: ins('tok:pd'), 2: ins('tok:ph'), 3: ins('tok:pb'), 4: ins('tok:po') } },
     ], { id: 'apps' });
     case 'STAT': return statMenu();
     case 'MATX': return menu([
@@ -827,9 +852,9 @@ function gridScreen(cfg) {
       } else {
         const bot = y0 + 6 * Math.min(VIS, n - topRow) - 2;
         const lastVis = topRow + VIS >= n;
-        b.vline(15, 5, bot); b.set(16, 5); if (st === 'eqn' && lastVis) b.set(16, bot);
+        b.vline(15, 5, bot); b.set(16, 5); if (lastVis) b.set(16, bot);
         const xr = 15 + 28 * nv;
-        if (left + nv >= cols.length) { const rx = Math.min(99, xr); b.vline(rx, 5, bot); b.set(rx - 1, 5); if (st === 'eqn' && lastVis) b.set(rx - 1, bot); }
+        if (left + nv >= cols.length) { const rx = Math.min(99, xr); b.vline(rx, 5, bot); b.set(rx - 1, 5); if (lastVis) b.set(rx - 1, bot); }
       }
       for (let j = 0; j < nv; j++) {
         const lab = cols[left + j];
@@ -843,14 +868,15 @@ function gridScreen(cfg) {
         const y = y0 + 6 * (i - topRow);
         if (st !== 'mat' && !(st === 'eqn' && n === 1)) L.textR(b, String(i + 1), 13, y, 'T');
         for (let j = 0; j < nv; j++) {
-          const s = cellStr(cfg.get(i, left + j));
-          const xr = 40 + 28 * j;
+          const val = cfg.get(i, left + j), xr = 40 + 28 * j;
+          if (val === null && st === 'table') { b.bits(L.TERR, 19, xr - 18, y); if (i === r && left + j === c) b.invert(17 + 28 * j, y - 1, 40 + 28 * j, y + 4); continue; }
+          const s = cellStr(val);
           L.text(b, s, xr - s.length * 4 + 2, y, 'T');
-          if (i === r && left + j === c && !cfg.readonly) b.invert(17 + 28 * j, y - 1, 40 + 28 * j, y + 4);
+          if (i === r && left + j === c) b.invert(17 + 28 * j, y - 1, 40 + 28 * j, y + 4);
         }
       }
       if (ed.toks.length) drawCaret(b, drawInput(b, ed.toks, ed.cur, 23));
-      else { const v = cfg.get(r, c); if (typeof v === 'number') L.textR(b, shortNum(v), 100, 24, 'S'); }
+      else { const v = cfg.get(r, c); if (typeof v === 'number') L.textR(b, shortNum(v).replace(/^-/, '−'), 100, 24, 'S'); }
     },
     key(a) {
       if (a === 'AC') {
@@ -1000,7 +1026,7 @@ function tableFx() {
 function tableView() {
   const { start, end, step, fx } = S.table;
   const n = step > 0 ? Math.floor((end - start) / step + 1e-9) + 1 : 0;
-  if (n < 1 || n > 30) { setTimeout(() => { ui.stack.pop(); fail(new E.CalcError('Insufficient MEM')); finish(); }); return { draw() {}, key() {} }; }
+  if (n < 1 || n > 30) return errScreen('Insufficient MEM', () => ui.stack.pop());
   const ast = E.parse(fx);
   const rows = Array.from({ length: n }, (_, i) => {
     const x = +(start + i * step).toPrecision(12);
@@ -1053,7 +1079,7 @@ const K = {
   pow: { lbl: X + sup('▫'), main: 'tm:pow', s: 'tm:nroot', sl: 'ˣ√▫', b: 'base:2', bl: 'BIN' },
   sq: { lbl: X + sup('2'), main: 'tok:²', s: 'tok:³', sl: '<i>x</i>³', b: 'base:8', bl: 'OCT' },
   log: { lbl: 'log', main: 'tok:log(', s: 'tm:ten', sl: '10▫', a: 'tm:logab', al: 'log▪▫' },
-  ln: { lbl: 'ln', main: 'tok:ln(', s: 'tm:exp', sl: '<i>e</i>▫', al: '◂Blk' },
+  ln: { lbl: 'ln', main: 'tok:ln(', s: 'tm:exp', sl: '<i>e</i>▫', a: 'BLK', al: '◂Blk' },
   neg: { lbl: '(−)', main: 'tok:(−)', a: 'var:A', al: 'A', b: 'tok:hA', cs: 'tok:∠' },
   dms: { lbl: '°′″', main: 'DMS', s: 'PFACT', sl: 'PFact', a: 'var:B', al: 'B', b: 'tok:hB' },
   hyp: { lbl: 'hyp', main: 'HYP', a: 'var:C', al: 'C', b: 'tok:hC' },
@@ -1111,6 +1137,7 @@ function resolve(id) {
   if (ui.shift) { ui.shift = false; if (S.mode === 'CPLX' && k.cs) return k.cs; return k.s || null; }
   if (ui.alpha) { ui.alpha = false; return k.a || null; }
   if (S.mode === 'BASE' && k.b) return k.b;
+  if (S.mode === 'BASE' && id === 'dot') return null; // no decimal point in BASE-N
   if (S.mode === 'CPLX' && k.c) return k.c;
   return k.main;
 }

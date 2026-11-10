@@ -80,6 +80,12 @@ F9['→'] = cell(dots('r2'), 0, 12, 9)
 # capital W (4-unknown EQN)
 F9['W'] = cell(dots('e4_1'), 0, 6, 9)
 F9['Z'] = cell(dots('e3_3'), 0, 6, 9)
+# BASE-N and misc glyphs copied from the captures
+F9['O'] = cell(dots('bn_oct'), 11, 84, 9)
+F9['/'] = cell(dots('bn_negbin'), 11, 38, 9)
+F9['⌟'] = cell(dots('cp_line'), 0, 12, 9)
+for ch, img, col in [('Ａ', 'bn_hexin', 90), ('Ｂ', 'bn_hexin', 96), ('Ｃ', 't25b', 96), ('Ｄ', 'bn_neghex', 96), ('Ｆ', 'bn_neghex', 54)]:
+    F9[ch] = cell(dots(img), 21, col, 9)
 # ---- small 5x6 font (menus, fractions, exponents); 8 rows incl. descender
 S = lambda img, rows, *segs: [(img, r, t, st) for r, (t, st) in zip(rows, segs)]
 F6 = {}
@@ -136,7 +142,7 @@ SCREENS = dict(mode='m15a', setup1='m16a', setup2='m16b', apps_COMP='m17a', hyp=
                sum_SD='n13', sum='y15', var_SD='n14', var='y16', pts_SD='n15', pts='y17', distr='y18', reg='y19',
                reg_Quad='n16', statEdit='y21', eqn1='t21a', eqn2='t21b', apps_MATX1='y1', apps_MATX2='y2',
                matPick='t23a', apps_VCTR='y7', vecPick='i11', apps_CPLX='t26b', apps_BASE1='y9', apps_BASE2='y10',
-               synErr='t09', mathErr='t10')
+               synErr='t09', mathErr='t10', cantSolve='w3_6', insMem='tb_t4')
 def pack(g, r0=0, r1=H):
     return ''.join('%027x' % int(''.join('1' if v else '0' for v in g[r]) + '000', 2) for r in range(r0, r1))
 scr = {k: pack(dots(v)) for k, v in SCREENS.items()}
@@ -208,9 +214,12 @@ js += 'export const FXL = ' + json.dumps(FXL) + ';\n'
 js += 'export const EQH = ' + json.dumps(EQH) + ';\n'
 js += 'export const NAMES = ' + json.dumps(NAMES, separators=(',', ':')) + ';\n'
 js += 'export const FQH = ' + json.dumps(cell(dots('freq_grid'), 0, 47, 5, 18)) + ';\n'
+js += 'export const BLK = ' + json.dumps(cell(dots('bn_negbin'), 10, 5, 11, 25)) + ';\n'
+js += 'export const TERR = ' + json.dumps(cell(dots('tb_t5'), 12, 50, 5, 19)) + ';\n'
+js += 'export const TEN = ' + json.dumps(cell(dots('cp_ten'), 4, 6, 7, 5)) + ';\n'
 js += 'export const X10 = ' + json.dumps(X10) + ';\n'
 F4 = {}
-for img, t in [('n18', 'MatA:4X3'), ('n22', 'VctA:2')]:
+for img, t in [('n18', 'MatA:4X3'), ('n22', 'VctA:2'), ('mx_A', 'MatAns:2X2'), ('vc_A', 'VctAns:3')]:
     g4 = dots(img); fd = first_dark(g4, 0, 4); c0 = best_col0(g4, 0, 4, t, fd - 4, fd)
     for k, ch in enumerate(t): F4.setdefault(ch, cell(g4, 0, c0 + 6 * k, 4))
 js += 'export const F4 = ' + json.dumps(F4) + ';\n'

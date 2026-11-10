@@ -167,6 +167,7 @@ export function tokText(t) {
   if (t in BINOPS) return BINOPS[t];
   if (t in STATVARS) return STATVARS[t];
   if (/^m\d$/.test(t)) return t.slice(1);
+  if (t in PREFIX) return t[1];
   if (t.startsWith('K:')) return `<span class="ks">${CONSTS[+t.slice(2)][0]}</span>`;
   if (t.startsWith('V:')) {
     const [k, i, j] = convOf(t), u = CONV_CATS[k].units;
@@ -179,9 +180,10 @@ export const isOperatorStart = (t) =>
 
 // ---------- parser ----------
 const isDigitTok = (t) => t !== undefined && (/^[0-9.]$/.test(t) || /^h[A-F]$/.test(t));
+const PREFIX = { pd: 10, ph: 16, pb: 2, po: 8 }; // BASE-N: d/h/b/o in front of one number
 function startsPrimary(t) {
   if (t === undefined) return false;
-  if (isDigitTok(t) || t === 'EE') return true;
+  if (isDigitTok(t) || t === 'EE' || t in PREFIX) return true;
   if (STRUCT[t]) return STRUCT[t].idx === 0 && STRUCT[t].name !== 'pow';
   return t === '(' || t in FUNCS || VARS.includes(t) || /^m\d$/.test(t) || t === 'Ans' || t === 'π' || t === 'e' ||
     t === 'i' || t === 'Rand' || t === 'Ran#' || t.startsWith('K:') || t in STATVARS || MATVEC.includes(t);
@@ -244,11 +246,16 @@ export function parse(toks, opts = {}) {
   }
   function number() {
     let s = '';
+    const pre = PREFIX[peek()];
+    if (pre) p++;
     while (isDigitTok(peek())) s += toks[p++].replace(/^h/, '');
     if (opts.base) {
+      const bse = pre || opts.base;
       if (s === '' || s.includes('.') || peek() === 'EE') throw err();
-      for (const ch of s) if (parseInt(ch, 16) >= opts.base) throw err();
-      return { t: 'num', v: parseInt(s, opts.base) | 0 };
+      for (const ch of s) if (parseInt(ch, 16) >= bse) throw err();
+      const v = parseInt(s, bse);
+      if (bse === 10 ? v > 2147483647 : v > 0xffffffff) fail();
+      return { t: 'num', v: v | 0 };
     }
     if ((s.match(/\./g) || []).length > 1 || s === '.') throw err();
     let v = s === '' ? 1 : parseFloat(s);
@@ -278,7 +285,7 @@ export function parse(toks, opts = {}) {
   function primary() {
     const t = peek();
     if (t === undefined) throw err();
-    if (isDigitTok(t) || t === 'EE') return number();
+    if (isDigitTok(t) || t === 'EE' || t in PREFIX) return number();
     if (STRUCT[t]) {
       const s = STRUCT[t];
       if (s.idx !== 0 || s.name === 'pow') throw err();
@@ -453,7 +460,7 @@ function add(a, b, sign = 1) {
     if (a.vec.length !== b.vec.length) fail('Dimension ERROR');
     return { vec: a.vec.map((x, i) => clean(x + sign * b.vec[i])) };
   }
-  if (isM(a) || isM(b) || isV(a) || isV(b)) fail('Syntax ERROR');
+  if (isM(a) || isM(b) || isV(a) || isV(b)) fail();
   return simp(sign === 1 ? cadd(toC(a), toC(b)) : csub(toC(a), toC(b)));
 }
 function mul(a, b) {
@@ -903,7 +910,7 @@ export function evaluate(ast, ctx) {
       case 'Abs(': return absval(x);
       case 'Det(': if (!isM(x)) fail('Syntax ERROR'); return mdet(x.mat);
       case 'Trn(': if (!isM(x)) fail('Syntax ERROR'); return { mat: mtrn(x.mat) };
-      case 'Ide(': if (!isM(x)) fail('Syntax ERROR'); return { mat: mide(x.mat) };
+      case 'Ide(': { const k = typeof x === 'number' ? x : NaN; if (!Number.isInteger(k) || k < 1 || k > 4) fail(); return { mat: Array.from({ length: k }, (_, i) => Array.from({ length: k }, (_, j) => (i === j ? 1 : 0))) }; }
       case 'Adj(': if (!isM(x)) fail('Syntax ERROR'); return { mat: madj(x.mat) };
       case 'Inv(': if (!isM(x)) fail('Syntax ERROR'); return { mat: minv(x.mat) };
       case 'Dot(': need(2); if (!isV(A[0]) || !isV(A[1])) fail('Syntax ERROR'); return vdot(A[0].vec, A[1].vec);
@@ -999,11 +1006,12 @@ export function evaluate(ast, ctx) {
         const a = ev(n.l, ctx), b = ev(n.r, ctx);
         if (base) {
           const x = real(a) | 0, y = real(b) | 0;
+          const fit = (r) => { if (r > 2147483647 || r < -2147483648) fail(); return r; };
           switch (n.op) {
-            case '+': return (x + y) | 0;
-            case '-': return (x - y) | 0;
-            case '×': case 'imul': return Math.imul(x, y);
-            case '÷': if (y === 0) fail(); return (x / y) | 0;
+            case '+': return fit(x + y);
+            case '-': return fit(x - y);
+            case '×': case 'imul': return fit(x * y);
+            case '÷': if (y === 0) fail(); return fit(Math.trunc(x / y));
             case 'and': return x & y;
             case 'or': return x | y;
             case 'xor': return x ^ y;
@@ -1135,7 +1143,7 @@ const sciM = (x, n) => x.toExponential((n || 10) - 1).split('e')[0];
 function trimZeros(s) { return s.includes('.') ? s.replace(/0+$/, '').replace(/\.$/, '') : s; }
 export function engExp(x) { return x === 0 ? 0 : Math.floor(Math.log10(Math.abs(+x.toPrecision(10))) / 3) * 3; }
 
-export function toFrac(x, maxD = 99999) {
+export function toFrac(x, maxD = 1e10) {
   const sign = x < 0 ? -1 : 1;
   const ax = Math.abs(x);
   let h1 = 1, h0 = 0, k1 = 0, k0 = 1, b = ax;

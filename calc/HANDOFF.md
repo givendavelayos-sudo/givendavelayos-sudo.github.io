@@ -54,16 +54,17 @@ SOLVE, CALC, STO/RCL, M+, matrices, vectors, STAT, EQN, TABLE, BASE-N, CMPLX, CO
 setup changes, OFF/ON, scrolling, history) run without errors with correct results.
 
 ## Known gaps
-- EQN cubic 5x³+2x²−2x+1: the emulator shows the imaginary part as 0.331662479 where SciCalc
-  shows √11/10 (Canon's cubic solver loses exactness there); every other tested EQN screen matches.
-- BASE-N d/h/b/o prefixes do nothing; multi-statements (`:`) are not executed; the emulator's
-  Alpha+∫ (L) and Alpha+ln (◂Blk) have labels only.
+- EQN cubic 5x³+2x²−2x+1: emulator shows the imaginary part as 0.331662479, SciCalc √11/10.
+- CMPLX ∠: SciCalc puts ∠ on Shift+(−); on the emulator Shift+(−) types a blank character, so the
+  real ∠ key is still unknown.
+- d/dx of an expression with a power, and mixed fractions in input, are 1 column off the emulator.
+- Multi-statements (`:`) are not executed; Alpha+∫ (L) has a label only.
 - Glyphs never seen on the emulator are drawn by hand in the same style.
 
 ## Verified (latest)
-`tools/harness.js` replays 230 emulator key sequences (COMP, all STAT types and functions incl.
-med/mode/Q1/Q3/P(/Q(/R(/▶t, all 6 EQN types incl. complex roots, memories 0–9 STO/RCL, CA in
-every editor): 228/230 identical dot for dot (the two left are the cubic above).
+`tools/harness.js` replays 333 emulator key sequences (all 8 modes: COMP incl. CALC/SOLVE/Fix/Sci/
+ENG/Line, CMPLX, STAT, BASE-N incl. BIN blocks and d/h/b/o, EQN, TABLE, MATRIX, VECTOR; memories
+0–9; CA everywhere): 322/333 identical dot for dot (the rest are the items above and 1-dot offsets).
 
 ## Next steps
 1. Merge the branch, open `/calc/` on the phone, "Add to Home screen".
