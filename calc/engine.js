@@ -23,6 +23,7 @@ export const TEMPLATES = {
   integ: { parts: ['I<', 'I|', 'I/', 'I>'], lin: ['∫(', ',', ',', ')'] },
   diff:  { parts: ['D<', 'D|', 'D>'], lin: ['d/dx(', ',', ')'] },
   sum:   { parts: ['S<', 'S|', 'S/', 'S>'], lin: ['Σ(', ',', ',', ')'] },
+  prod:  { parts: ['PR<', 'PR|', 'PR/', 'PR>'], lin: ['∏(', ',', ',', ')'] },
 };
 export const STRUCT = {};
 for (const [name, t] of Object.entries(TEMPLATES))
@@ -56,65 +57,105 @@ export const FUNCS = {
   'asinh(': 'sinh⁻¹(', 'acosh(': 'cosh⁻¹(', 'atanh(': 'tanh⁻¹(',
   'log(': 'log(', 'ln(': 'ln(', 'Pol(': 'Pol(', 'Rec(': 'Rec(',
   'GCD(': 'GCD(', 'LCM(': 'LCM(', 'Int(': 'Int(', 'Intg(': 'Intg(',
-  'RanInt#(': 'RanInt#(', 'Rnd(': 'Rnd(', 'Not(': 'Not(', 'Neg(': 'Neg(',
-  'det(': 'det(', 'Trn(': 'Trn(', 'Dot(': 'Dot(', 'Angle(': 'Angle(', 'UnitV(': 'UnitV(',
-  'arg(': 'arg(', 'Conjg(': 'Conjg(', 'Abs(': 'Abs(',
+  'i~Rand(': 'i~Rand(', 'Round(': 'Round(', 'Not(': 'Not(', 'Neg(': 'Neg(',
+  'Max(': 'Max(', 'Min(': 'Min(', 'Mod(': 'Mod(', 'Q…r(': 'Q…r(',
+  'Det(': 'Det(', 'Trn(': 'Trn(', 'Ide(': 'Ide(', 'Adj(': 'Adj(', 'Inv(': 'Inv(',
+  'Dot(': 'Dot(', 'Angle(': 'Angle(', 'UnitV(': 'UnitV(',
+  'Arg(': 'Arg(', 'Conjg(': 'Conjg(', 'Real(': 'Real(', 'Imag(': 'Imag(', 'Abs(': 'Abs(',
+  // old token names, still accepted (shown with the Canon name)
+  'RanInt#(': 'i~Rand(', 'Rnd(': 'Round(', 'det(': 'Det(', 'arg(': 'Arg(',
 };
+// legacy token → canonical token (used by the evaluator)
+const FN_ALIAS = { 'RanInt#(': 'i~Rand(', 'Rnd(': 'Round(', 'det(': 'Det(', 'arg(': 'Arg(' };
 export const STATVARS = {
   n: 'n', mx: 'x̄', sgx: 'σx', ssx: 'sx', Sx: 'Σx', Sx2: 'Σx²', my: 'ȳ', sgy: 'σy', ssy: 'sy',
   Sy: 'Σy', Sy2: 'Σy²', Sxy: 'Σxy', Sx3: 'Σx³', Sx2y: 'Σx²y', Sx4: 'Σx⁴',
   minX: 'minX', maxX: 'maxX', minY: 'minY', maxY: 'maxY', sA: 'A', sB: 'B', sC: 'C', r: 'r',
 };
 const STATPOST = { xh: 'x̂', yh: 'ŷ', xh1: 'x̂₁', xh2: 'x̂₂' };
-export const MATVEC = ['MatA', 'MatB', 'MatC', 'MatAns', 'VctA', 'VctB', 'VctC', 'VctD', 'VctAns'];
+export const MATVEC = ['MatA', 'MatB', 'MatC', 'MatD', 'MatAns','VctA', 'VctB', 'VctC', 'VctD', 'VctAns'];
 const POSTFIX = {
   '²': '²', '³': '³', '⁻¹': '⁻¹', '!': '!', '%': '%', 'u°': '°', 'ur': 'ʳ', 'ug': 'ᵍ',
   '>pol': '▶r∠θ', '>rect': '▶a+bi', ...STATPOST,
 };
-const BINOPS = { '+': '+', '-': '−', '×': '×', '÷': '÷', nPr: 'P', nCr: 'C', '∠': '∠',
+const BINOPS = { '+': '+', '-': '−', '×': '×', '÷': '÷', '▪': '▪', nPr: 'P', nCr: 'C', '∠': '∠',
   and: ' and ', or: ' or ', xor: ' xor ', xnor: ' xnor ' };
 
 // ---------- constants & conversions ----------
+// C-VALUE: [symbol, value], index 0 = item 01 (CODATA 2010, as Canon uses).
+// Constant values are used at full precision (never rounded).
 export const CONSTS = [
-  ['mp', 'proton mass', 1.67262192369e-27], ['mn', 'neutron mass', 1.67492749804e-27],
-  ['me', 'electron mass', 9.1093837015e-31], ['mμ', 'muon mass', 1.883531627e-28],
-  ['a₀', 'Bohr radius', 5.29177210903e-11], ['h', 'Planck const', 6.62607015e-34],
-  ['μN', 'nuclear magneton', 5.0507837461e-27], ['μB', 'Bohr magneton', 9.2740100783e-24],
-  ['ħ', 'reduced Planck', 1.054571817e-34], ['α', 'fine-structure', 7.2973525693e-3],
-  ['re', 'electron radius', 2.8179403262e-15], ['λc', 'Compton λ', 2.42631023867e-12],
-  ['γp', 'proton gyromag.', 2.6752218744e8], ['λcp', 'proton Compton λ', 1.32140985539e-15],
-  ['λcn', 'neutron Compton λ', 1.31959090581e-15], ['R∞', 'Rydberg const', 10973731.56816],
-  ['u', 'atomic mass unit', 1.6605390666e-27], ['μp', 'proton mag. mom.', 1.41060679736e-26],
-  ['μe', 'electron mag. mom.', -9.2847647043e-24], ['μn', 'neutron mag. mom.', -9.6623651e-27],
-  ['μμ', 'muon mag. mom.', -4.4904483e-26], ['F', 'Faraday const', 96485.33212],
-  ['e', 'elementary charge', 1.602176634e-19], ['NA', 'Avogadro const', 6.02214076e23],
-  ['k', 'Boltzmann const', 1.380649e-23], ['Vm', 'molar volume', 22.41396954e-3],
-  ['R', 'gas constant', 8.314462618], ['c₀', 'speed of light', 299792458],
-  ['C₁', '1st radiation', 3.741771852e-16], ['C₂', '2nd radiation', 1.438776877e-2],
-  ['σ', 'Stefan-Boltzmann', 5.670374419e-8], ['ε₀', 'electric const', 8.8541878128e-12],
-  ['μ₀', 'magnetic const', 1.25663706212e-6], ['Φ₀', 'flux quantum', 2.067833848e-15],
-  ['g', 'standard gravity', 9.80665], ['G₀', 'conductance qtm', 7.748091729e-5],
-  ['Z₀', 'vacuum impedance', 376.730313668], ['t', 'Celsius temp.', 273.15],
-  ['G', 'gravitational', 6.6743e-11], ['atm', 'standard atm.', 101325],
-  ['mτ', 'tau mass', 3.16754e-27], ['mα', 'alpha mass', 6.6446573357e-27],
-  ['RK', 'von Klitzing', 25812.80745], ['KJ', 'Josephson', 483597.8484e9],
+  ['mp', 1.672621777e-27], ['mn', 1.674927351e-27], ['me', 9.10938291e-31],
+  ['mμ', 1.883531475e-28], ['a0', 0.52917721092e-10], ['h', 6.62606957e-34],
+  ['μN', 5.05078353e-27], ['μB', 927.400968e-26], ['ħ', 1.054571726e-34],
+  ['α', 7.2973525698e-3], ['re', 2.8179403267e-15], ['λc', 2.4263102389e-12],
+  ['γp', 2.675222005e8], ['λcp', 1.32140985623e-15], ['λcn', 1.3195909068e-15],
+  ['R∞', 10973731.568539], ['u', 1.660538921e-27], ['μp', 1.410606743e-26],
+  ['μe', -928.476430e-26], ['μn', -0.96623647e-26], ['μμ', -4.49044807e-26],
+  ['F', 96485.3365], ['e', 1.602176565e-19], ['NA', 6.02214129e23],
+  ['k', 1.3806488e-23], ['Vm', 22.413968e-3], ['R', 8.3144621],
+  ['c0', 299792458], ['c1', 3.74177153e-16], ['c2', 1.4387770e-2],
+  ['σ', 5.670373e-8], ['ε0', 8.854187817e-12], ['μ0', 12.566370614e-7],
+  ['φ0', 2.067833758e-15], ['g', 9.80665], ['G0', 7.7480917346e-5],
+  ['Z0', 376.730313461], ['t', 273.15], ['G', 6.67384e-11],
+  ['atm', 101325], ['gp', 5.585694713], ['λ̄cn', 0.21001941568e-15],
+  ['lP', 1.616199e-35], ['tP', 5.39106e-44], ['mP', 2.17651e-8],
+  ['mu', 1.660538921e-27], ['eV', 1.602176565e-19], ['NAh', 3.9903127176e-10],
+  ['b', 2.8977721e-3], ['a', 543.1020504e-12], ['Eh', 4.35974434e-18],
+  ['n0', 2.6867805e25], ['G0⁻¹', 12906.4037217], ['KJ', 483597.870e9],
+  ['RK', 25812.8074434], ['λ̄c', 386.15926800e-15], ['σe', 0.6652458734e-28],
+  ['ae', 1.15965218076e-3], ['ge', -2.00231930436153], ['γe', 1.760859708e11],
+  ['aμ', 1.16592091e-3], ['gμ', -2.0023318418], ['λcμ', 11.73444103e-15],
+  ['λ̄cμ', 1.867594294e-15], ['λcτ', 0.697787e-15], ['λ̄cτ', 0.111056e-15],
+  ['mτ', 3.16747e-27], ['λ̄cp', 0.21030891047e-15], ["μ'p", 1.410570499e-26],
+  ['gn', -3.82608545], ['γn', 1.83247179e8], ['md', 3.34358348e-27],
+  ['μd', 0.433073489e-26], ['mh', 5.00641234e-27], ["μ'h", -1.074553044e-26],
+  ["γ'h", 2.037894659e8], ['mα', 6.64465675e-27], ["γ'p", 2.675153268e8],
+  ["σ'p", 25.694e-6],
 ];
-const conv = (a, b, k) => [[a, b, (x) => x * k], [b, a, (x) => x / k]];
-export const CONVS = [
-  ...conv('in', 'cm', 2.54), ...conv('ft', 'm', 0.3048), ...conv('yd', 'm', 0.9144),
-  ...conv('mile', 'km', 1.609344), ...conv('n mile', 'm', 1852), ...conv('acre', 'm²', 4046.8564224),
-  ...conv('gal(US)', 'ℓ', 3.785411784), ...conv('gal(UK)', 'ℓ', 4.54609), ...conv('pc', 'km', 3.0856775814913673e13),
-  ...conv('km/h', 'm/s', 1 / 3.6), ...conv('oz', 'g', 28.349523125), ...conv('lb', 'kg', 0.45359237),
-  ...conv('atm', 'Pa', 101325), ...conv('mmHg', 'Pa', 133.322387415), ...conv('hp', 'kW', 0.745699872),
-  ...conv('kgf/cm²', 'Pa', 98066.5), ...conv('kgf•m', 'J', 9.80665), ...conv('lbf/in²', 'kPa', 6.894757293168),
-  ['°F', '°C', (x) => ((x - 32) * 5) / 9], ['°C', '°F', (x) => (x * 9) / 5 + 32],
-  ...conv('J', 'cal', 1 / 4.1868), ...conv('eV', 'J', 1.602176634e-19), ...conv('ft•lbf', 'J', 1.3558179483314),
-  ...conv('mph', 'km/h', 1.609344), ...conv('L', 'm³', 1e-3), ...conv('kWh', 'MJ', 3.6),
+
+// CONVT: each unit is [symbol, r] where r = how many of that unit equal ONE of
+// the category's first unit (values measured on the Canon emulator).
+export const CONV_CATS = [
+  { name: 'distance', units: [['feet', 1], ['m', 0.3048], ['mil', 12000], ['mm', 304.8], ['in', 12],
+    ['cm', 30.48], ['yd', 1 / 3], ['mile', 1 / 5280], ['km', 3.048e-4]] },
+  { name: 'area', units: [['ft²', 1], ['yd²', 0.1111111058], ['m²', 0.09290304], ['mile²', 3.587006581e-8],
+    ['km²', 9.290304e-8], ['ha', 9.290304e-6], ['acres', 2.295684353e-5]] },
+  { name: 'temp.', units: [['°F', null], ['°C', null]] }, // affine, special-cased
+  { name: 'capacity', units: [['gal', 1], ['liter', 3.785412], ['B.gal', 0.8326742321], ['Pint', 8],
+    ['fl.oz', 128.0000054]] },
+  { name: 'weight', units: [['Tr.oz', 1], ['oz', 1.097143091], ['lb', 0.06857143109], ['Kg', 0.03110348],
+    ['g', 31.10348]] },
+  { name: 'energy', units: [['J', 1], ['cal.f', 0.2389029576]] },
+  { name: 'pressure', units: [['atm', 1], ['kPa', 101.325], ['mmHg', 759.99982], ['cmH2O', 1033.227453]] },
+  { name: 'speed', units: [['m/s', 1], ['km/h', 3.6]] },
 ];
+export function convert(x, cat, from, to) {
+  const c = CONV_CATS[cat];
+  if (!c || !c.units[from] || !c.units[to]) fail('Syntax ERROR');
+  if (from === to) return x;
+  if (c.units[from][1] === null) { // temperature: 0 = °F, 1 = °C
+    return clean(from === 0 ? ((x - 32) * 5) / 9 : (x * 9) / 5 + 32);
+  }
+  return clean((x * c.units[to][1]) / c.units[from][1]);
+}
+// Legacy flat list (old `V:<n>` tokens): [fromSym, toSym, cat, from, to], every ordered pair.
+export const CONVS = [];
+CONV_CATS.forEach((c, k) => c.units.forEach((u, i) => c.units.forEach((w, j) => {
+  if (i !== j) CONVS.push([u[0], w[0], k, i, j]);
+})));
+// `V:<cat>:<from>:<to>` (or legacy `V:<n>`) → [cat, from, to]
+function convOf(t) {
+  const p = t.slice(2).split(':').map(Number);
+  if (p.length === 3) return p;
+  const c = CONVS[p[0]];
+  if (!c) fail('Syntax ERROR');
+  return c.slice(2);
+}
 
 // ---------- token text ----------
 const TXT = {
-  '(−)': '−', EE: 'ᴇ', Ans: 'Ans', 'π': 'π', e: '<i>e</i>', i: '<i>i</i>', 'Ran#': 'Ran#', '=': '=',
+  '(−)': '−', EE: 'ᴇ', Ans: 'Ans', 'π': 'π', e: '<i>e</i>', i: '<i>i</i>', Rand: 'Rand', 'Ran#': 'Rand', '=': '=',
   ',': ',', '(': '(', ')': ')', '.': '.', '°': '°',
   hA: 'A', hB: 'B', hC: 'C', hD: 'D', hE: 'E', hF: 'F',
 };
@@ -125,7 +166,10 @@ export function tokText(t) {
   if (t in BINOPS) return BINOPS[t];
   if (t in STATVARS) return STATVARS[t];
   if (t.startsWith('K:')) return `<span class="ks">${CONSTS[+t.slice(2)][0]}</span>`;
-  if (t.startsWith('V:')) { const c = CONVS[+t.slice(2)]; return `${c[0]}▶${c[1]}`; }
+  if (t.startsWith('V:')) {
+    const [k, i, j] = convOf(t), u = CONV_CATS[k].units;
+    return `${u[i][0]}▶${u[j][0]}`;
+  }
   return t;
 }
 export const isOperatorStart = (t) =>
@@ -138,7 +182,7 @@ function startsPrimary(t) {
   if (isDigitTok(t) || t === 'EE') return true;
   if (STRUCT[t]) return STRUCT[t].idx === 0 && STRUCT[t].name !== 'pow';
   return t === '(' || t in FUNCS || VARS.includes(t) || t === 'Ans' || t === 'π' || t === 'e' ||
-    t === 'i' || t === 'Ran#' || t.startsWith('K:') || t in STATVARS || MATVEC.includes(t);
+    t === 'i' || t === 'Rand' || t === 'Ran#' || t.startsWith('K:') || t in STATVARS || MATVEC.includes(t);
 }
 
 export function parse(toks, opts = {}) {
@@ -169,7 +213,7 @@ export function parse(toks, opts = {}) {
   }
   function prod() {
     let l = combo();
-    while (peek() === '×' || peek() === '÷') { const op = toks[p++]; l = bin(op, l, combo()); }
+    while (peek() === '×' || peek() === '÷' || peek() === '▪') { const op = toks[p++]; l = bin(op, l, combo()); }
     return l;
   }
   function combo() {
@@ -248,12 +292,12 @@ export function parse(toks, opts = {}) {
       const args = [logic()];
       while (peek() === ',') { p++; args.push(logic()); }
       expect(')');
-      return { t: 'fn', f: t, args };
+      return { t: 'fn', f: FN_ALIAS[t] || t, args };
     }
     if (VARS.includes(t)) return { t: 'var', n: t };
     if (t === 'Ans') return { t: 'ans' };
     if (t === 'π' || t === 'e' || t === 'i' || t.startsWith('K:')) return { t: 'const', n: t };
-    if (t === 'Ran#') return { t: 'rand' };
+    if (t === 'Rand' || t === 'Ran#') return { t: 'rand' };
     if (t in STATVARS) return { t: 'stat', n: t };
     if (MATVEC.includes(t)) return { t: 'mv', n: t };
     p--;
@@ -286,6 +330,18 @@ function real(v) {
   return v;
 }
 const isInt = (x) => Number.isInteger(x) || Math.abs(x - Math.round(x)) < 1e-10 * Math.max(1, Math.abs(x));
+
+// decimal rounding (half away from zero) on the 15-digit decimal value, so 1.005 → 1.01
+function decRound(x, n) {
+  if (x === 0 || !isFinite(x)) return x;
+  const [m, e] = Math.abs(+x.toPrecision(15)).toExponential().split('e');
+  const r = Math.round(+(m + 'e' + (+e + n)));
+  return Math.sign(x) * +(r + 'e' + -n);
+}
+function sigRound(x, n) {
+  if (x === 0 || !isFinite(x)) return x;
+  return decRound(x, n - 1 - Math.floor(Math.log10(Math.abs(+x.toPrecision(15)))));
+}
 
 function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a; }
 
@@ -361,6 +417,21 @@ function minv(m) {
   return a.map((row) => row.slice(r).map(clean));
 }
 const mtrn = (m) => m[0].map((_, j) => m.map((row) => row[j]));
+function mide(m) {
+  const [r, c] = dims(m);
+  if (r !== c) fail('Dimension ERROR');
+  return m.map((row, i) => row.map((_, j) => (i === j ? 1 : 0)));
+}
+function madj(m) { // adjugate = transpose of the cofactor matrix
+  const [r, c] = dims(m);
+  if (r !== c) fail('Dimension ERROR');
+  if (r === 1) return [[1]];
+  const minor = (i, j) => m.filter((_, k) => k !== i).map((row) => row.filter((_, l) => l !== j));
+  return m.map((_, i) => m.map((__, j) => {
+    const v = ((i + j) % 2 ? -1 : 1) * mdet(minor(j, i));
+    return v === 0 ? 0 : clean(v);
+  }));
+}
 const vdot = (a, b) => { if (a.length !== b.length) fail('Dimension ERROR'); return clean(a.reduce((s, x, i) => s + x * b[i], 0)); };
 const vnorm = (a) => Math.hypot(...a);
 function vcross(a, b) {
@@ -584,17 +655,48 @@ export function polyRoots(coef) { // highest degree first, complex results
     if (delta < 1e-15) break;
   }
   const scale = Math.max(1, ...roots.map(cabs));
-  roots = roots.map((z) => {
-    let re = z.re, im = z.im;
-    if (Math.abs(im) < 1e-9 * scale) {
-      im = 0;
-      for (let k = 0; k < 4; k++) { // Newton on the real line
-        let f = 0, df = 0;
-        for (const c of p) { df = df * re + f; f = f * re + c; }
-        if (df) re -= f / df;
+  // multiple roots come out as a tight cluster; the cluster mean is far more accurate
+  const group = roots.map((_, i) => i);
+  for (let i = 0; i < deg; i++)
+    for (let j = i + 1; j < deg; j++)
+      if (cabs(csub(roots[i], roots[j])) < 1e-4 * scale) group[j] = group[i];
+  const clustered = roots.map((_, i) => group.filter((g) => g === group[i]).length > 1);
+  roots = roots.map((z, i) => {
+    if (!clustered[i]) return z;
+    const mem = roots.filter((_, j) => group[j] === group[i]);
+    return C(mem.reduce((s, w) => s + w.re, 0) / mem.length, mem.reduce((s, w) => s + w.im, 0) / mem.length);
+  });
+  const pz = (z) => { let f = C(0, 0), df = C(0, 0); for (const c of p) { df = cadd(cmul(df, z), f); f = cadd(cmul(f, z), C(c, 0)); } return [f, df]; };
+  roots = roots.map((z, i) => {
+    if (Math.abs(z.im) < 1e-9 * scale) z = C(z.re, 0);
+    if (!clustered[i]) { // Newton polish (stays on the real line for real roots)
+      for (let k = 0; k < 6; k++) {
+        const [f, df] = pz(z);
+        if (df.re === 0 && df.im === 0) break;
+        const nz = csub(z, cdiv(f, df));
+        z = z.im === 0 ? C(nz.re, 0) : nz;
       }
     }
-    return C(clean(re), clean(im));
+    // snap last-digit noise when the rounded value fits at least as well
+    const cand = C(+z.re.toPrecision(12), +z.im.toPrecision(12));
+    if (cabs(pz(cand)[0]) <= cabs(pz(z)[0])) z = cand;
+    const tiny = 1e-12 * cabs(z); // e.g. −1e-19 + 1i → i
+    if (Math.abs(z.re) < tiny) z = C(0, z.im);
+    if (Math.abs(z.im) < tiny) z = C(z.re, 0);
+    return C(clean(z.re), clean(z.im));
+  });
+  // real coefficients → complex roots come in exact conjugate pairs
+  const used = new Set();
+  roots.forEach((z, i) => {
+    if (z.im <= 0 || used.has(i)) return;
+    let best = -1;
+    roots.forEach((w, j) => {
+      if (w.im < 0 && !used.has(j) && (best < 0 || cabs(csub(w, C(z.re, -z.im))) < cabs(csub(roots[best], C(z.re, -z.im))))) best = j;
+    });
+    if (best < 0) return;
+    used.add(i); used.add(best);
+    const re = clean((z.re + roots[best].re) / 2), im = clean((z.im - roots[best].im) / 2);
+    roots[i] = C(re, im); roots[best] = C(re, -im);
   });
   roots.sort((a, b) => (a.im === 0) !== (b.im === 0) ? (a.im === 0 ? -1 : 1) : b.re - a.re || b.im - a.im);
   return roots;
@@ -639,12 +741,12 @@ export function evaluate(ast, ctx) {
     for (let k = 0; k < r; k++) v = comb ? (v * (n - k)) / (k + 1) : v * (n - k);
     return chk(comb ? Math.round(v) : v);
   }
+  // Round(: Fix n → n decimals, Sci n → n significant digits, Norm → 10 significant digits
   function rnd(x) {
     x = real(x);
-    const s = ctx.setup;
-    if (s.disp === 'fix') return +x.toFixed(s.dispN);
-    if (s.disp === 'sci') return +x.toPrecision(s.dispN || 10);
-    return +x.toPrecision(10);
+    const s = ctx.setup || {};
+    if (s.disp === 'fix') return decRound(x, s.dispN ?? 0);
+    return sigRound(x, s.disp === 'sci' ? s.dispN || 10 : 10);
   }
   const withX = (f, x) => real(ev(f, { ...ctx, vars: { ...ctx.vars, X: x } }));
 
@@ -676,18 +778,26 @@ export function evaluate(ast, ctx) {
     const v = (16 * r2 - r1) / 15;
     return Math.abs(v) < 1e-11 ? 0 : +v.toPrecision(11);
   }
-  function sigma(f, a, b) {
+  function sigma(f, a, b, product = false) {
     if (!isInt(a) || !isInt(b) || b < a) fail();
     if (b - a > 1e6) fail('Time Out');
-    let s = 0;
-    for (let x = Math.round(a); x <= Math.round(b); x++) s += withX(f, x);
+    let s = product ? 1 : 0;
+    for (let x = Math.round(a); x <= Math.round(b); x++) {
+      if (product) { s *= withX(f, x); chk(s); } else s += withX(f, x);
+    }
     return clean(s);
   }
+  const intArg = (v, lim = 1e10) => {
+    v = real(v);
+    if (!isInt(v) || Math.abs(v) >= lim) fail();
+    return Math.round(v);
+  };
 
   function fn(name, args) {
     const A = args.map((a) => ev(a, ctx));
     const need = (n) => { if (A.length !== n) fail('Syntax ERROR'); };
-    if (!['Pol(', 'Rec(', 'GCD(', 'LCM(', 'RanInt#(', 'Dot(', 'Angle(', 'log('].includes(name)) need(1);
+    const needMin = (n) => { if (A.length < n) fail('Syntax ERROR'); };
+    if (!['Pol(', 'Rec(', 'GCD(', 'LCM(', 'i~Rand(', 'Dot(', 'Angle(', 'log(', 'Max(', 'Min(', 'Mod(', 'Q…r('].includes(name)) need(1);
     const x = A[0];
     switch (name) {
       case 'sin(': return trig('sin', x);
@@ -727,27 +837,48 @@ export function evaluate(ast, ctx) {
         ctx.multi = [['X', sx], ['Y', sy]]; ctx.setVars = { X: sx, Y: sy };
         return sx;
       }
-      case 'GCD(': case 'LCM(': {
+      case 'GCD(': case 'LCM(': { // 2 or 3 positive integers
+        if (A.length < 2 || A.length > 3) fail('Syntax ERROR');
+        const v = A.map((a) => intArg(a));
+        if (v.some((n) => n <= 0)) fail();
+        return chk(v.reduce((acc, n) => (name === 'GCD(' ? gcd(acc, n) : (acc / gcd(acc, n)) * n)));
+      }
+      case 'Max(': case 'Min(': {
+        needMin(2);
+        const v = A.map(real);
+        return name === 'Max(' ? Math.max(...v) : Math.min(...v);
+      }
+      case 'Mod(': {
         need(2);
         const a = real(A[0]), b = real(A[1]);
-        if (!isInt(a) || !isInt(b) || Math.abs(a) >= 1e10 || Math.abs(b) >= 1e10) fail();
-        const g = gcd(Math.round(a), Math.round(b));
-        return name === 'GCD(' ? g : g === 0 ? 0 : Math.abs(Math.round(a) * Math.round(b)) / g;
+        if (b === 0) return a;
+        return clean(a - b * Math.floor(a / b));
+      }
+      case 'Q…r(': {
+        need(2);
+        const a = intArg(A[0]), b = intArg(A[1]);
+        if (b === 0) fail();
+        const q = Math.floor(a / b), r = a - b * q;
+        ctx.multi = [['Q', q], ['R', r]]; ctx.setVars = { C: q, D: r };
+        return q;
       }
       case 'Int(': return Math.trunc(real(x));
       case 'Intg(': return Math.floor(real(x));
-      case 'RanInt#(': {
+      case 'i~Rand(': {
         need(2);
         const a = real(A[0]), b = real(A[1]);
         if (!isInt(a) || !isInt(b) || a > b) fail();
         return Math.round(a) + Math.floor(Math.random() * (Math.round(b) - Math.round(a) + 1));
       }
-      case 'Rnd(': return rnd(x);
+      case 'Round(': return rnd(x);
       case 'Not(': return ~real(x) | 0;
       case 'Neg(': return -real(x) | 0;
       case 'Abs(': return absval(x);
-      case 'det(': if (!isM(x)) fail('Syntax ERROR'); return mdet(x.mat);
+      case 'Det(': if (!isM(x)) fail('Syntax ERROR'); return mdet(x.mat);
       case 'Trn(': if (!isM(x)) fail('Syntax ERROR'); return { mat: mtrn(x.mat) };
+      case 'Ide(': if (!isM(x)) fail('Syntax ERROR'); return { mat: mide(x.mat) };
+      case 'Adj(': if (!isM(x)) fail('Syntax ERROR'); return { mat: madj(x.mat) };
+      case 'Inv(': if (!isM(x)) fail('Syntax ERROR'); return { mat: minv(x.mat) };
       case 'Dot(': need(2); if (!isV(A[0]) || !isV(A[1])) fail('Syntax ERROR'); return vdot(A[0].vec, A[1].vec);
       case 'Angle(': {
         need(2);
@@ -762,8 +893,10 @@ export function evaluate(ast, ctx) {
         if (!n) fail();
         return { vec: x.vec.map((v) => clean(v / n)) };
       }
-      case 'arg(': { const z = toC(x); if (!isC(z)) fail('Syntax ERROR'); return clean(fromRad(Math.atan2(z.im, z.re))); }
+      case 'Arg(': { const z = toC(x); if (!isC(z)) fail('Syntax ERROR'); return clean(fromRad(Math.atan2(z.im, z.re))); }
       case 'Conjg(': { const z = toC(x); if (!isC(z)) fail('Syntax ERROR'); return simp(C(z.re, -z.im)); }
+      case 'Real(': { const z = toC(x); if (!isC(z)) fail('Syntax ERROR'); return z.re; }
+      case 'Imag(': { const z = toC(x); if (!isC(z)) fail('Syntax ERROR'); return z.im; }
     }
     fail('Syntax ERROR');
   }
@@ -799,7 +932,7 @@ export function evaluate(ast, ctx) {
         if (n.n === 'π') return Math.PI;
         if (n.n === 'e') return Math.E;
         if (n.n === 'i') { if (!ctx.cplx) fail('Syntax ERROR'); return C(0, 1); }
-        return CONSTS[+n.n.slice(2)][2];
+        return CONSTS[+n.n.slice(2)][1];
       case 'stat': {
         const R = stat(), v = R[n.n];
         if (v === undefined || !isFinite(v)) fail();
@@ -818,7 +951,7 @@ export function evaluate(ast, ctx) {
       case 'pow': return chk(power(ev(n.a, ctx), ev(n.b, ctx), ctx));
       case 'post': {
         const v = ev(n.a, ctx), op = n.op;
-        if (op.startsWith('V:')) return chk(CONVS[+op.slice(2)][2](real(v)));
+        if (op.startsWith('V:')) return chk(convert(real(v), ...convOf(op)));
         switch (op) {
           case '²': return chk(isM(v) ? power(v, 2, ctx) : mul(v, v));
           case '³': return chk(isM(v) ? power(v, 3, ctx) : mul(mul(v, v), v));
@@ -855,6 +988,7 @@ export function evaluate(ast, ctx) {
           case '-': return chk(add(a, b, -1));
           case '×': case 'imul': return chk(mul(a, b));
           case '÷': return chk(div(a, b));
+          case '▪': if (!isV(a) || !isV(b)) fail('Syntax ERROR'); return vdot(a.vec, b.vec);
           case 'nPr': return perm(a, b, false);
           case 'nCr': return perm(a, b, true);
           case '∠': {
@@ -893,6 +1027,7 @@ export function evaluate(ast, ctx) {
           case 'integ': return chk(integrate(s[0], real(ev(s[1], ctx)), real(ev(s[2], ctx))));
           case 'diff': return chk(derive(s[0], real(ev(s[1], ctx))));
           case 'sum': return chk(sigma(s[0], real(ev(s[1], ctx)), real(ev(s[2], ctx))));
+          case 'prod': return chk(sigma(s[0], real(ev(s[1], ctx)), real(ev(s[2], ctx)), true));
         }
         fail('Syntax ERROR');
       }

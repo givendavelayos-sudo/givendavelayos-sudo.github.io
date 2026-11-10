@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="style.css?v=2" />
+  <link rel="stylesheet" href="style.css?v=3" />
   <title>SciCalc 789</title>
 </head>
 <body>
@@ -20,16 +20,13 @@
     <div class="solar"><i></i><i></i><i></i><i></i></div>
     <div class="head">
       <div class="brand">SciCalc</div>
-      <div class="model">SC-789SGA</div>
+      <div class="model">SC-789SGA <button class="snd" id="snd" aria-label="Key sound on/off" title="Key sound"></button></div>
     </div>
     <div class="lcdframe">
-      <div class="lcd" id="lcd">
-        <div class="ind" id="ind"></div>
-        <div class="screen" id="screen"></div>
-      </div>
+      <canvas class="lcd" id="lcd" role="img" aria-label="Calculator display"></canvas>
     </div>
     <div class="keys" id="keys"></div>
   </main>
-  <script type="module" src="app.js?v=2"></script>
+  <script type="module" src="app.js?v=3"></script>
 </body>
 </html>
