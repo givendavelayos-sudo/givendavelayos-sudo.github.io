@@ -56,14 +56,21 @@ setup changes, OFF/ON, scrolling, history) run without errors with correct resul
 ## Known gaps
 - EQN cubic 5x³+2x²−2x+1: emulator shows the imaginary part as 0.331662479, SciCalc √11/10.
 - d/dx of an expression with a power, and mixed fractions in input, are 1 column off the emulator.
-- Multi-statements (`:`) are not executed; Alpha+∫ (L) has a label only.
+- STAT/TABLE cells holding values of 1,000,000 or more use a compact form on the emulator that is not copied.
+- Constants in a calculation: first letter big + rest small (matches g, h, R, c0); Greek-letter
+  constants still use the C-VALUE picker bitmap and are unchecked.
+- Multi-statements (`:`) and Insert/overwrite (Shift+DEL) are not implemented; Alpha+∫ (L) is a label only.
+- Not checked yet: decimal comma, contrast, Rad/Gra across functions, Stack/Argument/Time Out errors,
+  99-step input limit, OFF/ON state.
 - CMPLX: the ∫ key types ∠ (with or without Shift), confirmed on the emulator.
-- Glyphs never seen on the emulator are drawn by hand in the same style.
 
 ## Verified (latest)
-`tools/harness.js` replays 333 emulator key sequences (all 8 modes: COMP incl. CALC/SOLVE/Fix/Sci/
-ENG/Line, CMPLX, STAT, BASE-N incl. BIN blocks and d/h/b/o, EQN, TABLE, MATRIX, VECTOR; memories
-0–9; CA everywhere): 322/333 identical dot for dot (the rest are the items above and 1-dot offsets).
+`tools/harness.js` replays 429 emulator key sequences (all 8 modes, memories 0–9, CA, SOLVE/CALC,
+replay with ▲/▼, display formats, constants/conversions in calculations, STAT editing/FREQ,
+3×3 and 4×4 matrices): 423/429 identical dot for dot.
+Capture hands-off with `tools/emu2.ps1 "name=keys; ..."` (posts clicks to the emulator's key
+buttons and reads the LCD with PrintWindow: no mouse, focus or clipboard; window must not be
+minimized). Capture names used by `build.py` (n1–n25 etc.) must not be reused for new tests.
 
 ## Next steps
 1. Merge the branch, open `/calc/` on the phone, "Add to Home screen".

@@ -80,6 +80,7 @@ F9['→'] = cell(dots('r2'), 0, 12, 9)
 # capital W (4-unknown EQN)
 F9['W'] = cell(dots('e4_1'), 0, 6, 9)
 F9['Z'] = cell(dots('e3_3'), 0, 6, 9)
+F9[''] = cell(dots('nd23'), 0, 24, 9)
 # BASE-N and misc glyphs copied from the captures
 F9['O'] = cell(dots('bn_oct'), 11, 84, 9)
 F9['/'] = cell(dots('bn_negbin'), 11, 38, 9)

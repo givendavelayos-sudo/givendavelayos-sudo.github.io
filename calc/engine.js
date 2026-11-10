@@ -982,7 +982,7 @@ export function evaluate(ast, ctx) {
         if (base) return wrap(-v);
         return mul(-1, v);
       }
-      case 'pow': return chk(power(ev(n.a, ctx), ev(n.b, ctx), ctx));
+      case 'pow': { const bs = ev(n.a, ctx); if (isM(bs) || isV(bs)) fail('Syntax ERROR'); return chk(power(bs, ev(n.b, ctx), ctx)); }
       case 'post': {
         const v = ev(n.a, ctx), op = n.op;
         if (op.startsWith('V:')) return chk(convert(real(v), ...convOf(op)));
@@ -1181,6 +1181,23 @@ export function exactForm(x) {
   }
   const fp = toFrac(x / Math.PI, 999);
   if (fp && Math.abs(fp[0]) < 1000) return { type: 'pi', n: fp[0], d: fp[1] };
+  return surd2(x);
+}
+// two-term forms: p√b + q√e (√3+√2) or integer + p√b (1+√2)
+const SQF = [2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19];
+function surd2(x) {
+  const nearInt = (v) => { const r = Math.round(v); return r !== 0 && Math.abs(v - r) <= 1e-11 * Math.max(1, Math.abs(x)) ? r : null; };
+  for (const b of SQF) for (let p = -9; p <= 9; p++) {
+    if (!p) continue;
+    const rest = x - p * Math.sqrt(b);
+    const k = nearInt(rest);
+    if (k !== null && Math.abs(k) <= 999) return { type: 'surd2', terms: [{ k, b: 1 }, { k: p, b }] };
+    for (const e2 of SQF) {
+      if (e2 >= b) break;
+      const q = nearInt(rest / Math.sqrt(e2));
+      if (q !== null && Math.abs(q) <= 9) return { type: 'surd2', terms: [{ k: p, b }, { k: q, b: e2 }] };
+    }
+  }
   return null;
 }
 export function fmtDMS(x) {

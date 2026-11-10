@@ -25,6 +25,7 @@ try {
   const saved = JSON.parse(localStorage.getItem('sc789') || 'null');
   if (saved) S = { ...S, ...saved, setup: { ...S.setup, ...saved.setup }, vars: { ...S.vars, ...saved.vars }, mats: { ...S.mats, ...saved.mats } };
 } catch { /* fresh start */ }
+S.hist = (S.hist || []).filter((h) => h && Array.isArray(h.t)); // older saves kept plain token lists
 const save = () => { try { localStorage.setItem('sc789', JSON.stringify(S)); } catch { /* private mode */ } };
 
 // ---------------- runtime UI state ----------------
@@ -136,10 +137,24 @@ function tokBoxes(t, f, out) {
   if (t === '__FXL') { out.push({ ...box.bits(FXL_ROWS, 29, 9), w: 30 }); return; }
   if (t in SUPS) { out.push(box.sup(box.text(SUPS[t], 'S'), f)); return; }
   const inv = t.match(/^a(sinh?|cosh?|tanh?)\($/);
+  if (inv && f === 'L') { out.push(box.text(inv[1] + '\ue001', f)); L.textBoxes('(', f, out); return; }
   if (inv) { out.push(box.text(inv[1], f), box.sup(box.text('-1', 'S'), f)); L.textBoxes('(', f, out); return; }
   if (t.startsWith('K:')) {
-    if (f === 'L') out.push(L.constBox(+t.slice(2)));
-    else out.push(box.text(E.CONSTS[+t.slice(2)][0], f));
+    // in a calculation the emulator draws the first letter big and the rest small and low
+    const sym = [...E.CONSTS[+t.slice(2)][0]];
+    if (f === 'L' && /^[A-Za-z]$/.test(sym[0]) && L.hasBig(sym[0]) && sym.slice(1).every((c) => /[A-Za-z0-9]/.test(c))) {
+      out.push(box.text(sym[0], 'L'));
+      if (sym.length > 1) out.push(box.shift(box.text(sym.slice(1).join('').replace(/0/g, 'O'), 'S'), 1));
+    } else if (f === 'L') out.push(L.constBox(+t.slice(2)));
+    else out.push(box.text(sym.join(''), f));
+    return;
+  }
+  if (t.startsWith('V:')) { // unit conversion: ft² with a raised 2, ring-shaped degree sign
+    let run = '';
+    for (const c of E.tokText(t).replace(/°/g, '˚')) {
+      if (c === '²') { if (run) out.push(box.text(run, f)); run = ''; out.push(box.shift(box.text('2', 'S'), -2)); } else run += c; // small 2 level with the top of the letters
+    }
+    if (run) out.push(box.text(run, f));
     return;
   }
   if (t in E.STATVARS) {
@@ -270,6 +285,16 @@ function exactBox2(ef, math) {
     }
     return box.row([...neg(n), box.frac(box.text(String(Math.abs(n)), 'S'), box.text(String(d), 'S'))]);
   }
+  if (ef.type === 'surd2') {
+    const items = [];
+    ef.terms.forEach((t, i) => {
+      const k = Math.abs(t.k);
+      items.push(...(t.k < 0 ? [box.text(i ? '-' : '−')] : i ? [box.text('+')] : []));
+      if (t.b === 1) items.push(box.text(String(k)));
+      else items.push(...(k === 1 ? [] : [box.text(String(k))]), box.sqrt(box.text(String(t.b))));
+    });
+    return box.row(items);
+  }
   if (ef.type === 'surd') {
     const sg = ef.sign < 0 ? [box.text('−')] : [];
     if (ef.d === 1) return box.row([...sg, ...(ef.a === 1 ? [] : [box.text(String(ef.a))]), box.sqrt(box.text(String(ef.b)))]);
@@ -277,7 +302,7 @@ function exactBox2(ef, math) {
     return box.row([...sg, box.frac(nu, box.text(String(ef.d), 'S'))]);
   }
   const n = Math.abs(ef.n);
-  if (ef.d === 1) return box.row([...neg(ef.n), box.text(`${n === 1 ? '' : n}π`)]);
+  if (ef.d === 1) return box.row([...neg(ef.n), ...(n === 1 ? [] : [box.text(String(n)), box.gap(1)]), box.text('π')]);
   return box.row([...neg(ef.n), box.frac(box.text(String(n), 'S'), box.text(String(ef.d), 'S')), box.text('π')]);
 }
 function baseStr(x) {
@@ -294,7 +319,7 @@ function realBox(x, res) {
   if (res.eng !== null && res.eng !== undefined) return numBox(E.fmtReal(x, S.setup, res.eng));
   if (res.exact) {
     const ef = E.exactForm(x);
-    if (ef && (isMath() || mathOut || ef.type === 'frac')) { const bx = exactBox(ef); if (bx) return bx; }
+    if (ef && (isMath() || mathOut || ef.type === 'frac') && !(res.noSurd && ef.type.startsWith('surd'))) { const bx = exactBox(ef); if (bx) return bx; }
   }
   return numBox(E.fmtReal(x, S.setup));
 }
@@ -366,7 +391,7 @@ function drawResult(b, res) {
   bx.draw(b, Math.max(L.LEFT, 102 - bx.w), ay);
 }
 const realOrZero = (v) => (typeof v === 'number' ? v : 0);
-const mkRes = (v, o = {}) => ({ v, exact: !o.force, eng: null, dms: !!o.dms, multi: o.multi || null, more: !!o.more });
+const mkRes = (v, o = {}) => ({ v, exact: !o.force, eng: null, dms: !!o.dms, multi: o.multi || null, more: !!o.more, noSurd: !!o.noSurd });
 function modeTies() {
   const cnt = new Map();
   for (const r of S.stat.data) if (typeof r.x === 'number') cnt.set(r.x, (cnt.get(r.x) || 0) + (S.setup.freq && typeof r.f === 'number' ? r.f : 1));
@@ -413,7 +438,7 @@ const calc = {
     switch (a) {
       case 'AC': this.ed = newEd(); this.res = null; this.calcRun = false; return;
       case '=': return R && this.calcRun ? this.startCalc() : this.run(false);
-      case 'DEL': if (R) { this.res = null; this.ed.cur = this.ed.toks.length; return; } edDel(this.ed); return;
+      case 'DEL': if (R) return; edDel(this.ed); return;
       case 'LEFT': if (R) { this.res = null; this.ed.cur = this.ed.toks.length; return; } if (this.ed.cur > 0) this.ed.cur--; return;
       case 'RIGHT': if (R) { this.res = null; this.ed.cur = 0; return; } if (this.ed.cur < this.ed.toks.length) this.ed.cur++; return;
       case 'UP': case 'DOWN':
@@ -474,21 +499,30 @@ const calc = {
     try {
       const { v, multi } = this.eval(this.ed.toks);
       setAns(v);
-      pushHist(this.ed.toks);
+      pushHist(this.ed.toks, v);
       if (isM(v) || isV(v)) { push(gridView(isM(v) ? 'MatAns' : 'VctAns')); this.res = mkRes(v); return; }
       // Line mode shows decimals unless the input itself had a fraction
       const more = this.ed.toks.includes('smode') && modeTies();
-      this.res = mkRes(v, { more, force: force || (!isMath() && !this.ed.toks.includes('F<') && !this.ed.toks.includes('MX<')), multi, dms: this.ed.toks.includes('°') });
+      const noSurd = ['P<', 'N<', 'T<', 'X<'].some((k) => this.ed.toks.includes(k)); // powers give decimals, not root forms
+      this.res = mkRes(v, { more, noSurd, force: force || (!isMath() && !this.ed.toks.includes('F<') && !this.ed.toks.includes('MX<')), multi, dms: this.ed.toks.includes('°') });
       this.calcRun = false;
     } catch (e) { this.fail(e); }
   },
   hist(dir) {
     const H = S.hist;
     if (!H.length || S.mode !== 'COMP' && S.mode !== 'CPLX' && S.mode !== 'BASE') return;
-    if (ui.histIdx === null) ui.histIdx = dir < 0 ? H.length - 1 : 0;
-    else ui.histIdx = Math.max(0, Math.min(H.length - 1, ui.histIdx + dir));
-    this.ed = newEd(H[ui.histIdx].slice());
-    this.res = null;
+    // replay: show an earlier calculation together with its result
+    const same = (p, q) => p.join('\u0001') === q.join('\u0001');
+    let i;
+    if (ui.histIdx === null) {
+      if (dir > 0) return;
+      i = H.length - 1;
+      if (this.res && same(H[i].t, this.ed.toks)) i--; // the newest one is already on screen
+      if (i < 0) return;
+    } else i = Math.max(0, Math.min(H.length - 1, ui.histIdx + dir));
+    ui.histIdx = i;
+    this.ed = newEd(H[i].t.slice());
+    this.res = H[i].v === undefined ? null : mkRes(H[i].v, { noSurd: ['P<', 'N<', 'T<', 'X<'].some((k) => H[i].t.includes(k)), force: !isMath() && !H[i].t.includes('F<') });
   },
   store(n) {
     let v = S.ans;
@@ -565,10 +599,11 @@ const calc = {
     });
   },
 };
-function pushHist(toks) {
+function pushHist(toks, v) {
   const last = S.hist[S.hist.length - 1];
-  if (last && last.join('\u0001') === toks.join('\u0001')) return;
-  S.hist.push(toks.slice());
+  const keep = typeof v === 'number' || isC(v) ? v : undefined;
+  if (last && last.t.join('\u0001') === toks.join('\u0001')) { last.v = keep; return; }
+  S.hist.push({ t: toks.slice(), v: keep });
   if (S.hist.length > 30) S.hist.shift();
 }
 function solveView(toks, sv, x, lr) {
@@ -719,7 +754,7 @@ function statMenu() {
   const items = {
     1: () => { toCalc(); push(statTypeMenu()); },
     2: () => { toCalc(); push(statEditor()); },
-    3: () => push(menu([{ scr: 'statEdit', items: { 1: done(() => {}), 2: () => { S.stat.data = []; toCalc(); push(statEditor()); } } }])),
+    3: () => push(menu([{ scr: 'statEdit', items: { 1: () => { let g = ui.stack.find((x) => x.grid); closeMenus(); if (!g) { toCalc(); g = statEditor(); push(g); } g.insertRow(); }, 2: () => { S.stat.data = []; toCalc(); push(statEditor()); } } }])),
     4: () => push(menu([{ scr: sd ? 'sum_SD' : 'sum', items: sd ? { 1: v('Sx2'), 2: v('Sx') } : { 1: v('Sx2'), 2: v('Sx'), 3: v('Sy2'), 4: v('Sy'), 5: v('Sxy'), 6: v('Sx3'), 7: v('Sx2y'), 8: v('Sx4') } }])),
     5: () => push(menu([{ scr: sd ? 'var_SD' : 'var', items: sd ? { 1: v('n'), 2: v('mx'), 3: v('sgx'), 4: v('ssx') } : { 1: v('n'), 2: v('mx'), 3: v('sgx'), 4: v('ssx'), 5: v('my'), 6: v('sgy'), 7: v('ssy') } }])),
     6: () => push(menu([{ scr: sd ? 'pts_SD' : 'pts', items: { 1: v('minX'), 2: v('maxX'), ...(sd ? { 3: v('med'), 4: v('smode'), 5: v('sQ1'), 6: v('sQ3'), 7: v('sR') } : { 3: v('minY'), 4: v('maxY') }) } }])),
@@ -824,9 +859,10 @@ function constPicker() {
 const cellStr = (x) => {
   if (typeof x !== 'number') return '';
   if (x === 0) return '0';
-  const f = E.fmtReal(+x.toPrecision(6), { disp: 'norm', dispN: 1 });
+  const f = E.fmtReal(x, { disp: 'norm', dispN: 1 });
   let s = f.m + (f.e === null ? '' : 'E' + f.e);
-  if (s.length > 6) s = f.e === null ? (+x.toPrecision(5)).toString().slice(0, 6) : (+f.m).toPrecision(2) + 'E' + f.e;
+  // cells cut long values off (3.666666 shows 3.6666), they do not round
+  if (s.length > 6) s = f.e === null ? s.slice(0, 6).replace(/\.$/, '') : (+f.m).toPrecision(2) + 'E' + f.e;
   return s;
 };
 // style: 'stat' | 'table' | 'eqn' | 'mat'
@@ -837,6 +873,7 @@ function gridScreen(cfg) {
   return {
     ed, grid: true, icons: () => modeIcons(),
     home() { r = c = topRow = left = 0; },
+    insertRow() { cfg.ins?.(r); },
     draw(b) {
       const n = cfg.nrows(), cols = cfg.cols();
       r = Math.min(r, n - 1); c = Math.min(c, cols.length - 1);
@@ -852,7 +889,7 @@ function gridScreen(cfg) {
       } else {
         const bot = y0 + 6 * Math.min(VIS, n - topRow) - 2;
         const lastVis = topRow + VIS >= n;
-        b.vline(15, 5, bot); b.set(16, 5); if (lastVis) b.set(16, bot);
+        b.vline(15, 5, bot); if (left === 0) { b.set(16, 5); if (lastVis) b.set(16, bot); }
         const xr = 15 + 28 * nv;
         if (left + nv >= cols.length) { const rx = Math.min(99, xr); b.vline(rx, 5, bot); b.set(rx - 1, 5); if (lastVis) b.set(rx - 1, bot); }
       }
@@ -864,9 +901,10 @@ function gridScreen(cfg) {
         if (lab === 'FREQ') { b.bits(L.FQH, 18, 47 + 28 * (j - 1), 0); continue; }
         if (st === 'eqn') { const h = L.EQH[lab]; if (h) b.bits(h[1], h[2], 26 + 28 * j, 0); else L.text(b, lab, 26 + 28 * j, -1, 'S'); } else if (st !== 'mat') L.text(b, lab, cx - Math.floor((lab.length * 4 - 1) / 2), 0, 'T');
       }
+      if (st === 'stat') for (let k = 0; k < VIS; k++) L.textR(b, String(topRow + k + 1), 13, y0 + 6 * k, 'T');
       for (let i = topRow; i < Math.min(n, topRow + VIS); i++) {
         const y = y0 + 6 * (i - topRow);
-        if (st !== 'mat' && !(st === 'eqn' && n === 1)) L.textR(b, String(i + 1), 13, y, 'T');
+        if (st !== 'mat' && st !== 'stat' && !(st === 'eqn' && n === 1)) L.textR(b, String(i + 1), 13, y, 'T');
         for (let j = 0; j < nv; j++) {
           const val = cfg.get(i, left + j), xr = 40 + 28 * j;
           if (val === null && st === 'table') { b.bits(L.TERR, 19, xr - 18, y); if (i === r && left + j === c) b.invert(17 + 28 * j, y - 1, 40 + 28 * j, y + 4); continue; }
@@ -876,7 +914,11 @@ function gridScreen(cfg) {
         }
       }
       if (ed.toks.length) drawCaret(b, drawInput(b, ed.toks, ed.cur, 23));
-      else { const v = cfg.get(r, c); if (typeof v === 'number') L.textR(b, shortNum(v).replace(/^-/, '−'), 100, 24, 'S'); }
+      else {
+        const v = cfg.get(r, c), ef = st === 'mat' && typeof v === 'number' ? E.exactForm(v) : null;
+        if (ef && ef.type === 'frac') L.textR(b, `${ef.n < 0 ? '−' : ''}${Math.abs(ef.n)}⌟${ef.d}`, 100, 24, 'S');
+        else if (typeof v === 'number') L.textR(b, shortNum(v).replace(/^-/, '−'), 100, 24, 'S');
+      }
     },
     key(a) {
       if (a === 'AC') {
@@ -920,6 +962,7 @@ function statEditor() {
     get: (r, c) => S.stat.data[r]?.[keys()[c]],
     set: (r, c, v) => { if (r >= S.stat.data.length) S.stat.data.push({ f: 1 }); S.stat.data[r][keys()[c]] = v; },
     del: (r) => { if (r < S.stat.data.length) S.stat.data.splice(r, 1); },
+    ins: (r) => { S.stat.data.splice(Math.min(r, S.stat.data.length), 0, { x: 0, ...(S.stat.type !== 'SD' ? { y: 0 } : {}), f: 1 }); },
   });
 }
 const EQN_TYPES = [
