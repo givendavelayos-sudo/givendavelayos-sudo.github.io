@@ -748,6 +748,10 @@ function appsMenu() {
     default: return menu([{ scr: 'apps_COMP', items: { 1: ins('tm:prod'), 2: ins('tm:sum'), 3: ins('tok:Max('), 4: ins('tok:Min('), 5: ins('tok:Q…r('), 6: ins('tok:Mod('), 7: ins('tok:LCM('), 8: ins('tok:GCD(') } }], { id: 'apps' });
   }
 }
+function editAppsMenu() {
+  const mat = S.mode === 'MATX', pick = mat ? pickMat : pickVec, dim = mat ? matDim : vecDim, store = mat ? S.mats : S.vecs;
+  return menu([{ scr: 'appsEdit', items: { 1: () => push(pick((n) => dim(n))), 2: () => push(pick((n) => (store[n] ? (toCalc(), push(gridEdit(n))) : dim(n)))) } }], { id: 'apps' });
+}
 function statMenu() {
   const sd = S.stat.type === 'SD', quad = S.stat.type === 'Quad';
   const v = (t) => ins('tok:' + t);
@@ -1208,9 +1212,17 @@ function press(id) {
   switch (act) {
     case 'ON': toCalc(); calc.key('AC'); enterMode(false); return finish();
     case 'OFF': ui.off = true; return finish();
-    case 'MODE': if (top().id === 'mode') ui.stack.pop(); else push(modeMenu()); return finish();
+    case 'MODE': if (top().id === 'mode') ui.stack.pop(); else if (top().id !== 'apps') push(modeMenu()); return finish(); // MODE is ignored while the Apps menu is open
     case 'SETUP': push(setupMenu()); return finish();
-    case 'APPS': if (top().id === 'apps') ui.stack.pop(); else if (top() === calc || top().grid || top().isFx) push(appsMenu()); return finish();
+    case 'APPS': {
+      const t0 = top();
+      if (t0.id === 'apps') ui.stack.pop();
+      else if (S.mode === 'TABLE') { /* Apps does nothing in TABLE */ }
+      else if (S.mode === 'EQN') { if (t0.grid) { toCalc(); push(eqnTypeMenu()); } } // back to the equation type list
+      else if (t0.grid && (S.mode === 'MATX' || S.mode === 'VCTR')) push(editAppsMenu()); // inside the editor: Dim and Data only
+      else if (t0 === calc || t0.grid) push(appsMenu());
+      return finish();
+    }
     case 'CONST': if (top() === calc) push(constPicker()); return finish();
     case 'CONV': if (top() === calc) push(convPicker()); return finish();
     case 'CLR': push(clrMenu()); return finish();

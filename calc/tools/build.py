@@ -143,7 +143,7 @@ SCREENS = dict(mode='m15a', setup1='m16a', setup2='m16b', apps_COMP='m17a', hyp=
                sum_SD='n13', sum='y15', var_SD='n14', var='y16', pts_SD='n15', pts='y17', distr='y18', reg='y19',
                reg_Quad='n16', statEdit='y21', eqn1='t21a', eqn2='t21b', apps_MATX1='y1', apps_MATX2='y2',
                matPick='t23a', apps_VCTR='y7', vecPick='i11', apps_CPLX='t26b', apps_BASE1='y9', apps_BASE2='y10',
-               synErr='t09', mathErr='t10', cantSolve='w3_6', insMem='tb_t4')
+               synErr='t09', mathErr='t10', cantSolve='w3_6', insMem='tb_t4', appsEdit='am3')
 def pack(g, r0=0, r1=H):
     return ''.join('%027x' % int(''.join('1' if v else '0' for v in g[r]) + '000', 2) for r in range(r0, r1))
 scr = {k: pack(dots(v)) for k, v in SCREENS.items()}
