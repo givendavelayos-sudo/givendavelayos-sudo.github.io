@@ -1072,7 +1072,7 @@ const K = {
   conv: { lbl: 'CONVT', cls: 'lt sm', main: 'CONV', s: 'CONST', sl: 'C-VALUE', lc: 'c' },
   calc: { lbl: 'CALC', main: 'CALC', s: 'SOLVE', sl: 'Solve', a: 'tok:=', al: '=' },
   inv: { lbl: X + sup('-1'), main: 'tok:⁻¹', s: 'tok:!', sl: '<i>x</i>!', a: 'tok::', al: ':' },
-  integ: { lbl: '∫<span class="sup">▫</span>▪', main: 'tm:integ', s: 'tm:diff', sl: 'd/dx', al: 'L' },
+  integ: { lbl: '∫<span class="sup">▫</span>▪', main: 'tm:integ', s: 'tm:diff', sl: 'd/dx', al: 'L', cs: 'tok:∠' }, // CMPLX: Shift+∫ types ∠
   eng: { lbl: 'ENG', main: 'ENG', s: '<ENG', sl: '◂ENG', c: 'tok:i', al: '<i>i</i>' },
   frac: { lbl: FRAC_ICON, main: 'tm:frac', s: 'tm:mixed', sl: '▪▫⁄▫', b: 'base:10', bl: 'DEC' },
   sqrt: { lbl: '√▫', main: 'tm:sqrt', s: 'tm:cbrt', sl: '∛▫', b: 'base:16', bl: 'HEX' },
@@ -1080,7 +1080,7 @@ const K = {
   sq: { lbl: X + sup('2'), main: 'tok:²', s: 'tok:³', sl: '<i>x</i>³', b: 'base:8', bl: 'OCT' },
   log: { lbl: 'log', main: 'tok:log(', s: 'tm:ten', sl: '10▫', a: 'tm:logab', al: 'log▪▫' },
   ln: { lbl: 'ln', main: 'tok:ln(', s: 'tm:exp', sl: '<i>e</i>▫', a: 'BLK', al: '◂Blk' },
-  neg: { lbl: '(−)', main: 'tok:(−)', a: 'var:A', al: 'A', b: 'tok:hA', cs: 'tok:∠' },
+  neg: { lbl: '(−)', main: 'tok:(−)', a: 'var:A', al: 'A', b: 'tok:hA' },
   dms: { lbl: '°′″', main: 'DMS', s: 'PFACT', sl: 'PFact', a: 'var:B', al: 'B', b: 'tok:hB' },
   hyp: { lbl: 'hyp', main: 'HYP', a: 'var:C', al: 'C', b: 'tok:hC' },
   sin: { lbl: 'sin', main: 'tok:sin(', s: 'tok:asin(', sl: 'sin⁻¹', a: 'var:D', al: 'D', b: 'tok:hD' },

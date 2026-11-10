@@ -55,10 +55,9 @@ setup changes, OFF/ON, scrolling, history) run without errors with correct resul
 
 ## Known gaps
 - EQN cubic 5x³+2x²−2x+1: emulator shows the imaginary part as 0.331662479, SciCalc √11/10.
-- CMPLX ∠: SciCalc puts ∠ on Shift+(−); on the emulator Shift+(−) types a blank character, so the
-  real ∠ key is still unknown.
 - d/dx of an expression with a power, and mixed fractions in input, are 1 column off the emulator.
 - Multi-statements (`:`) are not executed; Alpha+∫ (L) has a label only.
+- CMPLX: ∠ is Shift+∫ (confirmed on the emulator).
 - Glyphs never seen on the emulator are drawn by hand in the same style.
 
 ## Verified (latest)

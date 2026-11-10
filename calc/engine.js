@@ -1169,6 +1169,7 @@ function sqrtSimplify(n) { // n = a²·b
 export function exactForm(x) {
   if (!isFinite(x) || Number.isInteger(x) || Math.abs(x) >= 1e10 || Math.abs(x) < 1e-10) return null;
   const f = toFrac(x);
+  if (f && f[1] === 1) return null; // a whole number that picked up rounding noise (6.000000000000001)
   if (f && digits(f[0]) + digits(f[1]) <= 10) return { type: 'frac', n: f[0], d: f[1] };
   const fs = toFrac(x * x, 9999);
   if (fs && fs[0] < 1e6) {
