@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#c9cbce" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="SciCalc" />
+  <meta name="format-detection" content="telephone=no" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="stylesheet" href="style.css?v=3" />
+  <title>SciCalc 789</title>
+</head>
+<body>
+  <main class="calc" id="calc">
+    <div class="solar"><i></i><i></i><i></i><i></i></div>
+    <div class="head">
+      <div class="brand">SciCalc</div>
+      <div class="model">SC-789SGA <button class="snd" id="snd" aria-label="Key sound on/off" title="Key sound"></button></div>
+    </div>
+    <div class="lcdframe">
+      <canvas class="lcd" id="lcd" role="img" aria-label="Calculator display"></canvas>
+    </div>
+    <div class="keys" id="keys"></div>
+  </main>
+  <script type="module" src="app.js?v=3"></script>
+</body>
+</html>
