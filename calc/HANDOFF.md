@@ -65,9 +65,9 @@ setup changes, OFF/ON, scrolling, history) run without errors with correct resul
 - CMPLX: the ∫ key types ∠ (with or without Shift), confirmed on the emulator.
 
 ## Verified (latest)
-`tools/harness.js` replays 512 emulator key sequences (incl. the Apps key in every mode and editor) (all 8 modes, memories 0–9, CA, SOLVE/CALC,
+`tools/harness.js` replays 619 emulator key sequences (incl. the Apps key everywhere, Rad/Gra, hyperbolics, DMS, %, memory, CALC/SOLVE, ∫ and d/dx) (all 8 modes, memories 0–9, CA, SOLVE/CALC,
 replay with ▲/▼, display formats, constants/conversions in calculations, STAT editing/FREQ,
-3×3 and 4×4 matrices): 505/512 identical dot for dot.
+3×3 and 4×4 matrices): 611/619 identical dot for dot.
 Capture hands-off with `tools/emu2.ps1 "name=keys; ..."` (posts clicks to the emulator's key
 buttons and reads the LCD with PrintWindow: no mouse, focus or clipboard; window must not be
 minimized). Capture names used by `build.py` (n1–n25 etc.) must not be reused for new tests.

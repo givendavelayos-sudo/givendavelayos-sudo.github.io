@@ -55,6 +55,7 @@ const errOf = (e) => (e instanceof E.CalcError ? e.kind : (console.error(e), 'Ma
 const newEd = (toks = []) => ({ toks, cur: toks.length });
 function edInsert(ed, a) {
   if (ed.toks.length > 99) return;
+  if (!isMath() && LINE_FN[a]) a = LINE_FN[a];
   // Line mode: a fraction ends at the first non-digit typed after its denominator (1⌟2+1⌟3)
   if (!isMath() && (ed.toks[ed.cur] === 'F>' || ed.toks[ed.cur] === 'MX>') && !/^tok:[0-9.]$/.test(a)) ed.cur++;
   if (a.startsWith('tm:')) {
@@ -121,7 +122,9 @@ function editKey(ed, a) {
 }
 
 // ---------------- token -> LCD boxes ----------------
-const SUPS = { '²': '2', '³': '3', '⁻¹': '-1', ur: 'r', ug: 'g' };
+const SUPS = { '²': '2', '³': '3', '⁻¹': '−1', ur: 'r', ug: 'g' };
+const DRG_ROWS = { ur: [22, 24, 16, 16, 16], ug: [14, 18, 18, 14, 2, 12] }; // raised r and g of DRG▸, as the emulator draws them
+const LINE_FN = { 'tm:integ': 'tok:∫(', 'tm:diff': 'tok:d/dx(', 'tm:sum': 'tok:Σ(', 'tm:prod': 'tok:∏(' }; // Line mode types these as plain functions
 const SHOW = {
   'f(X)=': 'f(X)=', '(−)': '−', '-': '-', EE: 'ᴇ', e: 'ℯ', i: 'ⅈ', nPr: 'ℙ', nCr: 'ℂ', 'u°': 'º', Rand: 'Rand', 'Ran#': 'Rand',
   and: 'and', or: 'or', xor: 'xor', xnor: 'xnor', '>pol': '▶r∠θ', '>rect': '▶a+bⅈ', ':': ':',
@@ -129,12 +132,14 @@ const SHOW = {
 };
 const FXL_ROWS = L.FXL.map((r) => Array.from({ length: 29 }, (_, i) => (r >> (29 - i)) & 1)); // last column was the cursor
 const MEMG = (d) => String.fromCharCode(0xe010 + +d); // underlined memory digit glyphs
-function tokBoxes(t, f, out) {
+function tokBoxes(t, f, out, math = true) {
   const nm = f === 'L' && L.NAMES[t];
   if (nm) { const [w, up, rows] = nm; out.push({ w: w + 1, up, dn: rows.length - 1 - up, draw(b, x, ay) { b.bits(rows, w, x, ay - up); } }); return; }
   if (/^m\d$/.test(t)) { out.push(box.text(f === 'L' ? MEMG(t[1]) : t[1], f)); return; }
   if (t.startsWith('STO:')) { const n = t.slice(4); out.push(box.text('→' + (/^m\d$/.test(n) ? MEMG(n[1]) : n), f)); return; }
   if (t === '__FXL') { out.push({ ...box.bits(FXL_ROWS, 29, 9), w: 30 }); return; }
+  if (f === 'L' && DRG_ROWS[t]) { const rows = DRG_ROWS[t]; out.push({ w: 6, up: 4, dn: 0, draw(b, x, ay) { b.bits(rows, 5, x, ay - 4); } }); return; }
+  if (t in SUPS && !math && f === 'L') { out.push(box.shift(box.text(SUPS[t], 'S'), -2)); return; } // Line mode: small and level with the top, the line is not lowered
   if (t in SUPS) { out.push(box.sup(box.text(SUPS[t], 'S'), f)); return; }
   const inv = t.match(/^a(sinh?|cosh?|tanh?)\($/);
   if (inv && f === 'L') { out.push(box.text(inv[1] + '\ue001', f)); L.textBoxes('(', f, out); return; }
@@ -175,7 +180,7 @@ function lay(toks, s, e, f, cur, out, math, slot = true) {
       const P = E.findParts(toks, i);
       items.push(...template(toks, st.name, P, f, cur, out, math));
       i = P[P.length - 1] + 1;
-    } else { tokBoxes(toks[i], f, items); i++; }
+    } else { tokBoxes(toks[i], f, items, math); i++; }
   }
   if (cur === e) items.push(L.caret(out, f));
   if (!math) for (const it of items) if (it.paren === ')') it.dx = 1;
@@ -311,7 +316,7 @@ function baseStr(x) {
   const s = (x >>> 0).toString(S.base).toUpperCase();
   return S.base === 16 ? L.hexBold(s.padStart(8, '0')) : s.padStart(11, '0');
 }
-const DMS = (s) => s.replace('−', '-').replace('°', 'º').replace('′', "'").replace('″', '"');
+const DMS = (s) => s.replace('°', 'º').replace('′', "'").replace('″', '"');
 let mathOut = false; // EQN results use textbook form even though EQN input is Line
 function realBox(x, res) {
   if (S.mode === 'BASE') return box.text(baseStr(x));
@@ -451,7 +456,7 @@ const calc = {
         }
         return;
       case 'ABC': if (R && !R.multi) { R.exact = true; R.abc = !R.abc; } return;
-      case 'DMS': if (R) { if (typeof R.v === 'number') { R.dms = !R.dms; R.eng = null; } return; } edInsert(this.ed, 'tok:°'); return;
+      case 'DMS': if (R) { if (typeof R.v === 'number') { R.dms = !R.dms; R.eng = null; R.exact = false; } return; } edInsert(this.ed, 'tok:°'); return; // toggling ° ′ ″ off shows a decimal
       case 'ENG': case '<ENG':
         if (R && typeof R.v === 'number' && S.mode !== 'BASE') {
           if (R.eng === null) R.eng = E.engExp(R.v) + (a === '<ENG' ? 3 : 0);
@@ -549,7 +554,7 @@ const calc = {
     try { v = realOf(v); } catch (e) { return this.fail(e); }
     S.vars.M = +(S.vars.M + (minusOp ? -v : v)).toPrecision(15);
     setAns(v);
-    this.ed = newEd([...(had ? this.ed.toks : ['Ans']), minusOp ? 'M−' : 'M+']);
+    this.ed = newEd([...(had ? this.ed.toks : ['Ans']), minusOp ? 'M-' : 'M+']);
     this.res = mkRes(v);
   },
   startCalc() {
@@ -572,11 +577,15 @@ const calc = {
   startSolve() {
     const toks = this.ed.toks;
     if (!toks.length) return;
+    // "equation,Y" solves for Y instead of X
+    const named = toks.length > 2 && toks[toks.length - 2] === ',' && E.VARS.includes(toks[toks.length - 1]) ? toks[toks.length - 1] : null;
+    const eqToks = named ? toks.slice(0, -2) : toks;
     let ast;
-    try { ast = E.parse(toks, { allowEq: true }); } catch (e) { return this.fail(e); }
+    try { ast = E.parse(eqToks, { allowEq: true }); } catch (e) { return this.fail(e); }
     const f = ast.t === 'eq' ? { t: 'bin', op: '-', l: ast.l, r: ast.r } : ast;
-    const all = [...new Set(toks.filter((t) => E.VARS.includes(t)))];
-    const sv = all.includes('X') ? 'X' : all[0];
+    const all = [...new Set(eqToks.filter((t) => E.VARS.includes(t)))];
+    if (named && !all.includes(named)) return this.fail(new E.CalcError('Variable ERROR'));
+    const sv = named || (all.includes('X') ? 'X' : all[0]);
     if (!sv) return this.fail(new E.CalcError('Variable ERROR'));
     this.res = null;
     this.calcRun = false;
@@ -653,7 +662,7 @@ function askVars(vs, done) {
     if (top() !== calc && top().isAsk) ui.stack.pop();
     if (i >= vs.length) { done(); return; }
     const n = vs[i++];
-    push(promptScreen({ label: `${n}?`, value: S.vars[n], isAsk: true, onValue: (v) => { S.vars[n] = v; next(); }, onAC: toCalc }));
+    push(promptScreen({ label: `${n}?`, value: S.vars[n], isAsk: true, onValue: (v) => { S.vars[n] = v; next(); }, onAC: () => { toCalc(); calc.ed = newEd(); calc.calcRun = false; } }));
   };
   next();
 }

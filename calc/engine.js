@@ -59,6 +59,8 @@ export const FUNCS = {
   'GCD(': 'GCD(', 'LCM(': 'LCM(', 'Int(': 'Int(', 'Intg(': 'Intg(',
   'i~Rand(': 'i~Rand(', 'Round(': 'Round(', 'Not(': 'Not(', 'Neg(': 'Neg(',
   'P(': 'P(', 'Q(': 'Q(', 'R(': 'R(', 'Max(': 'Max(', 'Min(': 'Min(', 'Mod(': 'Mod(', 'Q…r(': 'Q…r(',
+  // Line-mode forms: ∫(f,a,b[,tol])  d/dx(f,a[,tol])  Σ(f,a,b)  ∏(f,a,b)
+  '∫(': '∫(', 'd/dx(': 'd/dx(', 'Σ(': 'Σ(', '∏(': '∏(',
   'Det(': 'Det(', 'Trn(': 'Trn(', 'Ide(': 'Ide(', 'Adj(': 'Adj(', 'Inv(': 'Inv(',
   'Dot(': 'Dot(', 'Angle(': 'Angle(', 'UnitV(': 'UnitV(',
   'Arg(': 'Arg(', 'Conjg(': 'Conjg(', 'Real(': 'Real(', 'Imag(': 'Imag(', 'Abs(': 'Abs(',
@@ -798,7 +800,7 @@ export function evaluate(ast, ctx) {
     if (a === b) return 0;
     const fa = F(a), fb = F(b), fm = F((a + b) / 2);
     const v = rec(a, b, fa, fm, fb, simpson(a, b, fa, fm, fb), 1e-11, 40);
-    return Math.abs(v) < 1e-12 ? 0 : +v.toPrecision(12);
+    return Math.abs(v) < 1e-12 ? 0 : +v.toPrecision(13);
   }
   function derive(f, x) {
     const F = (t) => withX(f, t);
@@ -825,6 +827,12 @@ export function evaluate(ast, ctx) {
   };
 
   function fn(name, args) {
+    if (name === '∫(' || name === 'd/dx(' || name === 'Σ(' || name === '∏(') { // first argument stays an expression of X
+      const v = (k) => real(ev(args[k], ctx));
+      if (name === 'd/dx(') { if (args.length < 2 || args.length > 3) fail('Syntax ERROR'); return derive(args[0], v(1)); }
+      if (args.length < 3 || args.length > (name === '∫(' ? 4 : 3)) fail('Syntax ERROR');
+      return name === '∫(' ? integrate(args[0], v(1), v(2)) : sigma(args[0], v(1), v(2), name === '∏(');
+    }
     const A = args.map((a) => ev(a, ctx));
     const need = (n) => { if (A.length !== n) fail('Syntax ERROR'); };
     const needMin = (n) => { if (A.length < n) fail('Syntax ERROR'); };

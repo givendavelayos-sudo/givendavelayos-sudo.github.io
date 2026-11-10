@@ -156,14 +156,15 @@ export const box = {
     let prevUp = null, afterSup = false;
     for (const it of items) {
       let bx = it;
-      if (afterSup) { w += 1; afterSup = false; } // one blank column after a superscript
+      if (afterSup && it.paren !== ')') w += 1; // one blank column after a superscript (not before ")" or another superscript)
+      afterSup = false;
       if (it.sup) {
         const pu = prevUp ?? MET[it.ctx || 'L'].up;
         bx = box.shift(it.sup, 3 - pu - it.sup.dn);
       }
       placed.push({ bx, x: w });
       w += bx.w; up = Math.max(up, bx.up); dn = Math.max(dn, bx.dn);
-      if (!it.caret) { prevUp = bx.up; afterSup = !!it.sup; }
+      if (!it.caret) { if (!it.sup) prevUp = bx.up; afterSup = !!it.sup; } // repeated superscripts stay on one level
     }
     fixParens(placed);
     for (const { bx } of placed) { up = Math.max(up, bx.up); dn = Math.max(dn, bx.dn); }
