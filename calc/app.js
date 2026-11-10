@@ -11,7 +11,7 @@ const B = new L.Buf();
 const DEFAULTS = () => ({
   mode: 'COMP',
   setup: { io: 'math', angle: 'deg', disp: 'norm', dispN: 1, frac: 'dc', cplx: 'abi', freq: false, point: 'dot', contrast: 5 },
-  vars: { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, X: 0, Y: 0, M: 0 },
+  vars: { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0, X: 0, Y: 0, M: 0, m0: 0, m1: 0, m2: 0, m3: 0, m4: 0, m5: 0, m6: 0, m7: 0, m8: 0, m9: 0 },
   ans: 0, base: 10,
   stat: { type: 'Lin', data: [] },
   mats: { MatA: null, MatB: null, MatC: null, MatD: null, MatAns: null },
@@ -127,7 +127,12 @@ const SHOW = {
   hA: 'Ａ', hB: 'Ｂ', hC: 'Ｃ', hD: 'Ｄ', hE: 'Ｅ', hF: 'Ｆ', xh: 'x̂', yh: 'ŷ', xh1: 'x̂1', xh2: 'x̂2',
 };
 const FXL_ROWS = L.FXL.map((r) => Array.from({ length: 29 }, (_, i) => (r >> (29 - i)) & 1)); // last column was the cursor
+const MEMG = (d) => String.fromCharCode(0xe010 + +d); // underlined memory digit glyphs
 function tokBoxes(t, f, out) {
+  const nm = f === 'L' && L.NAMES[t];
+  if (nm) { const [w, up, rows] = nm; out.push({ w: w + 1, up, dn: rows.length - 1 - up, draw(b, x, ay) { b.bits(rows, w, x, ay - up); } }); return; }
+  if (/^m\d$/.test(t)) { out.push(box.text(f === 'L' ? MEMG(t[1]) : t[1], f)); return; }
+  if (t.startsWith('STO:')) { const n = t.slice(4); out.push(box.text('→' + (/^m\d$/.test(n) ? MEMG(n[1]) : n), f)); return; }
   if (t === '__FXL') { out.push({ ...box.bits(FXL_ROWS, 29, 9), w: 30 }); return; }
   if (t in SUPS) { out.push(box.sup(box.text(SUPS[t], 'S'), f)); return; }
   const inv = t.match(/^a(sinh?|cosh?|tanh?)\($/);
@@ -158,6 +163,7 @@ function lay(toks, s, e, f, cur, out, math, slot = true) {
     } else { tokBoxes(toks[i], f, items); i++; }
   }
   if (cur === e) items.push(L.caret(out, f));
+  if (!math) for (const it of items) if (it.paren === ')') it.dx = 1;
   if (math && slot && !items.some((b) => !b.caret)) {
     const k = items.findIndex((b) => b.caret);
     items.splice(k < 0 ? 0 : k + 1, 0, box.empty(f));
@@ -233,20 +239,20 @@ function drawCaret(b, c) {
 // ---------------- results -> boxes ----------------
 const pt = (s) => (S.setup.point === 'comma' ? s.replace('.', ',') : s);
 function numBox(f, f2 = 'S') { // formatted real {m, e}
-  const m = pt(f.m);
+  const m = pt(f.m).replace(/^-/, '−');
   if (f.e === null) return box.text(m, 'L');
   if (f.e < 0) return box.row([box.text(m, 'L'), ...box.x10neg(String(-f.e))]);
   return box.row([box.text(m, 'L'), box.x10(), box.sup(box.text(String(f.e), f2), 'L')]);
 }
 let mixedNow = false; // F↔D / a b/c↔d/c state of the result being drawn
 function exactBox(ef) {
-  const math = isMath();
+  const math = isMath() || mathOut;
   const fracSet = S.setup.frac;
   S.setup.frac = mixedNow ? (fracSet === 'ab' ? 'dc' : 'ab') : fracSet;
   try { return exactBox2(ef, math); } finally { S.setup.frac = fracSet; }
 }
 function exactBox2(ef, math) {
-  const neg = (n) => (n < 0 ? [box.text('-', 'L')] : []);
+  const neg = (n) => (n < 0 ? [box.text('−', 'L')] : []);
   if (!math) {
     if (ef.type === 'frac') {
       const { n, d } = ef;
@@ -264,7 +270,7 @@ function exactBox2(ef, math) {
     return box.row([...neg(n), box.frac(box.text(String(Math.abs(n)), 'S'), box.text(String(d), 'S'))]);
   }
   if (ef.type === 'surd') {
-    const sg = ef.sign < 0 ? [box.text('-')] : [];
+    const sg = ef.sign < 0 ? [box.text('−')] : [];
     if (ef.d === 1) return box.row([...sg, ...(ef.a === 1 ? [] : [box.text(String(ef.a))]), box.sqrt(box.text(String(ef.b)))]);
     const nu = box.row([...(ef.a === 1 ? [] : [box.text(String(ef.a), 'S')]), box.sqrt(box.text(String(ef.b), 'S'))]);
     return box.row([...sg, box.frac(nu, box.text(String(ef.d), 'S'))]);
@@ -280,13 +286,14 @@ function baseStr(x) {
   return S.base === 16 ? L.hexBold(s.padStart(8, '0')) : S.base === 8 ? s.padStart(11, '0') : s.padStart(16, '0').slice(-16);
 }
 const DMS = (s) => s.replace('−', '-').replace('°', 'º').replace('′', "'").replace('″', '"');
+let mathOut = false; // EQN results use textbook form even though EQN input is Line
 function realBox(x, res) {
   if (S.mode === 'BASE') return box.text(baseStr(x));
   if (res.dms) return box.text(DMS(E.fmtDMS(x)));
   if (res.eng !== null && res.eng !== undefined) return numBox(E.fmtReal(x, S.setup, res.eng));
   if (res.exact) {
     const ef = E.exactForm(x);
-    if (ef && (isMath() || ef.type === 'frac')) { const bx = exactBox(ef); if (bx) return bx; }
+    if (ef && (isMath() || mathOut || ef.type === 'frac')) { const bx = exactBox(ef); if (bx) return bx; }
   }
   return numBox(E.fmtReal(x, S.setup));
 }
@@ -339,13 +346,20 @@ function drawResult(b, res) {
     return;
   }
   if (S.mode === 'BASE') L.textR(b, { 10: 'DEC', 16: 'HEX', 2: 'BIN', 8: 'OCT' }[S.base], 100, 11);
-  mixedNow = !!res.abc;
+  mixedNow = !!res.abc; mathOut = S.mode === 'EQN';
   const bx = valueBox(res.v, res);
-  mixedNow = false;
+  mixedNow = false; mathOut = false;
+  if (res.more) { bx.draw(b, Math.max(L.LEFT, 96 - bx.w), 29 - bx.dn); L.text(b, '▶', 96, 21); return; }
   const ay = 29 - bx.dn;
   bx.draw(b, Math.max(L.LEFT, 102 - bx.w), ay);
 }
-const mkRes = (v, o = {}) => ({ v, exact: !o.force, eng: null, dms: !!o.dms, multi: o.multi || null });
+const mkRes = (v, o = {}) => ({ v, exact: !o.force, eng: null, dms: !!o.dms, multi: o.multi || null, more: !!o.more });
+function modeTies() {
+  const cnt = new Map();
+  for (const r of S.stat.data) if (typeof r.x === 'number') cnt.set(r.x, (cnt.get(r.x) || 0) + (S.setup.freq && typeof r.f === 'number' ? r.f : 1));
+  const best = Math.max(0, ...cnt.values());
+  return [...cnt.values()].filter((c) => c === best).length > 1;
+}
 
 // ---------------- error screens ----------------
 function errScreen(kind, onGoto) {
@@ -439,13 +453,16 @@ const calc = {
   },
   run(force) {
     if (!this.ed.toks.length) return;
+    const last = this.ed.toks[this.ed.toks.length - 1];
+    if (last.startsWith('STO:')) { this.ed = newEd(this.ed.toks.slice(0, -1)); this.res = null; return this.store(last.slice(4)); }
     try {
       const { v, multi } = this.eval(this.ed.toks);
       setAns(v);
       pushHist(this.ed.toks);
       if (isM(v) || isV(v)) { push(gridView(isM(v) ? 'MatAns' : 'VctAns')); this.res = mkRes(v); return; }
       // Line mode shows decimals unless the input itself had a fraction
-      this.res = mkRes(v, { force: force || (!isMath() && !this.ed.toks.includes('F<') && !this.ed.toks.includes('MX<')), multi, dms: this.ed.toks.includes('°') });
+      const more = this.ed.toks.includes('smode') && modeTies();
+      this.res = mkRes(v, { more, force: force || (!isMath() && !this.ed.toks.includes('F<') && !this.ed.toks.includes('MX<')), multi, dms: this.ed.toks.includes('°') });
       this.calcRun = false;
     } catch (e) { this.fail(e); }
   },
@@ -465,10 +482,13 @@ const calc = {
     if (isM(v) || isV(v)) return this.fail(new E.CalcError('Syntax ERROR'));
     S.vars[n] = v;
     setAns(v);
-    this.ed = newEd(this.ed.toks.length && !this.res ? this.ed.toks : ['Ans']);
+    this.ed = newEd([...(this.ed.toks.length && !this.res ? this.ed.toks : ['Ans']), 'STO:' + n]);
     this.res = mkRes(v);
   },
-  recall(n) { this.ed = newEd([n]); this.run(false); },
+  recall(n) {
+    if (this.ed.toks.length && !this.res) { edInsert(this.ed, 'tok:' + n); return; }
+    this.ed = newEd([n]); this.run(false);
+  },
   mplus(minusOp) {
     let v = S.ans;
     const had = this.ed.toks.length && !this.res;
@@ -677,8 +697,8 @@ function statMenu() {
     3: () => push(menu([{ scr: 'statEdit', items: { 1: done(() => {}), 2: () => { S.stat.data = []; toCalc(); push(statEditor()); } } }])),
     4: () => push(menu([{ scr: sd ? 'sum_SD' : 'sum', items: sd ? { 1: v('Sx2'), 2: v('Sx') } : { 1: v('Sx2'), 2: v('Sx'), 3: v('Sy2'), 4: v('Sy'), 5: v('Sxy'), 6: v('Sx3'), 7: v('Sx2y'), 8: v('Sx4') } }])),
     5: () => push(menu([{ scr: sd ? 'var_SD' : 'var', items: sd ? { 1: v('n'), 2: v('mx'), 3: v('sgx'), 4: v('ssx') } : { 1: v('n'), 2: v('mx'), 3: v('sgx'), 4: v('ssx'), 5: v('my'), 6: v('sgy'), 7: v('ssy') } }])),
-    6: () => push(menu([{ scr: sd ? 'pts_SD' : 'pts', items: { 1: v('minX'), 2: v('maxX'), ...(sd ? {} : { 3: v('minY'), 4: v('maxY') }) } }])),
-    7: () => push(menu([{ scr: 'distr', items: {} }])),
+    6: () => push(menu([{ scr: sd ? 'pts_SD' : 'pts', items: { 1: v('minX'), 2: v('maxX'), ...(sd ? { 3: v('med'), 4: v('smode'), 5: v('sQ1'), 6: v('sQ3'), 7: v('sR') } : { 3: v('minY'), 4: v('maxY') }) } }])),
+    7: () => push(menu([{ scr: 'distr', items: { 1: v('P('), 2: v('Q('), 3: v('R('), 4: v('tt') } }])),
   };
   if (!sd) items[8] = () => push(menu([{ scr: quad ? 'reg_Quad' : 'reg', items: quad ? { 1: v('sA'), 2: v('sB'), 3: v('sC'), 4: v('xh1'), 5: v('xh2'), 6: v('yh') } : { 1: v('sA'), 2: v('sB'), 3: v('r'), 4: v('xh'), 5: v('yh') } }]));
   return menu([{ scr: sd ? 'apps_STAT_SD' : 'apps_STAT', items }], { id: 'apps' });
@@ -806,15 +826,17 @@ function gridScreen(cfg) {
         for (let j = 0; j < nv; j++) b.vline(43 + 28 * j, 0, 22);
       } else {
         const bot = y0 + 6 * Math.min(VIS, n - topRow) - 2;
-        b.vline(15, 5, bot); b.set(16, 5); if (st === 'eqn') b.set(16, bot);
+        const lastVis = topRow + VIS >= n;
+        b.vline(15, 5, bot); b.set(16, 5); if (st === 'eqn' && lastVis) b.set(16, bot);
         const xr = 15 + 28 * nv;
-        if (left + nv >= cols.length) { const rx = Math.min(99, xr); b.vline(rx, 5, bot); b.set(rx - 1, 5); if (st === 'eqn') b.set(rx - 1, bot); }
+        if (left + nv >= cols.length) { const rx = Math.min(99, xr); b.vline(rx, 5, bot); b.set(rx - 1, 5); if (st === 'eqn' && lastVis) b.set(rx - 1, bot); }
       }
       for (let j = 0; j < nv; j++) {
         const lab = cols[left + j];
         if (!lab) continue;
         const cx = 27 + 28 * j;
         if (lab === 'F(X)') { b.bits(L.FXH, 18, 47, 0); continue; }
+        if (lab === 'FREQ') { b.bits(L.FQH, 18, 47 + 28 * (j - 1), 0); continue; }
         if (st === 'eqn') { const h = L.EQH[lab]; if (h) b.bits(h[1], h[2], 26 + 28 * j, 0); else L.text(b, lab, 26 + 28 * j, -1, 'S'); } else if (st !== 'mat') L.text(b, lab, cx - Math.floor((lab.length * 4 - 1) / 2), 0, 'T');
       }
       for (let i = topRow; i < Math.min(n, topRow + VIS); i++) {
@@ -899,12 +921,20 @@ function eqnSolve() {
   try {
     if (S.eqn.type < 3) {
       const r = E.solveLinear(A);
-      if (r.kind === 'none') return 'No Solution';
-      if (r.kind === 'inf') return 'Infinite Sol';
+      if (r.kind === 'none' || r.kind === 'inf') return 'Math ERROR';
       return r.x.map((v, k) => [(S.eqn.type === 2 ? ['W', 'X', 'Y', 'Z'] : ['X', 'Y', 'Z'])[k], v]);
     }
     if (A[0][0] === 0) return 'Math ERROR';
-    return E.polyRoots(A[0].slice()).map((z, k) => [`X${k + 1}`, Math.abs(z.im) < 1e-12 ? z.re : z]);
+    let roots = E.polyRoots(A[0].slice()).map((z) => (Math.abs(z.im) <= 1e-7 * Math.max(1, Math.abs(z.re)) ? z.re : z));
+    const near = (p, q) => Math.abs(p - q) <= 1e-9 * Math.max(1, Math.abs(p));
+    if (roots.length === 1) return [['X', roots[0]]];
+    if (roots.length === 2 && typeof roots[0] === 'number' && typeof roots[1] === 'number' && near(roots[0], roots[1])) return [['X', roots[0]]];
+    if (roots.length === 4) { // quartic: real roots ascending, then complex ones by imaginary then real part, largest first
+      const re = roots.filter((z) => typeof z === 'number').sort((p, q) => p - q);
+      const cx = roots.filter((z) => typeof z !== 'number').sort((p, q) => (near(q.im, p.im) ? q.re - p.re : q.im - p.im));
+      roots = [...re, ...cx];
+    }
+    return roots.map((z, k) => [`X${k + 1}`, z]);
   } catch (e) { return errOf(e); }
 }
 function eqnResult(list) {
@@ -922,7 +952,7 @@ function eqnResult(list) {
       drawResult(b, { ...res, v });
     },
     key(a) {
-      if (a === '=' || a === 'DOWN') { if (i < list.length - 1) i++; else if (a === '=') ui.stack.pop(); return; }
+      if (a === '=' || a === 'DOWN') { if (i < list.length - 1) i++; else if (a === '=') { ui.stack.pop(); top().home?.(); } return; }
       if (a === 'UP') { if (i > 0) i--; return; }
       if (a === 'AC') { ui.stack.pop(); top().home?.(); return; }
       if (a === 'SD') res.exact = !res.exact;
@@ -1016,14 +1046,14 @@ const K = {
   conv: { lbl: 'CONVT', cls: 'lt sm', main: 'CONV', s: 'CONST', sl: 'C-VALUE', lc: 'c' },
   calc: { lbl: 'CALC', main: 'CALC', s: 'SOLVE', sl: 'Solve', a: 'tok:=', al: '=' },
   inv: { lbl: X + sup('-1'), main: 'tok:⁻¹', s: 'tok:!', sl: '<i>x</i>!', a: 'tok::', al: ':' },
-  integ: { lbl: '∫<span class="sup">▫</span>▪', main: 'tm:integ', s: 'tm:diff', sl: 'd/dx' },
+  integ: { lbl: '∫<span class="sup">▫</span>▪', main: 'tm:integ', s: 'tm:diff', sl: 'd/dx', al: 'L' },
   eng: { lbl: 'ENG', main: 'ENG', s: '<ENG', sl: '◂ENG', c: 'tok:i', al: '<i>i</i>' },
   frac: { lbl: FRAC_ICON, main: 'tm:frac', s: 'tm:mixed', sl: '▪▫⁄▫', b: 'base:10', bl: 'DEC' },
   sqrt: { lbl: '√▫', main: 'tm:sqrt', s: 'tm:cbrt', sl: '∛▫', b: 'base:16', bl: 'HEX' },
   pow: { lbl: X + sup('▫'), main: 'tm:pow', s: 'tm:nroot', sl: 'ˣ√▫', b: 'base:2', bl: 'BIN' },
   sq: { lbl: X + sup('2'), main: 'tok:²', s: 'tok:³', sl: '<i>x</i>³', b: 'base:8', bl: 'OCT' },
   log: { lbl: 'log', main: 'tok:log(', s: 'tm:ten', sl: '10▫', a: 'tm:logab', al: 'log▪▫' },
-  ln: { lbl: 'ln', main: 'tok:ln(', s: 'tm:exp', sl: '<i>e</i>▫' },
+  ln: { lbl: 'ln', main: 'tok:ln(', s: 'tm:exp', sl: '<i>e</i>▫', al: '◂Blk' },
   neg: { lbl: '(−)', main: 'tok:(−)', a: 'var:A', al: 'A', b: 'tok:hA', cs: 'tok:∠' },
   dms: { lbl: '°′″', main: 'DMS', s: 'PFACT', sl: 'PFact', a: 'var:B', al: 'B', b: 'tok:hB' },
   hyp: { lbl: 'hyp', main: 'HYP', a: 'var:C', al: 'C', b: 'tok:hC' },
@@ -1062,7 +1092,8 @@ function buildKeys() {
     for (const id of ids) {
       if (id === '') { h += '<div class="k gap"></div>'; continue; }
       if (id === 'PAD') {
-        h += `<div class="pad"><button class="u" data-id="UP" aria-label="up"><span>︿</span></button><button class="l" data-id="LEFT" aria-label="left"><span>〈</span></button><button class="r" data-id="RIGHT" aria-label="right"><span>〉</span></button><button class="d" data-id="DOWN" aria-label="down"><span>﹀</span></button></div>`;
+        const chev = (d) => `<svg viewBox="0 0 10 10" aria-hidden="true"><path d="${d}"/></svg>`;
+        h += `<div class="pad"><div class="sq"><button class="u" data-id="UP" aria-label="up">${chev('M2 7 5 3 8 7')}</button><button class="l" data-id="LEFT" aria-label="left">${chev('M7 2 3 5 7 8')}</button><button class="r" data-id="RIGHT" aria-label="right">${chev('M3 2 7 5 3 8')}</button><button class="d" data-id="DOWN" aria-label="down">${chev('M2 3 5 7 8 3')}</button></div></div>`;
         continue;
       }
       const k = K[id];
@@ -1076,7 +1107,7 @@ function buildKeys() {
 function resolve(id) {
   if (['UP', 'DOWN', 'LEFT', 'RIGHT'].includes(id)) { ui.shift = ui.alpha = false; return id; }
   const k = K[id];
-  if (ui.sto || ui.rcl) return k.a || null;
+  if (ui.sto || ui.rcl) return k.a || (/^tok:\d$/.test(k.main) ? 'var:m' + k.main.slice(4) : null);
   if (ui.shift) { ui.shift = false; if (S.mode === 'CPLX' && k.cs) return k.cs; return k.s || null; }
   if (ui.alpha) { ui.alpha = false; return k.a || null; }
   if (S.mode === 'BASE' && k.b) return k.b;
@@ -1092,6 +1123,7 @@ function press(id) {
   wake();
   ui.blink = true; restartBlink();
   if (ui.off) { if (id === 'on') { ui.off = false; S.hist = []; toCalc(); calc.ed = newEd(); calc.res = null; enterMode(false); } render(); return; }
+  if ((id === 'shift' || id === 'alpha') && (ui.sto || ui.rcl)) ui.sto = ui.rcl = false;
   if (id === 'shift') { ui.shift = !ui.shift; ui.alpha = false; render(); return; }
   if (id === 'alpha') { ui.alpha = !ui.alpha; ui.shift = false; render(); return; }
   const pending = ui.sto ? 'store' : ui.rcl ? 'recall' : null;

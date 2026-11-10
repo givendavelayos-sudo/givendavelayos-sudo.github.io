@@ -74,6 +74,12 @@ g = dots('t12')
 fd = first_dark(g, 21, 9, 40); c0 = best_col0(g, 21, 9, "1°30'0\"", fd - 4, fd)
 for k, ch in enumerate("1º30'0\""): F9.setdefault(ch, cell(g, 21, c0 + 6 * k, 9))
 
+# memories 0-9 (underlined small digits) and the store arrow
+for d in range(10): F9[chr(0xE010 + d)] = cell(dots('md%d' % d), 0, 6, 9)
+F9['→'] = cell(dots('r2'), 0, 12, 9)
+# capital W (4-unknown EQN)
+F9['W'] = cell(dots('e4_1'), 0, 6, 9)
+F9['Z'] = cell(dots('e3_3'), 0, 6, 9)
 # ---- small 5x6 font (menus, fractions, exponents); 8 rows incl. descender
 S = lambda img, rows, *segs: [(img, r, t, st) for r, (t, st) in zip(rows, segs)]
 F6 = {}
@@ -182,11 +188,26 @@ FXL = cell(dots('t24a'), 0, 6, 9, 30)             # "f(X)=" label of TABLE mode
 gq = dots('t22a'); EQH = {}
 for ch, (a, z) in zip('abc', [w for w in words(gq, 0, 5) if w[0] > 15]):
     EQH[ch] = [a, cell(gq, 0, a, 5, z - a + 1), z - a + 1]  # EQN column headers
+# STAT variable names exactly as the emulator draws them on the input line
+NAMES = {}
+for tok, img, c0 in [('Sx2','sd_Sx2',6),('Sx','sd_Sx',6),('n','sd_n',6),('mx','sd_mx',6),('sgx','sd_sgx',6),('ssx','sd_ssx',6),
+                     ('minX','sd_minX',6),('maxX','sd_maxX',6),('med','sd_med',6),('smode','sd_mode',6),('sQ1','sd_Q1',6),('sQ3','sd_Q3',6),
+                     ('Sy2','lin_Sy2',6),('Sy','lin_Sy',6),('Sxy','lin_Sxy',6),('Sx3','lin_Sx3',6),('Sx2y','lin_Sx2y',6),('Sx4','lin_Sx4',6),
+                     ('my','lin_my',6),('sgy','lin_sgy',6),('ssy','lin_ssy',6),('minY','lin_minY',6),('maxY','lin_maxY',6),
+                     ('sA','lin_A',6),('sB','lin_B',6),('sC','quad_C',6),('r','inv_r',6),('xh','lin_x',12),('yh','lin_y',12),('xh1','quad_x1',12),('xh2','quad_x2',12)]:
+    g = dots(img)
+    sup = any(g[y][x] for y in range(9, 12) for x in range(c0, 105))
+    h = 11 if sup else 9
+    xs = [x for x in range(c0, 105) if any(g[y][x] for y in range(h))]
+    w = max(xs) - c0 + 1
+    NAMES[tok] = [w, 6 if sup else 4, [int(''.join(str(g[y][c0 + i]) for i in range(w)), 2) for y in range(h)]]
 js = '// Generated from Canon emulator captures by build.py — dot data for the pixel LCD.\n'
 js += 'export const F9 = ' + json.dumps(F9, ensure_ascii=False, separators=(',', ':')) + ';\n'
 js += 'export const F6 = ' + json.dumps(F6, ensure_ascii=False, separators=(',', ':')) + ';\n'
 js += 'export const FXL = ' + json.dumps(FXL) + ';\n'
 js += 'export const EQH = ' + json.dumps(EQH) + ';\n'
+js += 'export const NAMES = ' + json.dumps(NAMES, separators=(',', ':')) + ';\n'
+js += 'export const FQH = ' + json.dumps(cell(dots('freq_grid'), 0, 47, 5, 18)) + ';\n'
 js += 'export const X10 = ' + json.dumps(X10) + ';\n'
 F4 = {}
 for img, t in [('n18', 'MatA:4X3'), ('n22', 'VctA:2')]:

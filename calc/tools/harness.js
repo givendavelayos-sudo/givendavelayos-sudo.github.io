@@ -35,3 +35,23 @@ export function diff(n) {
   }
   return `${n} cols ${c0}-${c1}\n` + rows.join('\n');
 }
+// side by side: emulator (left) and SciCalc (right) for each name
+export function pairs(names, cols = 2) {
+  document.getElementById('sheet')?.remove();
+  const d = document.createElement('div');
+  d.id = 'sheet';
+  d.style.cssText = `position:fixed;inset:0;z-index:99;background:#bbb;overflow:auto;display:grid;grid-template-columns:repeat(${cols},max-content);gap:4px 10px;padding:4px;font:10px sans-serif`;
+  const cv = (bits) => {
+    const c = document.createElement('canvas'); c.width = 210; c.height = 64;
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 210, 64); g.fillStyle = '#000';
+    for (let i = 0; i < bits.length; i++) if (bits[i] === '1') g.fillRect((i % 105) * 2, Math.floor(i / 105) * 2, 2, 2);
+    return c;
+  };
+  for (const n of names) {
+    const w = document.createElement('div');
+    w.append(n, document.createElement('br'), cv(J.emu[n]), ' ', cv(run(n)));
+    d.appendChild(w);
+  }
+  document.body.appendChild(d);
+  return names.length;
+}

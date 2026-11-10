@@ -1,7 +1,7 @@
 // Dot-matrix LCD: a 105×32 grid of dots plus a strip of status icons, drawn like the real F-789SGA.
 // Fonts and fixed screens come from lcddata.js (copied dot-for-dot from the official emulator).
 import { F9, F6, F5, X10, X10N, SCREENS, ICONS, KPAGES, KTITLE, UPAGES } from './lcddata.js';
-export { FXL, EQH, FXH } from './lcddata.js';
+export { FXL, EQH, FXH, NAMES, FQH } from './lcddata.js';
 import { F4 } from './lcddata.js';
 if (!F4['1']) F4['1'] = [24, 8, 8, 28]; // "1" of the matrix-size title (not in the captures)
 
@@ -232,7 +232,7 @@ export const box = {
   x10() { return { w: 12, up: 2, dn: 4, draw(b, x, ay) { b.bits(X10, 11, x, ay); } }; },
   paren(ch, f) {
     const m = MET[f];
-    const bx = { w: 6, up: m.up, dn: m.dn, paren: ch, f, draw(b, x, ay) { drawParen(b, ch, x, ay - bx.up, ay + bx.dn); } };
+    const bx = { w: 6, up: m.up, dn: m.dn, paren: ch, f, dx: 0, draw(b, x, ay) { drawParen(b, ch, x + bx.dx, ay - bx.up, ay + bx.dn); } };
     return bx;
   },
 };

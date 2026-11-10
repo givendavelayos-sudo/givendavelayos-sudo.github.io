@@ -58,7 +58,7 @@ export const FUNCS = {
   'log(': 'log(', 'ln(': 'ln(', 'Pol(': 'Pol(', 'Rec(': 'Rec(',
   'GCD(': 'GCD(', 'LCM(': 'LCM(', 'Int(': 'Int(', 'Intg(': 'Intg(',
   'i~Rand(': 'i~Rand(', 'Round(': 'Round(', 'Not(': 'Not(', 'Neg(': 'Neg(',
-  'Max(': 'Max(', 'Min(': 'Min(', 'Mod(': 'Mod(', 'Q…r(': 'Q…r(',
+  'P(': 'P(', 'Q(': 'Q(', 'R(': 'R(', 'Max(': 'Max(', 'Min(': 'Min(', 'Mod(': 'Mod(', 'Q…r(': 'Q…r(',
   'Det(': 'Det(', 'Trn(': 'Trn(', 'Ide(': 'Ide(', 'Adj(': 'Adj(', 'Inv(': 'Inv(',
   'Dot(': 'Dot(', 'Angle(': 'Angle(', 'UnitV(': 'UnitV(',
   'Arg(': 'Arg(', 'Conjg(': 'Conjg(', 'Real(': 'Real(', 'Imag(': 'Imag(', 'Abs(': 'Abs(',
@@ -70,13 +70,14 @@ const FN_ALIAS = { 'RanInt#(': 'i~Rand(', 'Rnd(': 'Round(', 'det(': 'Det(', 'arg
 export const STATVARS = {
   n: 'n', mx: 'x̄', sgx: 'σx', ssx: 'sx', Sx: 'Σx', Sx2: 'Σx²', my: 'ȳ', sgy: 'σy', ssy: 'sy',
   Sy: 'Σy', Sy2: 'Σy²', Sxy: 'Σxy', Sx3: 'Σx³', Sx2y: 'Σx²y', Sx4: 'Σx⁴',
+  med: 'med', smode: 'mode', sQ1: 'Q1', sQ3: 'Q3', sR: 'R',
   minX: 'minX', maxX: 'maxX', minY: 'minY', maxY: 'maxY', sA: 'A', sB: 'B', sC: 'C', r: 'r',
 };
 const STATPOST = { xh: 'x̂', yh: 'ŷ', xh1: 'x̂₁', xh2: 'x̂₂' };
 export const MATVEC = ['MatA', 'MatB', 'MatC', 'MatD', 'MatAns','VctA', 'VctB', 'VctC', 'VctD', 'VctAns'];
 const POSTFIX = {
   '²': '²', '³': '³', '⁻¹': '⁻¹', '!': '!', '%': '%', 'u°': '°', 'ur': 'ʳ', 'ug': 'ᵍ',
-  '>pol': '▶r∠θ', '>rect': '▶a+bi', ...STATPOST,
+  '>pol': '▶r∠θ', '>rect': '▶a+bi', tt: '▶t', ...STATPOST,
 };
 const BINOPS = { '+': '+', '-': '−', '×': '×', '÷': '÷', '▪': '▪', nPr: 'P', nCr: 'C', '∠': '∠',
   and: ' and ', or: ' or ', xor: ' xor ', xnor: ' xnor ' };
@@ -165,6 +166,7 @@ export function tokText(t) {
   if (t in POSTFIX) return POSTFIX[t];
   if (t in BINOPS) return BINOPS[t];
   if (t in STATVARS) return STATVARS[t];
+  if (/^m\d$/.test(t)) return t.slice(1);
   if (t.startsWith('K:')) return `<span class="ks">${CONSTS[+t.slice(2)][0]}</span>`;
   if (t.startsWith('V:')) {
     const [k, i, j] = convOf(t), u = CONV_CATS[k].units;
@@ -181,7 +183,7 @@ function startsPrimary(t) {
   if (t === undefined) return false;
   if (isDigitTok(t) || t === 'EE') return true;
   if (STRUCT[t]) return STRUCT[t].idx === 0 && STRUCT[t].name !== 'pow';
-  return t === '(' || t in FUNCS || VARS.includes(t) || t === 'Ans' || t === 'π' || t === 'e' ||
+  return t === '(' || t in FUNCS || VARS.includes(t) || /^m\d$/.test(t) || t === 'Ans' || t === 'π' || t === 'e' ||
     t === 'i' || t === 'Rand' || t === 'Ran#' || t.startsWith('K:') || t in STATVARS || MATVEC.includes(t);
 }
 
@@ -294,7 +296,7 @@ export function parse(toks, opts = {}) {
       expect(')');
       return { t: 'fn', f: FN_ALIAS[t] || t, args };
     }
-    if (VARS.includes(t)) return { t: 'var', n: t };
+    if (VARS.includes(t) || /^m\d$/.test(t)) return { t: 'var', n: t };
     if (t === 'Ans') return { t: 'ans' };
     if (t === 'π' || t === 'e' || t === 'i' || t.startsWith('K:')) return { t: 'const', n: t };
     if (t === 'Rand' || t === 'Ran#') return { t: 'rand' };
@@ -513,6 +515,27 @@ export const STAT_TYPES = [
   ['SD', '1-VAR'], ['Lin', 'A+BX'], ['Quad', '_+CX²'], ['Log', 'ln X'],
   ['eExp', 'e^X'], ['abExp', 'A•B^X'], ['Pwr', 'A•X^B'], ['Inv', '1/X'],
 ];
+// median, quartiles, mode and range of 1-variable data (with frequencies)
+function order1(rows, useF) {
+  const v = [];
+  for (const r of rows) { const f = useF && typeof r.f === 'number' ? r.f : 1; for (let k = 0; k < f; k++) v.push(r.x); }
+  v.sort((a, b) => a - b);
+  const medOf = (a) => { const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+  const h = v.length >> 1;
+  const out = { med: medOf(v), sR: v[v.length - 1] - v[0] };
+  if (v.length > 1) { out.sQ1 = medOf(v.slice(0, h)); out.sQ3 = medOf(v.slice(v.length - h)); }
+  const cnt = new Map(); let best = 0;
+  for (const x of v) { const c = (cnt.get(x) || 0) + 1; cnt.set(x, c); best = Math.max(best, c); }
+  out.smode = v.find((x) => cnt.get(x) === best);
+  return out;
+}
+// standard normal distribution
+function phi(t) { // P(t): probability below t
+  const z = Math.abs(t) / Math.SQRT2, k = 1 / (1 + 0.5 * z);
+  const e = k * Math.exp(-z * z - 1.26551223 + k * (1.00002368 + k * (0.37409196 + k * (0.09678418 + k * (-0.18628806 + k * (0.27886807 + k * (-1.13520398 + k * (1.48851587 + k * (-0.82215223 + k * 0.17087277)))))))));
+  return t >= 0 ? 1 - e / 2 : e / 2;
+}
+const r5 = (x) => Math.round(x * 1e5) / 1e5; // P( Q( R( show 5 decimals
 export function statCompute(stat) {
   const paired = stat.type !== 'SD';
   const rows = stat.data.filter((r) => typeof r.x === 'number' && (!paired || typeof r.y === 'number'));
@@ -526,6 +549,7 @@ export function statCompute(stat) {
     if (f > 0) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
   }
   Object.assign(R, { minX, maxX, minY, maxY, paired, type: stat.type });
+  if (!paired && rows.length) Object.assign(R, order1(rows, stat.freq));
   const n = R.n;
   if (n > 0) {
     R.mx = R.Sx / n;
@@ -843,6 +867,9 @@ export function evaluate(ast, ctx) {
         if (v.some((n) => n <= 0)) fail();
         return chk(v.reduce((acc, n) => (name === 'GCD(' ? gcd(acc, n) : (acc / gcd(acc, n)) * n)));
       }
+      case 'P(': return r5(phi(real(x)));
+      case 'Q(': return r5(Math.abs(phi(real(x)) - 0.5));
+      case 'R(': return r5(1 - phi(real(x)));
       case 'Max(': case 'Min(': {
         needMin(2);
         const v = A.map(real);
@@ -964,6 +991,7 @@ export function evaluate(ast, ctx) {
           case '>pol': return { ...toC(v), form: 'polar' };
           case '>rect': return { ...toC(v), form: 'rect' };
           case 'xh': case 'yh': case 'xh1': case 'xh2': return chk(statEst(stat(), op, real(v)));
+          case 'tt': { const R = stat(); if (!R.sgx) fail(); return chk((real(v) - R.mx) / R.sgx); }
         }
         fail('Syntax ERROR');
       }

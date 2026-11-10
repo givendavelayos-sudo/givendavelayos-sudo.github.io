@@ -10,11 +10,16 @@ folder `Desktop\GERTC\Canon-Emulator-Recovery\clean-recovery-test\Canon_F-789SGA
 holds the official calculator manual PDF, `Calculator_Manual\F-789SGA Calculator manual.pdf`).
 
 ## Where things are
-- Repo: `givendavelayos-sudo/givendavelayos-sudo.github.io` (GitHub Pages), branch
-  `claude/epic-darwin-o06w5b`. **Not merged yet**; goes live at `/calc/` after merging.
-- The rest of the repo is the user's separate budget app **"Power"** (built output only). Don't
-  touch its files except root `sw.js` (patched with `denylist:[/^\/calc\//]`; Power's next build
-  overwrites it; permanent fix: `workbox: { navigateFallbackDenylist: [/^\/calc\//] }` in Power's source).
+- **Live:
+  https://scicalc-789.netlify.app** (Netlify site `scicalc-789`, team "Team GDL", site id
+  `d4504a60-0fe8-4920-a443-b883ccab2ba9`; visitor sign-in and the Netlify badge are turned off
+  for this site). Deploy: copy the app files (not `tools/`, not this file) into a folder, change the
+  manifest `id`/`start_url`/`scope` to `/`, add `netlify.toml` (no-cache headers), then
+  `npx netlify-cli deploy --prod --dir <folder> --site d4504a60-0fe8-4920-a443-b883ccab2ba9 --no-build`
+  (in PowerShell use `npx.cmd`; this laptop is already signed in to Netlify).
+- Source: this folder, kept on branch `claude/epic-darwin-o06w5b` of
+  `givendavelayos-sudo/givendavelayos-sudo.github.io`. Don't rely on `main`/`/calc/` there:
+  every release of the user's budget app "Power" replaces that repo's files and deletes `calc/`.
 
 ## Files (all in `calc/`, plain HTML/CSS/JS, no build step)
 | File | What it does |
@@ -49,12 +54,16 @@ SOLVE, CALC, STO/RCL, M+, matrices, vectors, STAT, EQN, TABLE, BASE-N, CMPLX, CO
 setup changes, OFF/ON, scrolling, history) run without errors with correct results.
 
 ## Known gaps
-- STAT `Distr` menu (P( Q( R( ▶t) and the 1-variable extras med/mode/Q1/Q3/R are shown but not
-  calculated; BASE-N d/h/b/o prefixes do nothing; multi-statements (`:`) are not executed.
-- Glyphs never seen on the emulator (some lowercase letters in the big font, bold hex A/B/D/E/F)
-  are drawn by hand in the same style; ∫ alone, nth roots, log_a b were matched by rule, not
-  against a capture of every case.
-- Indicator icon set shown while typing in grid editors follows the emulator only roughly.
+- EQN cubic 5x³+2x²−2x+1: the emulator shows the imaginary part as 0.331662479 where SciCalc
+  shows √11/10 (Canon's cubic solver loses exactness there); every other tested EQN screen matches.
+- BASE-N d/h/b/o prefixes do nothing; multi-statements (`:`) are not executed; the emulator's
+  Alpha+∫ (L) and Alpha+ln (◂Blk) have labels only.
+- Glyphs never seen on the emulator are drawn by hand in the same style.
+
+## Verified (latest)
+`tools/harness.js` replays 230 emulator key sequences (COMP, all STAT types and functions incl.
+med/mode/Q1/Q3/P(/Q(/R(/▶t, all 6 EQN types incl. complex roots, memories 0–9 STO/RCL, CA in
+every editor): 228/230 identical dot for dot (the two left are the cubic above).
 
 ## Next steps
 1. Merge the branch, open `/calc/` on the phone, "Add to Home screen".
