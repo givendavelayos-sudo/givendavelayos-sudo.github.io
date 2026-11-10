@@ -166,7 +166,8 @@ export const box = {
     }
     fixParens(placed);
     for (const { bx } of placed) { up = Math.max(up, bx.up); dn = Math.max(dn, bx.dn); }
-    return { w, up, dn, draw(b, x, ay) { for (const P of placed) P.bx.draw(b, x + P.x, ay); } };
+    const last = items.filter((it) => !it.caret).pop();
+    return { w, up, dn, tail: !!(last && (last.sup || last.tail)), draw(b, x, ay) { for (const P of placed) P.bx.draw(b, x + P.x, ay); } };
   },
   sup(content, ctx = 'L') { return { w: content.w, up: 0, dn: 0, sup: content, ctx }; },
   frac(n, d) {
@@ -215,14 +216,14 @@ export const box = {
   },
   integral(body, lo, hi, f) { // ∫ with limits at its top and bottom right, then the body and "dx"
     const lw = Math.max(lo.w, hi.w), up = Math.max(10, body.up + 1), dn = Math.max(8, body.dn + 1);
-    const dx = box.text('dx', f);
+    const dx = box.text('dx', f), g = body.tail ? 1 : 0; // one blank column after a raised/lowered ending
     return {
-      w: 8 + lw + body.w + dx.w, up, dn,
+      w: 7 + g + lw + body.w + dx.w, up, dn,
       draw(b, x, ay) {
         const top = ay - up, bot = ay + dn;
         b.set(x + 3, top); b.set(x + 4, top + 1); b.vline(x + 2, top + 1, bot - 1); b.set(x + 1, bot); b.set(x, bot - 1);
         hi.draw(b, x + 6, top + 1 + hi.up); lo.draw(b, x + 6, bot - lo.dn);
-        body.draw(b, x + 7 + lw, ay); dx.draw(b, x + 8 + lw + body.w, ay);
+        body.draw(b, x + 7 + lw, ay); dx.draw(b, x + 7 + g + lw + body.w, ay);
       },
     };
   },

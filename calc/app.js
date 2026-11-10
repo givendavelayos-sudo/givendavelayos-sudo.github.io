@@ -195,7 +195,7 @@ function template(toks, name, P, f, cur, out, math) {
     case 'diff': {
       const at = box.row([box.text('x=', S_), sl(1, S_)]);
       const bar = { w: 3, up: 4, dn: 7, draw(b, x, ay) { b.vline(x - 1, ay - 4, ay + 7); } };
-      return [box.frac(box.text('d', S_), box.text('dx', S_)), box.paren('(', f), sl(0), box.paren(')', f), bar, box.shift(at, 6 - at.up)];
+      return [box.frac(box.text('d', S_), box.text('dx', S_)), box.paren('(', f), sl(0), box.paren(')', f), bar, { ...box.shift(at, 6 - at.up), tail: true }];
     }
     case 'sum': case 'prod': {
       const lower = box.row([box.text('x=', S_), sl(1, S_)]);
@@ -1072,7 +1072,7 @@ const K = {
   conv: { lbl: 'CONVT', cls: 'lt sm', main: 'CONV', s: 'CONST', sl: 'C-VALUE', lc: 'c' },
   calc: { lbl: 'CALC', main: 'CALC', s: 'SOLVE', sl: 'Solve', a: 'tok:=', al: '=' },
   inv: { lbl: X + sup('-1'), main: 'tok:⁻¹', s: 'tok:!', sl: '<i>x</i>!', a: 'tok::', al: ':' },
-  integ: { lbl: '∫<span class="sup">▫</span>▪', main: 'tm:integ', s: 'tm:diff', sl: 'd/dx', al: 'L', cs: 'tok:∠' }, // CMPLX: Shift+∫ types ∠
+  integ: { lbl: '∫<span class="sup">▫</span>▪', main: 'tm:integ', s: 'tm:diff', sl: 'd/dx', al: 'L', c: 'tok:∠', cs: 'tok:∠' }, // CMPLX: ∫ (with or without Shift) types ∠
   eng: { lbl: 'ENG', main: 'ENG', s: '<ENG', sl: '◂ENG', c: 'tok:i', al: '<i>i</i>' },
   frac: { lbl: FRAC_ICON, main: 'tm:frac', s: 'tm:mixed', sl: '▪▫⁄▫', b: 'base:10', bl: 'DEC' },
   sqrt: { lbl: '√▫', main: 'tm:sqrt', s: 'tm:cbrt', sl: '∛▫', b: 'base:16', bl: 'HEX' },
