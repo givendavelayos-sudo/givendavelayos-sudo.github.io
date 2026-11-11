@@ -56,6 +56,21 @@ setup changes, OFF/ON, scrolling, history) run without errors with correct resul
 ## Known gaps
 - EQN cubic 5x³+2x²−2x+1: emulator shows the imaginary part as 0.331662479, SciCalc √11/10.
 - d/dx of an expression with a power, and mixed fractions in input, are 1 column off the emulator.
+- `3feet▶m+1`: emulator shows 1.9144, SciCalc 2393/1250 (the emulator's rule for this is unknown).
+- STAT/TABLE cells holding 1,000,000 or more use a compact form on the emulator that is not copied.
+- x̄ typed into the STAT editor line is drawn a few dots differently.
+- Scrolling a long PFact result with ▶ is not implemented (the ▶ mark is shown).
+- Not checked: Stack ERROR, Time Out, auto power-off timing. Alpha+∫ (L) is a label only.
+
+## Verified
+Browser harness replays 81 emulator key sequences and compares dots: **80/81 identical** (the one
+left is `Rand`, which is random). Status icons match. 48 extra feature sequences (∫, d/dx, Σ, ∏,
+SOLVE, CALC, STO/RCL, M+, matrices, vectors, STAT, EQN, TABLE, BASE-N, CMPLX, CONVT, C-VALUE,
+setup changes, OFF/ON, scrolling, history) run without errors with correct results.
+
+## Known gaps
+- EQN cubic 5x³+2x²−2x+1: emulator shows the imaginary part as 0.331662479, SciCalc √11/10.
+- d/dx of an expression with a power, and mixed fractions in input, are 1 column off the emulator.
 - STAT/TABLE cells holding values of 1,000,000 or more use a compact form on the emulator that is not copied.
 - Constants in a calculation: first letter big + rest small (matches g, h, R, c0); Greek-letter
   constants still use the C-VALUE picker bitmap and are unchecked.
@@ -65,9 +80,9 @@ setup changes, OFF/ON, scrolling, history) run without errors with correct resul
 - CMPLX: the ∫ key types ∠ (with or without Shift), confirmed on the emulator.
 
 ## Verified (latest)
-`tools/harness.js` replays 619 emulator key sequences (incl. the Apps key everywhere, Rad/Gra, hyperbolics, DMS, %, memory, CALC/SOLVE, ∫ and d/dx) (all 8 modes, memories 0–9, CA, SOLVE/CALC,
+`tools/harness.js` replays 758 emulator key sequences (incl. the Apps key everywhere, Rad/Gra, hyperbolics, DMS, %, memory, CALC/SOLVE, ∫ and d/dx) (all 8 modes, memories 0–9, CA, SOLVE/CALC,
 replay with ▲/▼, display formats, constants/conversions in calculations, STAT editing/FREQ,
-3×3 and 4×4 matrices): 611/619 identical dot for dot.
+3×3 and 4×4 matrices): 749/758 identical dot for dot.
 Capture hands-off with `tools/emu2.ps1 "name=keys; ..."` (posts clicks to the emulator's key
 buttons and reads the LCD with PrintWindow: no mouse, focus or clipboard; window must not be
 minimized). Capture names used by `build.py` (n1–n25 etc.) must not be reused for new tests.

@@ -29,7 +29,7 @@ S.hist = (S.hist || []).filter((h) => h && Array.isArray(h.t)); // older saves k
 const save = () => { try { localStorage.setItem('sc789', JSON.stringify(S)); } catch { /* private mode */ } };
 
 // ---------------- runtime UI state ----------------
-const ui = { shift: false, alpha: false, sto: false, rcl: false, off: false, stack: [], histIdx: null, blink: true };
+const ui = { ovr: false, shift: false, alpha: false, sto: false, rcl: false, off: false, stack: [], histIdx: null, blink: true };
 const top = () => ui.stack[ui.stack.length - 1];
 const push = (s) => ui.stack.push(s);
 const toCalc = () => { ui.stack = [calc]; };
@@ -54,7 +54,7 @@ const errOf = (e) => (e instanceof E.CalcError ? e.kind : (console.error(e), 'Ma
 // ---------------- expression editor ----------------
 const newEd = (toks = []) => ({ toks, cur: toks.length });
 function edInsert(ed, a) {
-  if (ed.toks.length > 99) return;
+  if (ed.toks.length >= 99) return; // 99 steps
   if (!isMath() && LINE_FN[a]) a = LINE_FN[a];
   // Line mode: a fraction ends at the first non-digit typed after its denominator (1⌟2+1⌟3)
   if (!isMath() && (ed.toks[ed.cur] === 'F>' || ed.toks[ed.cur] === 'MX>') && !/^tok:[0-9.]$/.test(a)) ed.cur++;
@@ -145,18 +145,15 @@ function tokBoxes(t, f, out, math = true) {
   if (inv && f === 'L') { out.push(box.text(inv[1] + '\ue001', f)); L.textBoxes('(', f, out); return; }
   if (inv) { out.push(box.text(inv[1], f), box.sup(box.text('-1', 'S'), f)); L.textBoxes('(', f, out); return; }
   if (t.startsWith('K:')) {
-    // in a calculation the emulator draws the first letter big and the rest small and low
-    const sym = [...E.CONSTS[+t.slice(2)][0]];
-    if (f === 'L' && /^[A-Za-z]$/.test(sym[0]) && L.hasBig(sym[0]) && sym.slice(1).every((c) => /[A-Za-z0-9]/.test(c))) {
-      out.push(box.text(sym[0], 'L'));
-      if (sym.length > 1) out.push(box.shift(box.text(sym.slice(1).join('').replace(/0/g, 'O'), 'S'), 1));
-    } else if (f === 'L') out.push(L.constBox(+t.slice(2)));
-    else out.push(box.text(sym.join(''), f));
+    // constants use the emulator's own bitmaps (lcddata CSYM, one per constant)
+    const cs = f === 'L' && L.CSYM[+t.slice(2)];
+    if (cs) { const [w, rows] = cs; out.push({ w: w + 1, up: 4, dn: 4, draw(b, x, ay) { b.bits(rows, w, x, ay - 4); } }); }
+    else out.push(box.text(E.CONSTS[+t.slice(2)][0], f));
     return;
   }
   if (t.startsWith('V:')) { // unit conversion: ft² with a raised 2, ring-shaped degree sign
     let run = '';
-    for (const c of E.tokText(t).replace(/°/g, '˚')) {
+    for (const c of E.tokText(t).replace(/°/g, '˚').replace('Kg', 'kg')) {
       if (c === '²') { if (run) out.push(box.text(run, f)); run = ''; out.push(box.shift(box.text('2', 'S'), -2)); } else run += c; // small 2 level with the top of the letters
     }
     if (run) out.push(box.text(run, f));
@@ -231,7 +228,7 @@ function layExpr(toks, cur) {
 }
 
 // draw an expression on the top line with horizontal scrolling; returns the caret (or null)
-function drawInput(b, toks, cur, y0 = 0, x0 = L.LEFT) {
+function drawInput(b, toks, cur, y0 = 0, x0 = L.LEFT, endPad = 8) {
   const { bx, out } = layExpr(toks, cur);
   const ay = y0 + bx.up;
   const tmp = new L.Buf();
@@ -241,18 +238,20 @@ function drawInput(b, toks, cur, y0 = 0, x0 = L.LEFT) {
     const probe = new L.Buf();
     bx.draw(probe, 0, ay);
     const cx = cur >= 0 ? out.x ?? bx.w : 0;
-    scroll = Math.max(0, Math.min(bx.w - vis, cx - vis + 8));
+    scroll = Math.max(0, cur >= 0 ? cx - vis + endPad : 0); // the cursor sits a little inside the right edge
     if (cx - scroll < 8) scroll = Math.max(0, cx - 8);
   }
   bx.draw(tmp, x0 - scroll, ay);
   for (let y = 0; y < L.H; y++) for (let x = x0 - 1; x <= L.RIGHT; x++) if (tmp.get(x, y)) b.set(x, y);
-  if (scroll > 0) { b.fill(0, y0, 12, y0 + bx.up + bx.dn, 0); L.text(b, '⊲', 6, ay - 4); }
+  if (scroll > 0) { b.fill(0, y0, 9, y0 + bx.up + bx.dn, 0); L.text(b, '⊲', 6, ay - 4); for (let y = 0; y < L.H; y++) for (const x of [10, 11]) b.set(x, y, tmp.get(x, y)); } // the arrow is 4 dots wide
   if (bx.w - scroll > vis) { b.fill(96, y0, 104, y0 + bx.up + bx.dn, 0); L.text(b, '⊳', 96, ay - 4); }
   if (cur < 0 || out.x === undefined) return null;
-  return { x: out.x - scroll, top: out.top, bot: out.bot };
+  return { x: out.x, top: out.top, bot: out.bot };
 }
-function drawCaret(b, c) {
+function drawCaret(b, c, style) {
   if (!c || !ui.blink) return;
+  if (style === 'block') { b.fill(c.x, c.top, c.x + 4, c.top + 8); return; }   // fewer than 10 steps left
+  if (style === 'ovr') { b.fill(c.x, c.top + 7, c.x + 4, c.top + 8); return; }  // overwrite mode
   const x = Math.max(L.LEFT - 1, c.x - 1);
   for (let y = Math.max(0, c.top); y <= Math.min(L.H - 1, c.bot); y++) { b.set(x, y); b.set(x + 1, y); }
 }
@@ -356,7 +355,9 @@ function pfactBox(n) {
     items.push(box.text(String(p)));
     if (e > 1) items.push(box.sup(box.text(String(e), 'S')));
   }
-  if (n > 1) { if (items.length) items.push(box.text('×')); items.push(box.text(n < 1000 ? String(n) : `(${n})`)); }
+  if (n > 1) { if (items.length) items.push(box.text('×')); L.textBoxes(n < 1000 ? String(n) : `(${n})`, 'L', items); }
+  for (const it of items) if (it.paren === ')') it.dx = 1;
+  if (items.length && items[items.length - 1].sup) items.push(box.gap(0)); // the blank column after a power is kept at the end
   return box.row(items);
 }
 const shortNum = (x) => { const f = E.fmtReal(x, S.setup); return pt(f.m) + (f.e === null ? '' : 'ᴇ' + f.e); };
@@ -393,6 +394,13 @@ function drawResult(b, res) {
   mixedNow = false; mathOut = false;
   if (res.more) { bx.draw(b, Math.max(L.LEFT, 96 - bx.w), 29 - bx.dn); L.text(b, '▶', 96, 21); return; }
   const ay = 29 - bx.dn;
+  if (bx.w > 97) { // too long: left part with ▶ (as PFact of 9999999999)
+    const tmp = new L.Buf();
+    bx.draw(tmp, L.LEFT, ay);
+    for (let y = 0; y < L.H; y++) for (let x = 0; x < 95; x++) if (tmp.get(x, y)) b.set(x, y);
+    L.text(b, '▶', 96, ay - 4);
+    return;
+  }
   bx.draw(b, Math.max(L.LEFT, 102 - bx.w), ay);
 }
 const realOrZero = (v) => (typeof v === 'number' ? v : 0);
@@ -424,14 +432,18 @@ function errScreen(kind, onGoto) {
 function fail(e, onGoto) { push(errScreen(errOf(e), onGoto)); }
 
 // ---------------- main calculation screen ----------------
+const ovrOn = () => ui.ovr && S.setup.io === 'line' && S.mode === 'COMP'; // Shift+DEL in Line mode
 const calc = {
+  ms: null, // multi-statement run: { parts, i }
   ed: newEd(), res: null, calcRun: false, lastErrPos: null,
   draw(b) {
-    const c = drawInput(b, this.ed.toks, this.res ? -1 : this.ed.cur);
+    const full = this.ed.toks.length >= 90 && !ovrOn();
+    const c = drawInput(b, this.ed.toks, this.res ? -1 : this.ed.cur, 0, L.LEFT, this.ed.toks.length >= 99 ? 6 : 8);
     if (this.res) drawResult(b, this.res);
     else if (S.mode === 'BASE') { if (S.base === 2) drawBin(b, realOrZero(S.ans)); else { L.textR(b, { 10: 'DEC', 16: 'HEX', 2: 'BIN', 8: 'OCT' }[S.base], 100, 11); L.textR(b, baseStr(S.ans), 100, 21); } }
     else if (LINE_MODES.includes(S.mode) && S.mode !== 'EQN') L.textR(b, '0', 100, 21);
-    drawCaret(b, c);
+    else if (ui.insSeen && S.setup.io === 'line' && S.mode === 'COMP') L.textR(b, '0', 100, 21); // the emulator shows 0 once Shift+DEL was used
+    drawCaret(b, c, ovrOn() ? 'ovr' : full ? 'block' : 'line');
   },
   fail(e) {
     const pos = e?.pos;
@@ -440,10 +452,13 @@ const calc = {
   key(a) {
     const R = this.res;
     if (a !== 'UP' && a !== 'DOWN') ui.histIdx = null;
+    if (this.ms && !['=', 'SD', 'ABC', 'ENG', '<ENG', 'DMS', 'PFACT'].includes(a)) this.ms = null;
     switch (a) {
-      case 'AC': this.ed = newEd(); this.res = null; this.calcRun = false; return;
-      case '=': return R && this.calcRun ? this.startCalc() : this.run(false);
-      case 'DEL': if (R) return; edDel(this.ed); return;
+      case 'AC': this.ed = newEd(); this.res = null; this.calcRun = false; ui.insSeen = false; return;
+      case '=':
+        if (this.ms && R) { this.ms.i = (this.ms.i + 1) % this.ms.parts.length; return this.runPart(); } // next statement
+        return R && this.calcRun ? this.startCalc() : this.run(false);
+      case 'DEL': if (R) return; if (ovrOn() && this.ed.cur < this.ed.toks.length && !E.STRUCT[this.ed.toks[this.ed.cur]]) this.ed.toks.splice(this.ed.cur, 1); else edDel(this.ed); return;
       case 'LEFT': if (R) { this.res = null; this.ed.cur = this.ed.toks.length; return; } if (this.ed.cur > 0) this.ed.cur--; return;
       case 'RIGHT': if (R) { this.res = null; this.ed.cur = 0; return; } if (this.ed.cur < this.ed.toks.length) this.ed.cur++; return;
       case 'UP': case 'DOWN':
@@ -466,7 +481,7 @@ const calc = {
         return;
       case 'PFACT':
         if (!R) return;
-        if (typeof R.v === 'number' && Number.isInteger(R.v) && R.v > 0 && R.v < 1e10) { R.pfact = !R.pfact; return; }
+        if (typeof R.v === 'number' && Number.isInteger(R.v) && R.v > 1 && R.v < 1e10) { R.pfact = !R.pfact; return; }
         return this.fail(new E.CalcError('Math ERROR'));
       case 'M+': case 'M-': return this.mplus(a === 'M-');
       case 'BLK': if (R && R.blocks > 1) R.blk = ((R.blk || 0) + 1) % R.blocks; return;
@@ -484,8 +499,13 @@ const calc = {
       this.res = null;
       this.calcRun = false;
     }
+    if (ovrOn() && a.startsWith('tok:') && this.ed.cur < this.ed.toks.length && !E.STRUCT[this.ed.toks[this.ed.cur]]) {
+      this.ed.toks.splice(this.ed.cur, 1, a.slice(4)); this.ed.cur++; // overwrite the character under the cursor
+      return;
+    }
     edInsert(this.ed, a);
   },
+  runPart() { this.ed = newEd(this.ms.parts[this.ms.i].slice()); this.run(false); },
   eval(toks) {
     const c = ctx();
     // ▶r∠θ / ▶a+bi end the calculation: they convert the whole expression
@@ -501,6 +521,14 @@ const calc = {
     if (!this.ed.toks.length) return;
     const last = this.ed.toks[this.ed.toks.length - 1];
     if (last.startsWith('STO:')) { this.ed = newEd(this.ed.toks.slice(0, -1)); this.res = null; return this.store(last.slice(4)); }
+    if (this.ed.toks.includes(':')) { // multi-statement: each = runs the next statement
+      const parts = [[]];
+      for (const t of this.ed.toks) { if (t === ':') parts.push([]); else parts[parts.length - 1].push(t); }
+      if (parts.some((p) => !p.length)) return this.fail(new E.CalcError('Syntax ERROR'));
+      this.ms = { parts, i: 0 };
+      return this.runPart();
+    }
+    ui.ovr = false; ui.insSeen = false;
     try {
       const { v, multi } = this.eval(this.ed.toks);
       setAns(v);
@@ -1107,7 +1135,7 @@ function setMode(m) {
   enterMode(true);
 }
 function enterMode(fresh) {
-  if (S.mode === 'STAT') push(fresh ? statTypeMenu() : statEditor());
+  if (S.mode === 'STAT' && fresh) push(statTypeMenu());
   if (S.mode === 'EQN') push(fresh ? eqnTypeMenu() : eqnEditor());
   if (S.mode === 'TABLE') push(tableFx());
   if (S.mode === 'MATX' && fresh) push(pickMat((n) => matDim(n)));
@@ -1237,7 +1265,7 @@ function press(id) {
     case 'CLR': push(clrMenu()); return finish();
     case 'DRG': push(drgMenu()); return finish();
     case 'HYP': push(hypMenu()); return finish();
-    case 'INS': return finish();
+    case 'INS': if (top() === calc && !calc.res && S.setup.io === 'line' && S.mode === 'COMP') { ui.ovr = !ui.ovr; ui.insSeen = true; } return finish();
     case 'STO': case 'RCL':
       if (top() === calc) ui[act === 'STO' ? 'sto' : 'rcl'] = true;
       return finish();
@@ -1362,7 +1390,7 @@ restartBlink();
 wake();
 // for automated tests: replay key names and read back the dots and icons
 window.__sc = {
-  reset() { S = DEFAULTS(); calc.ed = newEd(); calc.res = null; ui.shift = ui.alpha = ui.sto = ui.rcl = ui.off = false; toCalc(); buildKeys(); render(); },
+  reset() { S = DEFAULTS(); calc.ed = newEd(); calc.res = null; calc.ms = null; ui.shift = ui.alpha = ui.sto = ui.rcl = ui.off = ui.ovr = ui.insSeen = false; toCalc(); buildKeys(); render(); },
   keys(list) { for (const k of list.split(/\s+/).filter(Boolean)) press({ up: 'UP', down: 'DOWN', left: 'LEFT', right: 'RIGHT' }[k] || k); },
   dump() { ui.blink = true; render(); return { dots: Array.from(B.d).join(''), icons: icons() }; },
 };

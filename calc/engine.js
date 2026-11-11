@@ -129,7 +129,7 @@ export const CONV_CATS = [
     ['fl.oz', 128.0000054]] },
   { name: 'weight', units: [['Tr.oz', 1], ['oz', 1.097143091], ['lb', 0.06857143109], ['Kg', 0.03110348],
     ['g', 31.10348]] },
-  { name: 'energy', units: [['J', 1], ['cal.f', 0.2389029576]] },
+  { name: 'energy', units: [['J', 1], ['cal.f', 1 / 4.1858]] },
   { name: 'pressure', units: [['atm', 1], ['kPa', 101.325], ['mmHg', 759.99982], ['cmH2O', 1033.227453]] },
   { name: 'speed', units: [['m/s', 1], ['km/h', 3.6]] },
 ];
@@ -267,7 +267,7 @@ export function parse(toks, opts = {}) {
       if (peek() === '(−)' || peek() === '-') { sign = '-'; p++; }
       let es = '';
       while (/^[0-9]$/.test(peek() || '')) es += toks[p++];
-      if (es === '') throw err();
+      if (es === '' || es.length > 2) throw err(); // exponents have at most two digits
       v = parseFloat((s || '1') + 'e' + sign + es);
     } else if (s === '') throw err();
     if (peek() === '°') { // degrees-minutes-seconds: 1°30°15°
@@ -749,10 +749,10 @@ export function evaluate(ast, ctx) {
     x = real(x);
     if (Math.abs(x) >= 1e10 * (ctx.angle === 'rad' ? 1 : 57)) fail();
     let a = x;
-    if (ctx.angle !== 'rad') { const full = ctx.angle === 'deg' ? 360 : 400; a = ((x % full) + full) % full; }
+    if (ctx.angle !== 'rad') { const full = ctx.angle === 'deg' ? 360 : 400; a = Math.abs(x) < full ? x : x % full; } // keep tiny angles exact
     const r = toRad(a);
     const s = Math.sin(r), c = Math.cos(r);
-    const snap = (v) => (Math.abs(v) < 1e-15 ? 0 : clean(v));
+    const snap = (v) => (Math.abs(v) < 1e-15 && Math.abs(r) > 1e-9 ? 0 : clean(v));
     if (f === 'sin') return snap(s);
     if (f === 'cos') return snap(c);
     if (Math.abs(c) < 1e-15) fail();
@@ -886,7 +886,7 @@ export function evaluate(ast, ctx) {
       case 'Q(': return r5(Math.abs(phi(real(x)) - 0.5));
       case 'R(': return r5(1 - phi(real(x)));
       case 'Max(': case 'Min(': {
-        needMin(2);
+        needMin(1);
         const v = A.map(real);
         return name === 'Max(' ? Math.max(...v) : Math.min(...v);
       }
@@ -1178,7 +1178,7 @@ export function exactForm(x) {
   if (!isFinite(x) || Number.isInteger(x) || Math.abs(x) >= 1e10 || Math.abs(x) < 1e-10) return null;
   const f = toFrac(x);
   if (f && f[1] === 1) return null; // a whole number that picked up rounding noise (6.000000000000001)
-  if (f && digits(f[0]) + digits(f[1]) <= 10) return { type: 'frac', n: f[0], d: f[1] };
+  if (f && digits(f[0]) + digits(f[1]) <= 9) return { type: 'frac', n: f[0], d: f[1] }; // 10 places including the fraction bar
   const fs = toFrac(x * x, 9999);
   if (fs && fs[0] < 1e6) {
     const [p, q] = fs, [a, b] = sqrtSimplify(p * q);

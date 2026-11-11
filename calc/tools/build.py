@@ -80,6 +80,8 @@ F9['→'] = cell(dots('r2'), 0, 12, 9)
 # capital W (4-unknown EQN)
 F9['W'] = cell(dots('e4_1'), 0, 6, 9)
 F9['Z'] = cell(dots('e3_3'), 0, 6, 9)
+F9['k'] = cell(dots('cv8'), 0, 42, 9)
+F9['J'] = cell(dots('cv4'), 0, 48, 9)
 F9['∫'] = cell(dots('fi8'), 0, 6, 9)  # Line-mode integral sign
 F9[''] = cell(dots('nd23'), 0, 24, 9)
 # BASE-N and misc glyphs copied from the captures
@@ -209,6 +211,14 @@ for tok, img, c0 in [('Sx2','sd_Sx2',6),('Sx','sd_Sx',6),('n','sd_n',6),('mx','s
     xs = [x for x in range(c0, 105) if any(g[y][x] for y in range(h))]
     w = max(xs) - c0 + 1
     NAMES[tok] = [w, 6 if sup else 4, [int(''.join(str(g[y][c0 + i]) for i in range(w)), 2) for y in range(h)]]
+# constant symbols exactly as drawn inside a calculation (captures kc01..kc79: symbol, then the cursor block)
+CSYM = []
+for n in range(1, 80):
+    g = dots('kc%02d' % n)
+    full = [x for x in range(105) if all(g[y][x] for y in range(9))]
+    cur = max(x for x in full if x + 1 in full)
+    w = cur - 6
+    CSYM.append([w, [int(''.join(str(g[y][6 + i]) for i in range(w)), 2) for y in range(9)]])
 js = '// Generated from Canon emulator captures by build.py — dot data for the pixel LCD.\n'
 js += 'export const F9 = ' + json.dumps(F9, ensure_ascii=False, separators=(',', ':')) + ';\n'
 js += 'export const F6 = ' + json.dumps(F6, ensure_ascii=False, separators=(',', ':')) + ';\n'
@@ -219,6 +229,7 @@ js += 'export const FQH = ' + json.dumps(cell(dots('freq_grid'), 0, 47, 5, 18)) 
 js += 'export const BLK = ' + json.dumps(cell(dots('bn_negbin'), 10, 5, 11, 25)) + ';\n'
 js += 'export const TERR = ' + json.dumps(cell(dots('tb_t5'), 12, 50, 5, 19)) + ';\n'
 js += 'export const TEN = ' + json.dumps(cell(dots('cp_ten'), 4, 6, 7, 5)) + ';\n'
+js += 'export const CSYM = ' + json.dumps(CSYM, separators=(',', ':')) + ';' + chr(10)
 js += 'export const X10 = ' + json.dumps(X10) + ';\n'
 F4 = {}
 for img, t in [('n18', 'MatA:4X3'), ('n22', 'VctA:2'), ('mx_A', 'MatAns:2X2'), ('vc_A', 'VctAns:3')]:
