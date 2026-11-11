@@ -29,7 +29,7 @@ holds the official calculator manual PDF, `Calculator_Manual\F-789SGA Calculator
 | `lcddata.js` | **Generated** by `tools/build.py` from emulator captures: big 5×9 font, small 5×6 font, number font, menu screens (exact bitmaps), icons, constant/unit pages |
 | `engine.js` | Math engine: tokens, parser, evaluator, formatting, stats, solver, matrices, vectors, 79 constants (Canon order, CODATA 2010), CONVT (8 categories, 36 units, all 172 pairs, Canon's measured factors) |
 | `app.js` | Screens (stack), editor, key layout, modes, menus, grids; `window.__sc` test hook (`reset()`, `keys('1 div 3 eq')`, `dump()`) |
-| `sw.js` | Offline cache, scope `/calc/`. **Bump `VERSION` and the `?v=` numbers when files change** (now v3) |
+| `sw.js` | Offline cache, scope `/calc/`. **Bump `VERSION` and the `?v=` numbers when files change** (now v16) |
 | `tools/` | Emulator automation + data builder + browser test harness (see `tools/README.md`) |
 
 ## How it matches the real calculator
@@ -62,21 +62,6 @@ setup changes, OFF/ON, scrolling, history) run without errors with correct resul
 - Scrolling a long PFact result with ▶ is not implemented (the ▶ mark is shown).
 - Not checked: Stack ERROR, Time Out, auto power-off timing. Alpha+∫ (L) is a label only.
 
-## Verified
-Browser harness replays 81 emulator key sequences and compares dots: **80/81 identical** (the one
-left is `Rand`, which is random). Status icons match. 48 extra feature sequences (∫, d/dx, Σ, ∏,
-SOLVE, CALC, STO/RCL, M+, matrices, vectors, STAT, EQN, TABLE, BASE-N, CMPLX, CONVT, C-VALUE,
-setup changes, OFF/ON, scrolling, history) run without errors with correct results.
-
-## Known gaps
-- EQN cubic 5x³+2x²−2x+1: emulator shows the imaginary part as 0.331662479, SciCalc √11/10.
-- d/dx of an expression with a power, and mixed fractions in input, are 1 column off the emulator.
-- STAT/TABLE cells holding values of 1,000,000 or more use a compact form on the emulator that is not copied.
-- Constants in a calculation: first letter big + rest small (matches g, h, R, c0); Greek-letter
-  constants still use the C-VALUE picker bitmap and are unchecked.
-- Multi-statements (`:`) and Insert/overwrite (Shift+DEL) are not implemented; Alpha+∫ (L) is a label only.
-- Not checked yet: decimal comma, contrast, Rad/Gra across functions, Stack/Argument/Time Out errors,
-  99-step input limit, OFF/ON state.
 - CMPLX: the ∫ key types ∠ (with or without Shift), confirmed on the emulator.
 
 ## Verified (latest)
