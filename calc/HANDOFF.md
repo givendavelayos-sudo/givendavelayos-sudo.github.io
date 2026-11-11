@@ -29,7 +29,7 @@ holds the official calculator manual PDF, `Calculator_Manual\F-789SGA Calculator
 | `lcddata.js` | **Generated** by `tools/build.py` from emulator captures: big 5×9 font, small 5×6 font, number font, menu screens (exact bitmaps), icons, constant/unit pages |
 | `engine.js` | Math engine: tokens, parser, evaluator, formatting, stats, solver, matrices, vectors, 79 constants (Canon order, CODATA 2010), CONVT (8 categories, 36 units, all 172 pairs, Canon's measured factors) |
 | `app.js` | Screens (stack), editor, key layout, modes, menus, grids; `window.__sc` test hook (`reset()`, `keys('1 div 3 eq')`, `dump()`) |
-| `sw.js` | Offline cache, scope `/calc/`. **Bump `VERSION` and the `?v=` numbers when files change** (now v16) |
+| `sw.js` | Offline cache, scope `/calc/`. **Bump `VERSION` and the `?v=` numbers when files change** (now v17) |
 | `tools/` | Emulator automation + data builder + browser test harness (see `tools/README.md`) |
 
 ## How it matches the real calculator
@@ -54,23 +54,21 @@ SOLVE, CALC, STO/RCL, M+, matrices, vectors, STAT, EQN, TABLE, BASE-N, CMPLX, CO
 setup changes, OFF/ON, scrolling, history) run without errors with correct results.
 
 ## Known gaps
-- EQN cubic 5x³+2x²−2x+1: emulator shows the imaginary part as 0.331662479, SciCalc √11/10.
-- d/dx of an expression with a power, and mixed fractions in input, are 1 column off the emulator.
-- `3feet▶m+1`: emulator shows 1.9144, SciCalc 2393/1250 (the emulator's rule for this is unknown).
-- STAT/TABLE cells holding 1,000,000 or more use a compact form on the emulator that is not copied.
-- x̄ typed into the STAT editor line is drawn a few dots differently.
+- Mixed fractions while typing (1 1/2 + 1/3): the input line is a few columns off the emulator (tests cp_mixed, cp_mixsd).
+- x̄ typed into the STAT editor line is drawn a few dots differently (test as6).
 - Scrolling a long PFact result with ▶ is not implemented (the ▶ mark is shown).
 - Not checked: Stack ERROR, Time Out, auto power-off timing. Alpha+∫ (L) is a label only.
-
 - CMPLX: the ∫ key types ∠ (with or without Shift), confirmed on the emulator.
 
 ## Verified (latest)
-`tools/harness.js` replays 758 emulator key sequences (incl. the Apps key everywhere, Rad/Gra, hyperbolics, DMS, %, memory, CALC/SOLVE, ∫ and d/dx) (all 8 modes, memories 0–9, CA, SOLVE/CALC,
-replay with ▲/▼, display formats, constants/conversions in calculations, STAT editing/FREQ,
-3×3 and 4×4 matrices): 749/758 identical dot for dot.
-Capture hands-off with `tools/emu2.ps1 "name=keys; ..."` (posts clicks to the emulator's key
-buttons and reads the LCD with PrintWindow: no mouse, focus or clipboard; window must not be
-minimized). Capture names used by `build.py` (n1–n25 etc.) must not be reused for new tests.
+`tools/harness.js` replays 945 emulator key sequences (all modes, memories, CA, SOLVE/CALC, replay, display
+formats, constants, **all 172 CONVT unit pairs**, STAT, EQN, matrices, multi-statements, Insert mode):
+942/945 identical dot for dot.
+Conversions: each unit has a size in SI (the short constants Canon uses, e.g. acre = 4046.856 m²) and a result is
+x·size(from)/size(to); a fraction is shown when it fits in 10 places (improper ones are counted as a mixed number).
+Capture hands-off with `tools/emu2.ps1 "name=keys; ..."` (posts clicks to the emulator's key buttons and reads the
+LCD with PrintWindow: no mouse, focus or clipboard; window must not be minimized). **Never reuse a capture name**
+(file names are case-insensitive; build.py reads n1–n25 etc.).
 
 ## Next steps
 1. Merge the branch, open `/calc/` on the phone, "Add to Home screen".

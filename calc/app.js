@@ -153,8 +153,9 @@ function tokBoxes(t, f, out, math = true) {
   }
   if (t.startsWith('V:')) { // unit conversion: ft² with a raised 2, ring-shaped degree sign
     let run = '';
-    for (const c of E.tokText(t).replace(/°/g, '˚').replace('Kg', 'kg')) {
-      if (c === '²') { if (run) out.push(box.text(run, f)); run = ''; out.push(box.shift(box.text('2', 'S'), -2)); } else run += c; // small 2 level with the top of the letters
+    for (const c of E.tokText(t).replace(/°/g, '˚').replace('Kg', 'kg').replace('H2O', 'H₂O')) {
+      if (c === '₂') { if (run) out.push(box.text(run, f)); run = ''; out.push(box.shift(box.text('2', 'S'), 1)); } // H₂O: small 2 sitting on the baseline
+      else if (c === '²') { if (run) out.push(box.text(run, f)); run = ''; out.push(box.shift(box.text('2', 'S'), -2)); } else run += c; // small 2 level with the top of the letters
     }
     if (run) out.push(box.text(run, f));
     return;
@@ -212,7 +213,8 @@ function template(toks, name, P, f, cur, out, math) {
     case 'diff': {
       const at = box.row([box.text('x=', S_), sl(1, S_)]);
       const bar = { w: 3, up: 4, dn: 7, draw(b, x, ay) { b.vline(x - 1, ay - 4, ay + 7); } };
-      return [box.frac(box.text('d', S_), box.text('dx', S_)), box.paren('(', f), sl(0), box.paren(')', f), bar, { ...box.shift(at, 6 - at.up), tail: true }];
+      const body = sl(0); // a power at the end of the body leaves one blank column before the closing bracket
+      return [box.frac(box.text('d', S_), box.text('dx', S_)), box.paren('(', f), body, box.gap(body.tail ? 1 : 0), box.paren(')', f), bar, { ...box.shift(at, 6 - at.up), tail: true }];
     }
     case 'sum': case 'prod': {
       const lower = box.row([box.text('x=', S_), sl(1, S_)]);
@@ -340,7 +342,7 @@ function cplxBox(z, res) {
   if (z.im !== 0) {
     if (z.im < 0) items.push(box.text('-')); else if (z.re !== 0) items.push(box.text('+'));
     const a = Math.abs(z.im);
-    if (a !== 1) items.push(realBox(a, r));
+    if (a !== 1) items.push(realBox(a, z.ns ? { ...r, noSurd: true } : r)); // EQN cubic: 3/10 + 0.331662479i
     items.push(box.text('ⅈ'));
   }
   return box.row(items);
@@ -949,8 +951,16 @@ function gridScreen(cfg) {
         for (let j = 0; j < nv; j++) {
           const val = cfg.get(i, left + j), xr = 40 + 28 * j;
           if (val === null && st === 'table') { b.bits(L.TERR, 19, xr - 18, y); if (i === r && left + j === c) b.invert(17 + 28 * j, y - 1, 40 + 28 * j, y + 4); continue; }
-          const s = cellStr(val);
-          L.text(b, s, xr - s.length * 4 + 2, y, 'T');
+          if (typeof val === 'number' && Math.abs(val) >= 1e6) { // 1·10⁶: mantissa, small "·10", raised exponent (tiny font)
+            const e = Math.floor(Math.log10(Math.abs(val)) + 1e-12), ms = String(+(val / 10 ** e).toPrecision(2)), es = String(e);
+            const xe = xr + 2 - 4 * es.length;
+            L.text(b, es, xe, y, 'T');
+            [[0, 2], [2, 2], [4, 2], [5, 2], [6, 2], [2, 3], [4, 3], [6, 3], [2, 4], [4, 4], [5, 4], [6, 4]].forEach(([dx, dy]) => b.set(xe - 8 + dx, y + dy));
+            L.text(b, ms, xe - 8 - 4 * ms.length, y, 'T');
+          } else {
+            const s = cellStr(val);
+            L.text(b, s, xr - s.length * 4 + 2, y, 'T');
+          }
           if (i === r && left + j === c) b.invert(17 + 28 * j, y - 1, 40 + 28 * j, y + 4);
         }
       }
@@ -1044,6 +1054,8 @@ function eqnSolve() {
       const cx = roots.filter((z) => typeof z !== 'number').sort((p, q) => (near(q.im, p.im) ? q.re - p.re : q.im - p.im));
       roots = [...re, ...cx];
     }
+    // a cubic whose leading coefficient is not 1 is solved numerically: its complex roots never come out as surds
+    if (roots.length === 3 && A[0][0] !== 1) roots = roots.map((z) => (typeof z === 'number' ? z : { ...z, ns: true }));
     return roots.map((z, k) => [`X${k + 1}`, z]);
   } catch (e) { return errOf(e); }
 }

@@ -117,21 +117,21 @@ export const CONSTS = [
   ["σ'p", 25.694e-6],
 ];
 
-// CONVT: each unit is [symbol, r] where r = how many of that unit equal ONE of
-// the category's first unit (values measured on the Canon emulator).
+// CONVT categories and units (symbols as on the Canon emulator).
+// Unit sizes in SI (m, m², L, g, J, kPa, m/s), the short constants the Canon emulator uses:
+// a result is x · size(from) / size(to).
 export const CONV_CATS = [
-  { name: 'distance', units: [['feet', 1], ['m', 0.3048], ['mil', 12000], ['mm', 304.8], ['in', 12],
-    ['cm', 30.48], ['yd', 1 / 3], ['mile', 1 / 5280], ['km', 3.048e-4]] },
-  { name: 'area', units: [['ft²', 1], ['yd²', 0.1111111058], ['m²', 0.09290304], ['mile²', 3.587006581e-8],
-    ['km²', 9.290304e-8], ['ha', 9.290304e-6], ['acres', 2.295684353e-5]] },
+  { name: 'distance', units: [['feet', 0.3048], ['m', 1], ['mil', 0.0000254], ['mm', 0.001], ['in', 0.0254],
+    ['cm', 0.01], ['yd', 0.9144], ['mile', 1609.344], ['km', 1000]] },
+  { name: 'area', units: [['ft²', 0.09290304], ['yd²', 0.8361274], ['m²', 1], ['mile²', 2589988],
+    ['km²', 1e6], ['ha', 1e4], ['acres', 4046.856]] },
   { name: 'temp.', units: [['°F', null], ['°C', null]] }, // affine, special-cased
-  { name: 'capacity', units: [['gal', 1], ['liter', 3.785412], ['B.gal', 0.8326742321], ['Pint', 8],
-    ['fl.oz', 128.0000054]] },
-  { name: 'weight', units: [['Tr.oz', 1], ['oz', 1.097143091], ['lb', 0.06857143109], ['Kg', 0.03110348],
-    ['g', 31.10348]] },
-  { name: 'energy', units: [['J', 1], ['cal.f', 1 / 4.1858]] },
-  { name: 'pressure', units: [['atm', 1], ['kPa', 101.325], ['mmHg', 759.99982], ['cmH2O', 1033.227453]] },
-  { name: 'speed', units: [['m/s', 1], ['km/h', 3.6]] },
+  { name: 'capacity', units: [['gal', 3.785412], ['liter', 1], ['B.gal', 4.54609], ['Pint', 0.4731765],
+    ['fl.oz', 0.02957353]] },
+  { name: 'weight', units: [['Tr.oz', 31.10348], ['oz', 28.34952], ['lb', 453.5924], ['Kg', 1000], ['g', 1]] },
+  { name: 'energy', units: [['J', 1], ['cal.f', 4.1858]] },
+  { name: 'pressure', units: [['atm', 101.325], ['kPa', 1], ['mmHg', 0.1333224], ['cmH2O', 0.0980665]] },
+  { name: 'speed', units: [['m/s', 1], ['km/h', 1 / 3.6]] },
 ];
 export function convert(x, cat, from, to) {
   const c = CONV_CATS[cat];
@@ -140,7 +140,7 @@ export function convert(x, cat, from, to) {
   if (c.units[from][1] === null) { // temperature: 0 = °F, 1 = °C
     return clean(from === 0 ? ((x - 32) * 5) / 9 : (x * 9) / 5 + 32);
   }
-  return clean((x * c.units[to][1]) / c.units[from][1]);
+  return clean((x * c.units[from][1]) / c.units[to][1]);
 }
 // Legacy flat list (old `V:<n>` tokens): [fromSym, toSym, cat, from, to], every ordered pair.
 export const CONVS = [];
@@ -1160,7 +1160,7 @@ export function toFrac(x, maxD = 1e10) {
     const h2 = a * h1 + h0, k2 = a * k1 + k0;
     if (k2 > maxD) break;
     h0 = h1; h1 = h2; k0 = k1; k1 = k2;
-    if (Math.abs(ax - h1 / k1) <= 1e-12 * Math.max(1, ax)) return [sign * h1, k1];
+    if (Math.abs(ax - h1 / k1) <= 1e-12 * ax) return [sign * h1, k1];
     const r = b - a;
     if (r < 1e-13) break;
     b = 1 / r;
@@ -1173,12 +1173,20 @@ function sqrtSimplify(n) { // n = a²·b
   for (let k = 2; k * k <= b; k++) while (b % (k * k) === 0) { b /= k * k; a *= k; }
   return [a, b];
 }
+// A fraction is shown when it fits in 10 places: proper n/d = digits + bar; improper is counted as the mixed number
+// a b/c = integer + numerator + denominator digits + two separators (99991/9973 and 201168/125 stay decimal).
+function fracFits(n, d) {
+  const an = Math.abs(n);
+  if (an < d) return digits(an) + digits(d) + 1 <= 10;
+  const ip = Math.floor(an / d);
+  return digits(ip) + digits(an - ip * d) + digits(d) + 2 <= 10;
+}
 // exact form of a real result for Math mode: fraction, surd or multiple of π
 export function exactForm(x) {
   if (!isFinite(x) || Number.isInteger(x) || Math.abs(x) >= 1e10 || Math.abs(x) < 1e-10) return null;
   const f = toFrac(x);
   if (f && f[1] === 1) return null; // a whole number that picked up rounding noise (6.000000000000001)
-  if (f && digits(f[0]) + digits(f[1]) <= 9) return { type: 'frac', n: f[0], d: f[1] }; // 10 places including the fraction bar
+  if (f && fracFits(f[0], f[1])) return { type: 'frac', n: f[0], d: f[1] };
   const fs = toFrac(x * x, 9999);
   if (fs && fs[0] < 1e6) {
     const [p, q] = fs, [a, b] = sqrtSimplify(p * q);
