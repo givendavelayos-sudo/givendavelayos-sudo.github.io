@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "io.github.givendavelayossudo.power",
+    "sha256_cert_fingerprints": ["B7:27:28:FB:58:7D:F0:47:D3:56:3C:06:ED:F7:8B:B7:42:54:C6:B9:7C:78:60:51:C9:F2:4C:D2:EC:1E:1B:E4"]
+  }
+}]
