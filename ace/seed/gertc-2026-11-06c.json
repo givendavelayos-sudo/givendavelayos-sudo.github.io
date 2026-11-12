@@ -1,0 +1,134 @@
+{
+ "v": 1,
+ "kind": "ace-import",
+ "label": "Update · Nov 6, 2026 (Week 4 topics from your My Schedule screenshot)",
+ "createdAt": 1793952120000,
+ "sessions": [
+  {
+   "externalId": "grid:2026-11-02|online|8:0",
+   "subject": "Soil Properties and Soil Compaction",
+   "autoTopic": false,
+   "group": "A",
+   "kind": "class",
+   "section": "ONLINE",
+   "start": 1793577600000,
+   "end": 1793592000000,
+   "format": "online",
+   "location": "",
+   "platform": "Online",
+   "hybrid": false,
+   "status": "scheduled",
+   "weekTitle": "Review Week 4",
+   "uncertain": false,
+   "source": {
+    "id": "hub",
+    "name": "Hub schedule · screenshot Nov 6",
+    "method": "screenshot"
+   },
+   "topicSource": "hub My Schedule screenshot (Nov 6)"
+  },
+  {
+   "externalId": "grid:2026-11-05|l2 am|7:30",
+   "subject": "Buoyancy and Stability",
+   "autoTopic": false,
+   "group": "B",
+   "kind": "class",
+   "section": "L2 AM",
+   "start": 1793835000000,
+   "end": 1793849400000,
+   "format": "in_person",
+   "location": "L2 AM",
+   "platform": "",
+   "hybrid": false,
+   "status": "scheduled",
+   "weekTitle": "Review Week 4",
+   "uncertain": false,
+   "source": {
+    "id": "hub",
+    "name": "Hub schedule · screenshot Nov 6",
+    "method": "screenshot"
+   },
+   "topicSource": "hub My Schedule screenshot (Nov 6)"
+  },
+  {
+   "externalId": "grid:2026-11-03|x3 am|7:30",
+   "subject": "Buoyancy and Stability",
+   "autoTopic": false,
+   "group": "B",
+   "kind": "class",
+   "section": "X3 AM",
+   "start": 1793662200000,
+   "end": 1793676600000,
+   "format": "in_person",
+   "location": "X3 AM",
+   "platform": "",
+   "hybrid": false,
+   "status": "scheduled",
+   "weekTitle": "Review Week 4",
+   "uncertain": false,
+   "source": {
+    "id": "hub",
+    "name": "Hub schedule · screenshot Nov 6",
+    "method": "screenshot"
+   },
+   "topicSource": "hub My Schedule screenshot (Nov 6)"
+  },
+  {
+   "externalId": "grid:2026-11-05|l2 pm|12:30",
+   "subject": "Buoyancy and Stability",
+   "autoTopic": false,
+   "group": "B",
+   "kind": "class",
+   "section": "L2 PM",
+   "start": 1793853000000,
+   "end": 1793867400000,
+   "format": "in_person",
+   "location": "L2 PM",
+   "platform": "",
+   "hybrid": false,
+   "status": "scheduled",
+   "weekTitle": "Review Week 4",
+   "uncertain": false,
+   "source": {
+    "id": "hub",
+    "name": "Hub schedule · screenshot Nov 6",
+    "method": "screenshot"
+   },
+   "topicSource": "hub My Schedule screenshot (Nov 6)"
+  },
+  {
+   "externalId": "grid:2026-11-03|x3 pm|12:30",
+   "subject": "Buoyancy and Stability",
+   "autoTopic": false,
+   "group": "B",
+   "kind": "class",
+   "section": "X3 PM",
+   "start": 1793680200000,
+   "end": 1793694600000,
+   "format": "in_person",
+   "location": "X3 PM",
+   "platform": "",
+   "hybrid": false,
+   "status": "scheduled",
+   "weekTitle": "Review Week 4",
+   "uncertain": false,
+   "source": {
+    "id": "hub",
+    "name": "Hub schedule · screenshot Nov 6",
+    "method": "screenshot"
+   },
+   "topicSource": "hub My Schedule screenshot (Nov 6)"
+  }
+ ],
+ "resolve": [
+  "wk4-no-topic"
+ ],
+ "review": [
+  {
+   "id": "wk4-section-name",
+   "title": "Section name: X3 or EX?",
+   "source": "Hub weekly grid vs My Schedule screenshots",
+   "detail": "The weekly grid lists your Tue Nov 3 classes under “X3 AM / X3 PM”, but your My Schedule page shows “EX AM / EX PM”. Ace keeps “X3” until you confirm which is right."
+  }
+ ]
+}

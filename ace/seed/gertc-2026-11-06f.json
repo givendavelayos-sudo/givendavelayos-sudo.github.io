@@ -1,0 +1,18 @@
+{
+ "v": 1,
+ "kind": "ace-import",
+ "label": "Correction · Nov 6, 2026 (Fluid Flow 1 handout is yours)",
+ "createdAt": 1793952300000,
+ "unexclude": {
+  "ho:2026-11-11:fluid flow 1": "Update · Nov 6, 2026 (Fluid Flow 1 handout done by the lead instructor)"
+ },
+ "exclude": {
+  "ho:2026-11-04:relative equilibrium of fluids in moving vessels": "Support week — the lead instructor submitted it (you, Nov 6)"
+ },
+ "cfg": {
+  "handoutRoles": [
+   "lead"
+  ],
+  "handoutRolesVerified": true
+ }
+}
