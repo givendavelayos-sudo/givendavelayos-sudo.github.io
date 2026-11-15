@@ -647,6 +647,7 @@ function pushHist(toks, v) {
 }
 function solveView(toks, sv, x, lr) {
   return {
+    solve: true,
     draw(b) {
       const { bx } = layExpr(toks, -1);
       drawInput(b, toks, -1, Math.min(0, 10 - (bx.up + bx.dn + 1))); // the equation must end above the X= line
@@ -1253,7 +1254,7 @@ function press(id) {
   const a = resolve(id);
   ui.sto = ui.rcl = false;
   if (pending) {
-    if (a && a.startsWith('var:')) { toCalc(); calc[pending](a.slice(4)); }
+    if (a && a.startsWith('var:')) { const fromSolve = top().solve; toCalc(); if (fromSolve) { calc.ed = newEd(); calc.res = null; } calc[pending](a.slice(4)); }
     finish(); return;
   }
   if (!a) { render(); return; }
@@ -1279,7 +1280,7 @@ function press(id) {
     case 'HYP': push(hypMenu()); return finish();
     case 'INS': if (top() === calc && !calc.res && S.setup.io === 'line' && S.mode === 'COMP') { ui.ovr = !ui.ovr; ui.insSeen = true; } return finish();
     case 'STO': case 'RCL':
-      if (top() === calc) ui[act === 'STO' ? 'sto' : 'rcl'] = true;
+      if (top() === calc || top().solve) ui[act === 'STO' ? 'sto' : 'rcl'] = true;
       return finish();
   }
   top().key(act);
