@@ -246,7 +246,7 @@ function drawInput(b, toks, cur, y0 = 0, x0 = L.LEFT, endPad = 8) {
   bx.draw(tmp, x0 - scroll, ay);
   for (let y = 0; y < L.H; y++) for (let x = x0 - 1; x <= L.RIGHT; x++) if (tmp.get(x, y)) b.set(x, y);
   if (scroll > 0) { b.fill(0, y0, 9, y0 + bx.up + bx.dn, 0); L.text(b, '⊲', 6, ay - 4); for (let y = 0; y < L.H; y++) for (const x of [10, 11]) b.set(x, y, tmp.get(x, y)); } // the arrow is 4 dots wide
-  if (bx.w - scroll > vis) { b.fill(96, y0, 104, y0 + bx.up + bx.dn, 0); L.text(b, '⊳', 96, ay - 4); }
+  if (bx.w - scroll > vis) { b.fill(95, y0, 104, y0 + bx.up + bx.dn, 0); L.text(b, '⊳', 96, ay - 4); }
   if (cur < 0 || out.x === undefined) return null;
   return { x: out.x, top: out.top, bot: out.bot };
 }
@@ -272,6 +272,23 @@ function exactBox(ef) {
   const fracSet = S.setup.frac;
   S.setup.frac = mixedNow ? (fracSet === 'ab' ? 'dc' : 'ab') : fracSet;
   try { return exactBox2(ef, math); } finally { S.setup.frac = fracSet; }
+}
+// +/− between the terms of a numerator: five dots wide in a small-font fraction
+function wideOp(ch) {
+  const base = box.text(ch, 'S');
+  return {
+    ...base,
+    draw(b, x, ay) {
+      const tmp = new L.Buf();
+      base.draw(tmp, x, ay);
+      let r = -1, lo = 999, hi = -1, best = 0;
+      for (let y = 0; y < L.H; y++) { let c = 0; for (let xx = 0; xx < L.W; xx++) if (tmp.get(xx, y)) { c++; lo = Math.min(lo, xx); hi = Math.max(hi, xx); } if (c > best) { best = c; r = y; } }
+      if (r < 0) return base.draw(b, x, ay);
+      const cx = Math.round((lo + hi) / 2);
+      for (let d = -2; d <= 2; d++) b.set(cx + d, r);
+      if (ch === '+') for (let d = -2; d <= 2; d++) b.set(cx, r + d);
+    },
+  };
 }
 function exactBox2(ef, math) {
   const neg = (n) => (n < 0 ? [box.text('−', 'L')] : []);
@@ -301,6 +318,14 @@ function exactBox2(ef, math) {
     });
     return box.row(items);
   }
+  if (ef.type === 'surdq') {
+    const ap = Math.abs(ef.p);
+    const nu = box.row([
+      box.text(`${ef.k < 0 ? '−' : ''}${Math.abs(ef.k)}`, 'S'), wideOp(ef.p < 0 ? '−' : '+'),
+      ...(ap === 1 ? [] : [box.text(String(ap), 'S')]), box.sqrt(box.text(String(ef.b), 'S')),
+    ]);
+    return box.frac(nu, box.text(String(ef.d), 'S'));
+  }
   if (ef.type === 'surd') {
     const sg = ef.sign < 0 ? [box.text('−')] : [];
     if (ef.d === 1) return box.row([...sg, ...(ef.a === 1 ? [] : [box.text(String(ef.a))]), box.sqrt(box.text(String(ef.b)))]);
@@ -324,12 +349,17 @@ function realBox(x, res) {
   if (res.dms) return box.text(DMS(E.fmtDMS(x)));
   if (res.eng !== null && res.eng !== undefined) return numBox(E.fmtReal(x, S.setup, res.eng));
   if (res.exact) {
-    const ef = E.exactForm(x);
+    const ef = E.exactForm(x, S.mode === 'EQN', !!res.loose);
     if (ef && (isMath() || mathOut || ef.type === 'frac') && !(res.noSurd && ef.type.startsWith('surd'))) { const bx = exactBox(ef); if (bx) return bx; }
   }
   return numBox(E.fmtReal(x, S.setup));
 }
 const DEG = { deg: Math.PI / 180, rad: 1, gra: Math.PI / 200 };
+// the minus in front of a fraction coefficient (−2/3 i) is three dots wide
+function narrowMinus() {
+  const base = box.text('-');
+  return { ...base, draw(b, x, ay) { const t = new L.Buf(); base.draw(t, x, ay); for (let y = 0; y < L.H; y++) { let lo = 999, hi = -1; for (let xx = 0; xx < L.W; xx++) if (t.get(xx, y)) { lo = Math.min(lo, xx); hi = Math.max(hi, xx); } if (hi >= 0) for (let xx = lo + 1; xx < hi; xx++) b.set(xx, y); } } };
+}
 function cplxBox(z, res) {
   const polar = z.form === 'polar' || (z.form !== 'rect' && S.setup.cplx === 'polar');
   const r = { ...res, eng: null, dms: false };
@@ -340,8 +370,9 @@ function cplxBox(z, res) {
   const items = [];
   if (z.re !== 0 || z.im === 0) items.push(realBox(z.re, r));
   if (z.im !== 0) {
-    if (z.im < 0) items.push(box.text('-')); else if (z.re !== 0) items.push(box.text('+'));
     const a = Math.abs(z.im);
+    const imFrac = r.exact && isMath() && a !== 1 && E.exactForm(a)?.type === 'frac';
+    if (z.im < 0) items.push(imFrac && z.re === 0 ? narrowMinus() : box.text('-')); else if (z.re !== 0) items.push(box.text('+'));
     if (a !== 1) items.push(realBox(a, z.ns ? { ...r, noSurd: true } : r)); // EQN cubic: 3/10 + 0.331662479i
     items.push(box.text('ⅈ'));
   }
@@ -385,7 +416,7 @@ function drawBin(b, x, blk = 0) {
 }
 function drawResult(b, res) {
   if (res.multi) {
-    const s = res.multi.map(([k, v]) => `${k}=${shortNum(v)}`).join(',');
+    const s = res.multi.map(([k, v]) => `${k}=${shortNum(v).replace('-', '−')}`).join(',');
     if (L.textW(s) <= 96) L.textR(b, s, 100, 21); else { L.text(b, s.slice(0, 15), 6, 21); L.text(b, '▶', 96, 21); }
     return;
   }
@@ -406,7 +437,7 @@ function drawResult(b, res) {
   bx.draw(b, Math.max(L.LEFT, 102 - bx.w), ay);
 }
 const realOrZero = (v) => (typeof v === 'number' ? v : 0);
-const mkRes = (v, o = {}) => ({ v, exact: !o.force, eng: null, dms: !!o.dms, multi: o.multi || null, more: !!o.more, noSurd: !!o.noSurd });
+const mkRes = (v, o = {}) => ({ v, exact: !o.force, eng: null, dms: !!o.dms, multi: o.multi || null, more: !!o.more, noSurd: !!o.noSurd, loose: !!o.loose });
 function modeTies() {
   const cnt = new Map();
   for (const r of S.stat.data) if (typeof r.x === 'number') cnt.set(r.x, (cnt.get(r.x) || 0) + (S.setup.freq && typeof r.f === 'number' ? r.f : 1));
@@ -538,8 +569,8 @@ const calc = {
       if (isM(v) || isV(v)) { push(gridView(isM(v) ? 'MatAns' : 'VctAns')); this.res = mkRes(v); return; }
       // Line mode shows decimals unless the input itself had a fraction
       const more = this.ed.toks.includes('smode') && modeTies();
-      const noSurd = ['P<', 'N<', 'T<', 'X<'].some((k) => this.ed.toks.includes(k)); // powers give decimals, not root forms
-      this.res = mkRes(v, { more, noSurd, force: force || (!isMath() && !this.ed.toks.includes('F<') && !this.ed.toks.includes('MX<')), multi, dms: this.ed.toks.includes('°') });
+      const noSurd = ['P<', 'N<', 'T<', 'X<'].some((k) => this.ed.toks.includes(k)) || (this.ed.toks.includes('R<') && this.ed.toks.includes('.')); // a root of a decimal gives a decimal // powers give decimals, not root forms
+      this.res = mkRes(v, { more, noSurd, loose: this.ed.toks.includes('D<'), force: force || (!isMath() && !this.ed.toks.includes('F<') && !this.ed.toks.includes('MX<')), multi, dms: this.ed.toks.includes('°') });
       this.calcRun = false;
     } catch (e) { this.fail(e); }
   },
@@ -1055,6 +1086,7 @@ function eqnSolve() {
       const cx = roots.filter((z) => typeof z !== 'number').sort((p, q) => (near(q.im, p.im) ? q.re - p.re : q.im - p.im));
       roots = [...re, ...cx];
     }
+    if (roots.length === 3) { const zero = (z) => typeof z === 'number' && Math.abs(z) < 1e-12; roots = [...roots.filter((z) => !zero(z)), ...roots.filter(zero)]; } // a zero root comes last
     // a cubic whose leading coefficient is not 1 is solved numerically: its complex roots never come out as surds
     if (roots.length === 3 && A[0][0] !== 1) roots = roots.map((z) => (typeof z === 'number' ? z : { ...z, ns: true }));
     return roots.map((z, k) => [`X${k + 1}`, z]);

@@ -74,3 +74,8 @@ LCD with PrintWindow: no mouse, focus or clipboard; window must not be minimized
 1. Merge the branch, open `/calc/` on the phone, "Add to Home screen".
 2. Fill the gaps above (capture each case in the emulator first with `tools/run.ps1`).
 3. After changes: bump `calc/sw.js` VERSION and the `?v=` numbers, re-run `tools/harness.js`.
+
+## Randomized accuracy study (v19)
+`tools/genbt.py` makes 634 seeded random tests in 19 areas; `tools/mkbt.py` turns emulator captures into `emubt.json`; `tools/btcompare.js` (`B.run()`, `B.stats(rows)`, `B.bad(rows)`) scores them. Result after the fixes: 630/634 screens identical (99.4%), 421/421 decimal answers identical to all 10 digits.
+Fixes from the study: quadratic roots as (k±p√b)/d in EQN only (`surdQ`), c=0 quadratic order, zero cubic root last, √ of a decimal stays decimal, Pol/Rec minus width, narrow minus before a fractional imaginary part, ▶ clip at column 95, toFrac tolerance depends on denominator, derivative results accept π multiples at 1e-11, STO/RCL work on the SOLVE result screen.
+Known: d/dx result with a tall π fraction scrolls the template up one row on the real one; d/dx ln at 4 shows 0.25 (emulator numeric noise) while ours shows 1/4; ▶ marker top dots in two long expressions.

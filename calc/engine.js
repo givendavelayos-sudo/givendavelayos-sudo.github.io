@@ -666,7 +666,7 @@ export function polyRoots(coef) { // highest degree first, complex results
     if (Math.abs(d) < 1e-14 * (b * b + Math.abs(4 * a * c))) return [C(clean(-b / (2 * a)), 0)];
     if (d > 0) {
       const q = -(b + Math.sign(b || 1) * Math.sqrt(d)) / 2;
-      const r = [q / a, c / q].map(clean).sort((x, y) => y - x);
+      const r = c === 0 ? [clean(-b / a), 0] : [q / a, c / q].map(clean).sort((x, y) => y - x); // with c = 0 the root −b/a comes first, then 0
       return r.map((x) => C(x, 0));
     }
     const re = clean(-b / (2 * a)), im = clean(Math.sqrt(-d) / (2 * Math.abs(a)));
@@ -1151,7 +1151,7 @@ const sciM = (x, n) => x.toExponential((n || 10) - 1).split('e')[0];
 function trimZeros(s) { return s.includes('.') ? s.replace(/0+$/, '').replace(/\.$/, '') : s; }
 export function engExp(x) { return x === 0 ? 0 : Math.floor(Math.log10(Math.abs(+x.toPrecision(10))) / 3) * 3; }
 
-export function toFrac(x, maxD = 1e10) {
+export function toFrac(x, maxD = 1e10, tol = 0) {
   const sign = x < 0 ? -1 : 1;
   const ax = Math.abs(x);
   let h1 = 1, h0 = 0, k1 = 0, k0 = 1, b = ax;
@@ -1160,7 +1160,7 @@ export function toFrac(x, maxD = 1e10) {
     const h2 = a * h1 + h0, k2 = a * k1 + k0;
     if (k2 > maxD) break;
     h0 = h1; h1 = h2; k0 = k1; k1 = k2;
-    if (Math.abs(ax - h1 / k1) <= 1e-12 * ax) return [sign * h1, k1];
+    if (Math.abs(ax - h1 / k1) <= (tol || (k1 <= 1000 ? 1e-12 : 1e-14)) * ax) return [sign * h1, k1];
     const r = b - a;
     if (r < 1e-13) break;
     b = 1 / r;
@@ -1182,7 +1182,7 @@ function fracFits(n, d) {
   return digits(ip) + digits(an - ip * d) + digits(d) + 2 <= 10;
 }
 // exact form of a real result for Math mode: fraction, surd or multiple of π
-export function exactForm(x) {
+export function exactForm(x, allowQ = false, loose = false) {
   if (!isFinite(x) || Number.isInteger(x) || Math.abs(x) >= 1e10 || Math.abs(x) < 1e-10) return null;
   const f = toFrac(x);
   if (f && f[1] === 1) return null; // a whole number that picked up rounding noise (6.000000000000001)
@@ -1195,9 +1195,23 @@ export function exactForm(x) {
       return { type: 'surd', sign: Math.sign(x), a: a / g, b, d: q / g };
     }
   }
-  const fp = toFrac(x / Math.PI, 999);
+  const fp = toFrac(x / Math.PI, 999, loose ? 1e-11 : 0);
   if (fp && Math.abs(fp[0]) < 1000) return { type: 'pi', n: fp[0], d: fp[1] };
-  return surd2(x);
+  return surd2(x) || (allowQ ? surdQ(x) : null);
+}
+// (k + p√b) / d, the shape of quadratic roots such as (1−√19)/6
+const SQFREE = [];
+for (let n = 2; n <= 1000; n++) { let ok = true; for (let k = 2; k * k <= n; k++) if (n % (k * k) === 0) { ok = false; break; } if (ok && Math.sqrt(n) % 1) SQFREE.push([n, Math.sqrt(n)]); }
+function surdQ(x) {
+  for (let d = 2; d <= 36; d++) {
+    const y = x * d;
+    for (const [b, sb] of SQFREE) for (let p = -20; p <= 20; p++) {
+      if (!p) continue;
+      const rest = y - p * sb, k = Math.round(rest);
+      if (k !== 0 && Math.abs(rest - k) <= 1e-11 && Math.abs(k) <= 99 && gcd(gcd(Math.abs(k), Math.abs(p)), d) === 1) return { type: 'surdq', k, p, b, d };
+    }
+  }
+  return null;
 }
 // two-term forms: p√b + q√e (√3+√2) or integer + p√b (1+√2)
 const SQF = [2, 3, 5, 6, 7, 10, 11, 13, 14, 15, 17, 19];
