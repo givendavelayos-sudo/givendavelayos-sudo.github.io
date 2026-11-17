@@ -1,0 +1,9 @@
+{
+ "v": 1,
+ "kind": "ace-import",
+ "label": "Update · Nov 6, 2026 (Fluid Flow 1 handout done by the lead instructor)",
+ "createdAt": 1793952240000,
+ "exclude": {
+  "ho:2026-11-11:fluid flow 1": "Not assigned to you — the lead instructor already submitted it (you, Nov 6)"
+ }
+}

@@ -1,0 +1,130 @@
+{
+ "v": 1,
+ "kind": "ace-import",
+ "label": "Hub schedule · Week 5 (Nov 9–15), screenshot Nov 7",
+ "createdAt": 1794024000000,
+ "sessions": [
+  {
+   "externalId": "hub:2026-11-09|l2 eve|17:0",
+   "subject": "Relative Equilibrium of Fluids in Moving Vessels",
+   "section": "L2 EVE",
+   "kind": "class",
+   "start": 1794214800000,
+   "end": 1794229200000,
+   "format": "in_person",
+   "location": "Labangon Building, 2nd Floor",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Review",
+   "weekTitle": "Week 5",
+   "source": {
+    "id": "hub",
+    "name": "Hub My Schedule · screenshot Nov 7",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "hub:2026-11-10|l3 am|7:30",
+   "subject": "Relative Equilibrium of Fluids in Moving Vessels",
+   "section": "L3 AM",
+   "kind": "class",
+   "start": 1794267000000,
+   "end": 1794281400000,
+   "format": "in_person",
+   "location": "",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Review",
+   "weekTitle": "Week 5",
+   "source": {
+    "id": "hub",
+    "name": "Hub My Schedule · screenshot Nov 7",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "hub:2026-11-10|l3 pm|12:30",
+   "subject": "Relative Equilibrium of Fluids in Moving Vessels",
+   "section": "L3 PM",
+   "kind": "class",
+   "start": 1794285000000,
+   "end": 1794299400000,
+   "format": "in_person",
+   "location": "",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Review",
+   "weekTitle": "Week 5",
+   "source": {
+    "id": "hub",
+    "name": "Hub My Schedule · screenshot Nov 7",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "hub:2026-11-11|k4 am|7:30",
+   "subject": "Relative Equilibrium of Fluids in Moving Vessels",
+   "section": "K4 AM",
+   "kind": "class",
+   "start": 1794353400000,
+   "end": 1794367800000,
+   "format": "in_person",
+   "location": "",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Review",
+   "weekTitle": "Week 5",
+   "source": {
+    "id": "hub",
+    "name": "Hub My Schedule · screenshot Nov 7",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "hub:2026-11-11|k4 pm|12:30",
+   "subject": "Relative Equilibrium of Fluids in Moving Vessels",
+   "section": "K4 PM",
+   "kind": "class",
+   "start": 1794371400000,
+   "end": 1794385800000,
+   "format": "in_person",
+   "location": "",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Review",
+   "weekTitle": "Week 5",
+   "source": {
+    "id": "hub",
+    "name": "Hub My Schedule · screenshot Nov 7",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "hub:2026-11-13|k2 eve|17:0",
+   "subject": "Relative Equilibrium of Fluids in Moving Vessels",
+   "section": "K2 EVE",
+   "kind": "class",
+   "start": 1794560400000,
+   "end": 1794574800000,
+   "format": "in_person",
+   "location": "Kysey Building, 2nd Floor",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Review",
+   "weekTitle": "Week 5",
+   "source": {
+    "id": "hub",
+    "name": "Hub My Schedule · screenshot Nov 7",
+    "method": "screenshot"
+   }
+  }
+ ],
+ "review": [
+  {
+   "id": "wk5-rooms",
+   "title": "Rooms for L3 and K4 (Nov 10–11)",
+   "source": "Hub My Schedule screenshot (Nov 7)",
+   "detail": "Your screenshot shows the building only for L2 EVE (Labangon, 2nd Floor) and K2 EVE (Kysey, 2nd Floor). Tap a Tue/Wed class to see the room on the hub, or send a screenshot of those days."
+  }
+ ]
+}

@@ -1,0 +1,33 @@
+// The hub "My Schedule" grid for Review Week 4 (Nov 2–7, 2026), as text copied from the page (tab-separated).
+// Rebuilt from the user's screenshot. Other instructors' initials are replaced with placeholders (ZAA, ZBB, …); GDL is the user's own.
+const T = r => r.join('\t');
+export const hubWeek4 = [
+  'Review Week 4',
+  T(['Sections', 'Time', 'Mon (Nov 2)', 'Tue (Nov 3)', 'Wed (Nov 4)', 'Thu (Nov 5)', 'Fri (Nov 6)', 'Sat (Nov 7)']),
+  '',
+  T(['MNL AM', '8:00 AM - 12:00 NN', '', 'ZLL', 'ZII - C', 'ZII - D', 'ZDD - E', '']),
+  T(['MNL PM (HYB)', '1:00 PM - 5:00 PM', '', 'Online Only', 'ZII - C', 'Online Only', 'ZDD - E', '']),
+  '',
+  T(['ONLINE', '8:00 AM - 12:00 NN', 'GDL - A', 'ZAA - B', 'ZKK - C', 'ZGG - D', 'ZHH - E', '']),
+  '',
+  T(['K2 AM', '7:30 AM - 11:30 AM', '', 'ZDD - E', 'ZAA - B', 'ZKK - C', 'ZGG - D', '']),
+  T(['K4 AM', '7:30 AM - 11:30 AM', '', 'ZHH - E', 'ZBB - B', 'ZJJ - C', 'ZFF - D', '']),
+  T(['L2 AM', '7:30 AM - 11:30 AM', '', 'ZFF - D', 'ZDD - E', 'GDL - B', 'ZJJ - C', '']),
+  T(['L3 AM', '7:30 AM - 11:30 AM', '', 'ZGG - D', 'ZHH - E', 'ZAA - B', 'ZKK - C', '']),
+  T(['X3 AM', '7:30 AM - 11:30 AM', '', 'GDL - B', 'ZJJ - C', 'ZFF - D', 'ZEE - E', '']),
+  '',
+  T(['K2 PM', '12:30 PM - 4:30 PM', '', 'ZDD - E', 'ZAA - B', 'ZCC - C', 'ZGG - D', '']),
+  T(['K4 PM', '12:30 PM - 4:30 PM', '', 'ZHH - E', 'ZBB - B', 'ZJJ - C', 'ZFF - D', '']),
+  T(['L2 PM', '12:30 PM - 4:30 PM', '', 'ZEE - D', 'ZDD - E', 'GDL - B', 'ZJJ - C', '']),
+  T(['L3 PM', '12:30 PM - 4:30 PM', '', 'ZGG - D', 'ZHH - E', 'ZAA - B', 'ZKK - C', '']),
+  T(['X3 PM', '12:30 PM - 4:30 PM', '', 'GDL - B', 'ZCC - C', 'ZFF - D', 'ZEE - E', '']),
+  '',
+  T(['K2 EV', '5:00 PM - 9:00 PM', '', 'ZCC - C', 'ZGG - D', 'ZHH - E', 'ZAA - B', '']),
+  T(['K4 EV', '5:00 PM - 9:00 PM', '', 'ZKK - C', 'ZFF - D', 'ZEE - E', 'ZBB - B', '']),
+  T(['L2 EV', '5:00 PM - 9:00 PM', '', 'ZFF - D', 'ZEE - E', 'ZBB - B', 'ZCC - C', '']),
+  T(['X3 EV', '5:00 PM - 9:00 PM', '', 'ZBB - B', 'ZKK - C', 'ZGG - D', 'ZHH - E', '']),
+  '',
+  T(['Remote Consultation', '1:00 - 4:00 PM', '', '', '', '', '', '']),
+  T(['PM Live Consultation', '1:00 - 4:00 PM', '', 'ZII', '', 'ZLL', '', '']),
+  T(['EV Live Consultation', '6:00- 9:00 PM', 'ZLL', '', 'ZCC', '', '', '']),
+].join('\n');

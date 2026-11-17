@@ -1,0 +1,28 @@
+{
+ "v": 1,
+ "kind": "ace-import",
+ "label": "Substitute class · K4 EVE, Fri Nov 6 (you, Nov 17)",
+ "createdAt": 1794891600000,
+ "sessions": [
+  {
+   "externalId": "sub:2026-11-06|k4 eve|17:0",
+   "subject": "Buoyancy and Stability",
+   "section": "K4 EVE",
+   "kind": "class",
+   "start": 1793955600000,
+   "end": 1793970000000,
+   "format": "in_person",
+   "location": "Kysey Building, 4th Floor",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Substitute",
+   "weekTitle": "Week 4",
+   "source": {
+    "id": "user",
+    "name": "Told by you · Nov 17 (substitute class)",
+    "method": "manual"
+   },
+   "substitute": true
+  }
+ ]
+}
