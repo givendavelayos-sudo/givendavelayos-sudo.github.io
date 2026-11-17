@@ -88,3 +88,18 @@ const updH = { v: 1, kind: 'ace-import', label: 'Hub schedule · Week 5 rooms (s
   sessions: wk5.map(x => ({ ...x, location: ROOMS[x.section] })), resolve: ['wk5-rooms'] };
 fs.writeFileSync(new URL('../seed/gertc-2026-11-07h.json', import.meta.url), JSON.stringify(updH, null, 1));
 console.log('update h: Week 5 rooms');
+
+// Update i — hub "My Schedule" screenshots for Week 6 (Nov 16–22), received Nov 17. Lead week: "Review · Fluid Flow 1".
+// Times read from the grid (7:30–11:30 AM, 12:30–4:30 PM, 5–9 PM evening); day totals Mon 8h · Tue 4h · Thu 4h · Fri 8h = 24h
+// match the screenshot. No ONLINE label, so in person. Rooms aren't shown: L2 and K4 assumed the same as Week 5.
+const W6 = 'Fluid Flow 1';
+const cls6 = (d, h0, m0, h1, m1, section, location = '') => ({ ...cls(d, h0, m0, h1, m1, section, location), subject: W6, weekTitle: 'Week 6',
+  source: { id: 'hub', name: 'Hub My Schedule · screenshot Nov 17', method: 'screenshot' } });
+const wk6 = [cls6(16, 7, 30, 11, 30, 'L2 AM', 'Labangon Building, 2nd Floor'), cls6(16, 12, 30, 16, 30, 'L2 PM', 'Labangon Building, 2nd Floor'),
+  cls6(17, 12, 30, 16, 30, 'EX PM'), cls6(19, 17, 0, 21, 0, 'K4 EVE', 'Kysey Building, 4th Floor'),
+  cls6(20, 7, 30, 11, 30, 'K4 AM', 'Kysey Building, 4th Floor'), cls6(20, 12, 30, 16, 30, 'K4 PM', 'Kysey Building, 4th Floor')];
+const updI = { v: 1, kind: 'ace-import', label: 'Hub schedule · Week 6 Fluid Flow 1 (Nov 16–22), screenshot Nov 17', createdAt: E.mk(2026, 11, 17, 11, 25), sessions: wk6,
+  review: [{ id: 'wk6-rooms', title: 'Rooms for Week 6 (Fluid Flow 1)', source: 'Hub My Schedule screenshot (Nov 17)',
+    detail: 'The screenshot shows no rooms. Ace assumes L2 = Labangon 2nd Floor and K4 = Kysey 4th Floor (as in Week 5); EX PM (Tue) has no room yet. Tap a class on the hub to check.' }] };
+fs.writeFileSync(new URL('../seed/gertc-2026-11-17i.json', import.meta.url), JSON.stringify(updI, null, 1));
+console.log('update i: Week 6 hub schedule,', wk6.length, 'classes,', wk6.reduce((n, s) => n + (s.end - s.start) / 36e5, 0) + 'h');

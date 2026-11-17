@@ -10,6 +10,9 @@ _Last updated 2026-11-07 · deployed from `givendavelayos-sudo/gdgertc` (main) o
   banner after 30 h, no horizontal overflow.
 - Power untouched (no files outside `ace/` changed).
 
+## v0.8.4 (Nov 17) — Week 6 schedule
+`seed/gertc-2026-11-17i.json`: hub My Schedule Week 6 (Fluid Flow 1, lead), 6 classes / 24 h; rooms for L2/K4 assumed from Week 5 (review item `wk6-rooms`).
+
 ## v0.8.1–0.8.3 (Nov 7) — iPhone alarms
 - Lecture sheet → **Alarms** (only for the first class of a day, `firstOfDay`): bath alarm `ui.alarms.bathMin` (90) and
   leave alarm `ui.alarms.leaveMin` (30) before leave-by time. Offered within 24 h of the first alarm (Clock alarms have no date).

@@ -1,0 +1,130 @@
+{
+ "v": 1,
+ "kind": "ace-import",
+ "label": "Hub schedule · Week 6 Fluid Flow 1 (Nov 16–22), screenshot Nov 17",
+ "createdAt": 1794885900000,
+ "sessions": [
+  {
+   "externalId": "hub:2026-11-16|l2 am|7:30",
+   "subject": "Fluid Flow 1",
+   "section": "L2 AM",
+   "kind": "class",
+   "start": 1794785400000,
+   "end": 1794799800000,
+   "format": "in_person",
+   "location": "Labangon Building, 2nd Floor",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Review",
+   "weekTitle": "Week 6",
+   "source": {
+    "id": "hub",
+    "name": "Hub My Schedule · screenshot Nov 17",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "hub:2026-11-16|l2 pm|12:30",
+   "subject": "Fluid Flow 1",
+   "section": "L2 PM",
+   "kind": "class",
+   "start": 1794803400000,
+   "end": 1794817800000,
+   "format": "in_person",
+   "location": "Labangon Building, 2nd Floor",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Review",
+   "weekTitle": "Week 6",
+   "source": {
+    "id": "hub",
+    "name": "Hub My Schedule · screenshot Nov 17",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "hub:2026-11-17|ex pm|12:30",
+   "subject": "Fluid Flow 1",
+   "section": "EX PM",
+   "kind": "class",
+   "start": 1794889800000,
+   "end": 1794904200000,
+   "format": "in_person",
+   "location": "",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Review",
+   "weekTitle": "Week 6",
+   "source": {
+    "id": "hub",
+    "name": "Hub My Schedule · screenshot Nov 17",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "hub:2026-11-19|k4 eve|17:0",
+   "subject": "Fluid Flow 1",
+   "section": "K4 EVE",
+   "kind": "class",
+   "start": 1795078800000,
+   "end": 1795093200000,
+   "format": "in_person",
+   "location": "Kysey Building, 4th Floor",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Review",
+   "weekTitle": "Week 6",
+   "source": {
+    "id": "hub",
+    "name": "Hub My Schedule · screenshot Nov 17",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "hub:2026-11-20|k4 am|7:30",
+   "subject": "Fluid Flow 1",
+   "section": "K4 AM",
+   "kind": "class",
+   "start": 1795131000000,
+   "end": 1795145400000,
+   "format": "in_person",
+   "location": "Kysey Building, 4th Floor",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Review",
+   "weekTitle": "Week 6",
+   "source": {
+    "id": "hub",
+    "name": "Hub My Schedule · screenshot Nov 17",
+    "method": "screenshot"
+   }
+  },
+  {
+   "externalId": "hub:2026-11-20|k4 pm|12:30",
+   "subject": "Fluid Flow 1",
+   "section": "K4 PM",
+   "kind": "class",
+   "start": 1795149000000,
+   "end": 1795163400000,
+   "format": "in_person",
+   "location": "Kysey Building, 4th Floor",
+   "platform": "",
+   "status": "scheduled",
+   "remarks": "Review",
+   "weekTitle": "Week 6",
+   "source": {
+    "id": "hub",
+    "name": "Hub My Schedule · screenshot Nov 17",
+    "method": "screenshot"
+   }
+  }
+ ],
+ "review": [
+  {
+   "id": "wk6-rooms",
+   "title": "Rooms for Week 6 (Fluid Flow 1)",
+   "source": "Hub My Schedule screenshot (Nov 17)",
+   "detail": "The screenshot shows no rooms. Ace assumes L2 = Labangon 2nd Floor and K4 = Kysey 4th Floor (as in Week 5); EX PM (Tue) has no room yet. Tap a class on the hub to check."
+  }
+ ]
+}
