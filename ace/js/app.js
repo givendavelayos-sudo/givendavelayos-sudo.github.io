@@ -530,7 +530,7 @@ const grp = (title, rows) => `<div class="group"><div class="group-t">${esc(titl
 const rowLink = (label, sub, a, id = '', extra = '') => `<button class="srow" data-a="${a}" data-id="${esc(id)}"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div>${extra}${ico('chev', 16)}</button>`;
 const rowToggle = (label, sub, path, on) => `<label class="srow"><div class="grow"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}</div><input type="checkbox" class="switch" data-f="${path}" ${on ? 'checked' : ''}></label>`;
 const rowBox = (label, html, sub = '') => `<div class="srow col"><div class="s-l">${esc(label)}</div>${sub ? `<div class="s-s">${esc(sub)}</div>` : ''}${html}</div>`;
-const VERSION = '0.8.4';
+const VERSION = '0.8.5';
 function importSummary(r) {
   if (!r) return '';
   const x = [];
@@ -558,7 +558,7 @@ function sealedCard() {
     <div class="row" style="margin-top:12px;gap:8px"><input type="password" id="sealpass" placeholder="Passcode" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"><button class="btn sm" data-a="unseal" data-id="${esc(p.id)}">Unlock</button></div></div>`;
 }
 // Each screenshot batch you send is shipped as a new file here; every device imports each one once.
-const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json', 'seed/gertc-2026-11-06c.json', 'seed/gertc-2026-11-06d.json', 'seed/gertc-2026-11-06e.json', 'seed/gertc-2026-11-06f.json', 'seed/gertc-2026-11-07g.json', 'seed/gertc-2026-11-07h.json', 'seed/gertc-2026-11-17i.json'];
+const SEEDS = ['seed/gertc-2026-11-06.json', 'seed/gertc-2026-11-06b.json', 'seed/gertc-2026-11-06c.json', 'seed/gertc-2026-11-06d.json', 'seed/gertc-2026-11-06e.json', 'seed/gertc-2026-11-06f.json', 'seed/gertc-2026-11-07g.json', 'seed/gertc-2026-11-07h.json', 'seed/gertc-2026-11-17i.json', 'seed/gertc-2026-11-17j.json'];
 const seedNews = { added: 0, changed: 0 };
 async function runSeeds() {
   const firstRun = !Object.keys(state.imports || {}).length;
@@ -634,7 +634,8 @@ const PANELS = {
   },
   whatsnew() {
     const v = (n, d, items) => `<div class="card" style="margin-bottom:10px"><div class="row"><b class="grow">Version ${n}</b><span class="muted small">${d}</span></div><ul class="small" style="margin:8px 0 0 18px;padding:0">${items.map(i => `<li style="margin:4px 0">${i}</li>`).join('')}</ul></div>`;
-    return ['What’s new', v('0.8.4', 'Nov 17, 2026', ['Week 6 schedule (Fluid Flow 1, lead): Mon L2 AM/PM, Tue EX PM, Thu K4 EVE, Fri K4 AM/PM'])
+    return ['What’s new', v('0.8.5', 'Nov 17, 2026', ['Substitute class added: K4 EVE, Fri Nov 6, 5–9 PM (Kysey 4F)'])
+      + v('0.8.4', 'Nov 17, 2026', ['Week 6 schedule (Fluid Flow 1, lead): Mon L2 AM/PM, Tue EX PM, Thu K4 EVE, Fri K4 AM/PM'])
       + v('0.8.3', 'Nov 7, 2026', ['Reminder to set your iPhone alarms: a notification the evening before (8 PM) and a one-tap row on Week until they are set'])
       + v('0.8.2', 'Nov 7, 2026', ['Alarm setup guide: a ready-to-paste description for the Shortcuts app'])
       + v('0.8.1', 'Nov 7, 2026', ['Set iPhone alarms for the first class of each day: take a bath (1 h 30 before leaving) and leave in 30 minutes — via the Shortcuts app'])

@@ -10,6 +10,9 @@ _Last updated 2026-11-07 · deployed from `givendavelayos-sudo/gdgertc` (main) o
   banner after 30 h, no horizontal overflow.
 - Power untouched (no files outside `ace/` changed).
 
+## v0.8.5 (Nov 17) — substitute class
+`seed/gertc-2026-11-17j.json`: K4 EVE substitute, Fri Nov 6 5–9 PM, Kysey 4F (`substitute: true`). Nov 1–15 total: 12 classes · 48 h.
+
 ## v0.8.4 (Nov 17) — Week 6 schedule
 `seed/gertc-2026-11-17i.json`: hub My Schedule Week 6 (Fluid Flow 1, lead), 6 classes / 24 h; rooms for L2/K4 assumed from Week 5 (review item `wk6-rooms`).
 

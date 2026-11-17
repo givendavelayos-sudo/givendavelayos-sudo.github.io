@@ -103,3 +103,12 @@ const updI = { v: 1, kind: 'ace-import', label: 'Hub schedule · Week 6 Fluid Fl
     detail: 'The screenshot shows no rooms. Ace assumes L2 = Labangon 2nd Floor and K4 = Kysey 4th Floor (as in Week 5); EX PM (Tue) has no room yet. Tap a class on the hub to check.' }] };
 fs.writeFileSync(new URL('../seed/gertc-2026-11-17i.json', import.meta.url), JSON.stringify(updI, null, 1));
 console.log('update i: Week 6 hub schedule,', wk6.length, 'classes,', wk6.reduce((n, s) => n + (s.end - s.start) / 36e5, 0) + 'h');
+
+// Update j — user (Nov 17): "I did a substitute class on November 6, 5 pm to 9 pm, Kysey 4F room, K4 Eve class."
+// Week 4 topic assumed from the other Week 4 in-person classes (Buoyancy and Stability).
+const sub = { ...cls(6, 17, 0, 21, 0, 'K4 EVE', 'Kysey Building, 4th Floor'), externalId: 'sub:2026-11-06|k4 eve|17:0',
+  subject: 'Buoyancy and Stability', remarks: 'Substitute', weekTitle: 'Week 4', substitute: true,
+  source: { id: 'user', name: 'Told by you · Nov 17 (substitute class)', method: 'manual' } };
+const updJ = { v: 1, kind: 'ace-import', label: 'Substitute class · K4 EVE, Fri Nov 6 (you, Nov 17)', createdAt: E.mk(2026, 11, 17, 13), sessions: [sub] };
+fs.writeFileSync(new URL('../seed/gertc-2026-11-17j.json', import.meta.url), JSON.stringify(updJ, null, 1));
+console.log('update j: substitute K4 EVE Nov 6');
